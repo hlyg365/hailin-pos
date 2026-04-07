@@ -1,0 +1,44 @@
+{
+  "name": "海邻收银台",
+  "short_name": "海邻收银",
+  "description": "海邻到家社区便利店智能收银系统",
+  "start_url": "/pos",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FF6B35",
+  "theme_color": "#FF6B35",
+  "scope": "/pos",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "收银台",
+      "short_name": "收银",
+      "description": "快速进入收银界面",
+      "url": "/pos",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "商品管理",
+      "short_name": "商品",
+      "description": "管理商品信息",
+      "url": "/pos/products",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "96x96" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
