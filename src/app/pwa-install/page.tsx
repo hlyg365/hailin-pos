@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Apple,
   Chrome,
-  Safari,
   ArrowRight,
   ChevronDown,
   ChevronUp,
