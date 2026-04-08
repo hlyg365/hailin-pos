@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 
 // 判断是否为登录页面路径
 function isLoginPath(pathname: string): boolean {
-  return pathname.startsWith('/auth/login');
+  return pathname.startsWith('/dashboard/auth/login') || pathname.startsWith('/dashboard/login');
 }
 
 // 内部布局组件，使用认证 Hook
@@ -45,7 +45,7 @@ function DashboardLayoutContent({
   useEffect(() => {
     // 避免重复重定向
     if (!loading && !isAuthenticated && !isLoginPath(pathname)) {
-      router.replace('/auth/login');
+      router.replace('/dashboard/auth/login');
     }
   }, [loading, isAuthenticated, pathname, router]);
 
