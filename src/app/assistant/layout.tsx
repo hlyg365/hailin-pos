@@ -74,7 +74,8 @@ export default function AssistantLayout({
     router.push('/assistant/auth/login');
   };
 
-  if (pathname === '/assistant/login') {
+  // 登录页面直接返回（处理带斜杠和不带斜杠的路径）
+  if (pathname.startsWith('/assistant/auth/login') || pathname.startsWith('/assistant/login')) {
     return children;
   }
 

@@ -217,8 +217,9 @@ export default function StoreAdminLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 登录页面不需要布局
-  const isLoginPage = pathname === '/store-admin/auth/login' || pathname === '/store-admin/login';
+  // 登录页面不需要布局（处理带斜杠和不带斜杠的路径）
+  const isLoginPage = pathname.startsWith('/store-admin/auth/login') || 
+                      pathname.startsWith('/store-admin/login');
 
   // 初始化认证状态 - 只在客户端执行
   useEffect(() => {
