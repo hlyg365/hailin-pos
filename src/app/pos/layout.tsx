@@ -10,8 +10,8 @@ export default function PosLayout({
 }) {
   const pathname = usePathname();
   
-  // 登录页面不显示侧边栏
-  const isLoginPage = pathname === '/pos/login' || pathname === '/pos/login/';
+  // 登录页面不显示侧边栏（处理带斜杠和不带斜杠的路径）
+  const isLoginPage = pathname.startsWith('/pos/login');
   
   if (isLoginPage) {
     return (
