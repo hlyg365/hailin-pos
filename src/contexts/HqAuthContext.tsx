@@ -116,7 +116,12 @@ function getStoredUser(): HqUser | null {
 
 // 判断是否为登录页面路径
 function isLoginPath(pathname: string): boolean {
-  return pathname.startsWith('/auth/login');
+  return pathname.startsWith('/dashboard/auth/login') || 
+         pathname.startsWith('/dashboard/login') ||
+         pathname.startsWith('/store-admin/auth/login') ||
+         pathname.startsWith('/store-admin/login') ||
+         pathname.startsWith('/assistant/auth/login') ||
+         pathname.startsWith('/assistant/login');
 }
 
 // 登录页面使用的简化 Provider
