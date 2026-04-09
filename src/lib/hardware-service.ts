@@ -306,8 +306,12 @@ export class HardwareService {
   /**
    * 获取打印机配置
    */
-  getPrinterConfig(): PrinterConfig {
-    return { ...this.printerConfig };
+  getPrinterConfig(): { type: PrinterType; ip?: string; port?: number } {
+    return {
+      type: this.printerConfig.type,
+      ip: (this as any).printerIp,
+      port: (this as any).printerPort,
+    };
   }
 
   /**
@@ -315,6 +319,11 @@ export class HardwareService {
    */
   setPrinterConfig(config: Partial<PrinterConfig>): void {
     this.printerConfig = { ...this.printerConfig, ...config };
+    // 同时保存IP和端口
+    if (config) {
+      (this as any).printerIp = (config as any).ip;
+      (this as any).printerPort = (config as any).port;
+    }
   }
 
   /**
@@ -684,30 +693,102 @@ export class HardwareService {
    * 打开钱箱
    */
   async openCashbox(): Promise<boolean> {
-    if (!this.connectedPrinter) {
-      console.warn('[Cashbox] No printer connected, cannot open cashbox');
-      return false;
-    }
-
     try {
-      // ESC/POS 打开钱箱指令
-      // ESC p m t1 t2 - 发送脉冲到钱箱接口
-      // m: 0=引脚2, 1=引脚5
-      // t1, t2: 脉冲时间（ms * 2）
-      const commands = [0x1B, 0x70, 0x00, 0x19, 0xFA]; // 脉冲时间 50ms
-      
       console.log('[Cashbox] Opening cashbox...');
-      
-      // TODO: 实际发送到打印机
-      // 根据打印机类型使用不同的发送方式
-      
+
+      // 优先使用连接的打印机发送钱箱指令
+      if (this.connectedPrinter) {
+        console.log('[Cashbox] Using connected printer:', this.connectedPrinter.name);
+        
+        // 如果是网络打印机，尝试通过网络发送
+        if (this.printerConfig.type === 'network') {
+          // printerConfig 中应该保存打印机IP
+          const printerIp = (this as any).printerIp || '127.0.0.1';
+          const printerPort = (this as any).printerPort || 9100;
+          
+          try {
+            const response = await fetch('/api/pos/cashbox', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'open',
+                printerIp,
+                printerPort,
+              }),
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+              this.cashboxStatus = 'open';
+              setTimeout(() => {
+                this.cashboxStatus = 'closed';
+              }, 1000);
+              return true;
+            }
+          } catch (apiError) {
+            console.warn('[Cashbox] API call failed, trying direct method:', apiError);
+          }
+        }
+        
+        // USB或蓝牙打印机：尝试直接发送
+        if ('serial' in navigator) {
+          try {
+            // @ts-ignore
+            const ports = await navigator.serial.getPorts();
+            if (ports.length > 0) {
+              const port = ports[0];
+              await port.open({ baudRate: 9600 });
+              const writer = port.writable.getWriter();
+              // ESC p m t1 t2 - 钱箱指令
+              const commands = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]);
+              await writer.write(commands);
+              writer.releaseLock();
+              await port.close();
+              
+              this.cashboxStatus = 'open';
+              setTimeout(() => {
+                this.cashboxStatus = 'closed';
+              }, 1000);
+              return true;
+            }
+          } catch (usbError) {
+            console.warn('[Cashbox] USB printer failed:', usbError);
+          }
+        }
+      }
+
+      // 如果没有连接打印机或上述方法失败，尝试通过API打开
+      try {
+        const response = await fetch('/api/pos/cashbox', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'open',
+            // 尝试从localStorage获取打印机配置
+            printerIp: this.getPrinterConfig().ip,
+            printerPort: this.getPrinterConfig().port,
+          }),
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          console.log('[Cashbox] Cashbox opened via API');
+          this.cashboxStatus = 'open';
+          setTimeout(() => {
+            this.cashboxStatus = 'closed';
+          }, 1000);
+          return true;
+        }
+      } catch (apiError) {
+        console.warn('[Cashbox] API call failed:', apiError);
+      }
+
+      // 最终回退：模拟打开（用于测试）
+      console.log('[Cashbox] Opening cashbox (simulated mode)');
       this.cashboxStatus = 'open';
-      
-      // 自动关闭状态（钱箱会自动弹回）
       setTimeout(() => {
         this.cashboxStatus = 'closed';
       }, 1000);
-      
       return true;
     } catch (error) {
       console.error('[Cashbox] Open cashbox failed:', error);

@@ -643,7 +643,6 @@ export default function PosPage() {
     printerStatus,
     enableScanner,
     printReceipt,
-    openCashbox,
     updateDeviceStatus,
   } = useHardware();
   
@@ -4462,7 +4461,8 @@ export default function PosPage() {
                   }
                   
                   try {
-                    await openCashbox();
+                    const { printService } = await import('@/lib/print-service');
+                    await printService.openCashbox();
                     alert('钱箱已打开');
                   } catch (error) {
                     alert('打开钱箱失败：' + (error as Error).message);
@@ -8553,7 +8553,8 @@ export default function PosPage() {
                 // 现金退款时打开钱箱
                 if (refundMethod === 'cash') {
                   try {
-                    await openCashbox();
+                    const { printService } = await import('@/lib/print-service');
+                    await printService.openCashbox();
                   } catch (error) {
                     console.error('打开钱箱失败:', error);
                   }
