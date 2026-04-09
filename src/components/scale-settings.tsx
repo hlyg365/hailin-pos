@@ -36,9 +36,12 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
   useEffect(() => {
     // 加载配置
     const savedConfig = topScaleService.getConfig();
-    if (savedConfig.ip !== '192.168.1.100' || savedConfig.port !== 4001) {
-      setConfig(savedConfig);
-    }
+    const savedSerialConfig = topScaleService.getSerialConfig();
+    const savedConnectionType = topScaleService.getConnectionType();
+    
+    setConfig(savedConfig);
+    setSerialConfig(savedSerialConfig);
+    setConnectionType(savedConnectionType);
     setIsConnected(topScaleService.getIsConnected());
 
     // 设置回调
@@ -55,11 +58,13 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
     setMessage(null);
     
     try {
-      // 保存配置
+      // 保存所有配置
       topScaleService.saveConfig(config);
+      topScaleService.saveSerialConfig(serialConfig);
+      topScaleService.setConnectionType(connectionType);
       
       // 连接
-      const result = await topScaleService.connect();
+      const result = await topScaleService.connect(connectionType);
       
       if (result.success) {
         setIsConnected(true);
