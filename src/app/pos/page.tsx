@@ -629,11 +629,12 @@ export default function PosPage() {
     cashDrawerAutoOpen: true,
     cashDrawerOpenDelay: 100, // 打开延迟（毫秒）
     cashDrawerPulseWidth: 50, // 脉冲宽度（毫秒）
-    cashDrawerConnectionType: 'simulated', // 连接方式：serial, network, simulated
+    cashDrawerConnectionType: 'http', // 连接方式：serial, network, http, simulated
     cashDrawerSerialPort: 'COM3', // 串口地址
     cashDrawerBaudRate: 9600, // 波特率
     cashDrawerNetworkIp: '', // 网络IP地址
     cashDrawerNetworkPort: 9100, // 网络端口
+    cashDrawerHttpApiUrl: '', // HTTP/APP模式API地址
   });
   
   // 更新设置的帮助函数
@@ -4431,12 +4432,16 @@ export default function PosPage() {
                   if (typeof window !== 'undefined') {
                     import('@/lib/cashbox-service').then(({ cashboxService }) => {
                       cashboxService.saveConfig({
-                        connectionType: settings.cashDrawerConnectionType as 'serial' | 'network' | 'simulated',
+                        connectionType: settings.cashDrawerConnectionType as 'serial' | 'network' | 'http' | 'simulated',
                         serialPort: settings.cashDrawerSerialPort,
                         serialBaudRate: settings.cashDrawerBaudRate,
                         networkIp: settings.cashDrawerNetworkIp,
                         networkPort: settings.cashDrawerNetworkPort,
+                        httpApiUrl: settings.cashDrawerHttpApiUrl,
                         enabled: settings.cashDrawerEnabled,
+                        password: settings.cashDrawerPassword,
+                        openDelay: settings.cashDrawerOpenDelay,
+                        pulseWidth: settings.cashDrawerPulseWidth,
                       });
                     });
                   }
@@ -4472,7 +4477,7 @@ export default function PosPage() {
                   {/* 连接方式 */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">连接方式</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       <Button
                         variant={settings.cashDrawerConnectionType === 'serial' ? 'default' : 'outline'}
                         size="sm"
@@ -4488,6 +4493,14 @@ export default function PosPage() {
                         className="text-xs"
                       >
                         网络连接
+                      </Button>
+                      <Button
+                        variant={settings.cashDrawerConnectionType === 'http' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateSetting('cashDrawerConnectionType', 'http')}
+                        className="text-xs"
+                      >
+                        HTTP/APP
                       </Button>
                       <Button
                         variant={settings.cashDrawerConnectionType === 'simulated' ? 'default' : 'outline'}
@@ -4564,6 +4577,28 @@ export default function PosPage() {
                           placeholder="9100"
                           className="h-8 text-xs"
                         />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* HTTP/APP配置 */}
+                  {settings.cashDrawerConnectionType === 'http' && (
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="mb-3">
+                        <label className="text-xs text-gray-500 mb-1 block">钱箱SDK地址（可选）</label>
+                        <Input
+                          value={settings.cashDrawerHttpApiUrl || ''}
+                          onChange={(e) => updateSetting('cashDrawerHttpApiUrl', e.target.value)}
+                          placeholder="/api/pos/cashbox（使用默认）"
+                          className="h-8 text-xs"
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          留空使用默认API地址。适用于收银机APP的钱箱SDK接口
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 rounded text-xs text-blue-600">
+                        <span className="font-medium">APP模式说明：</span>
+                        <span>通过收银机内置的钱箱API控制，适用于原生APP环境</span>
                       </div>
                     </div>
                   )}
@@ -4645,13 +4680,17 @@ export default function PosPage() {
                 <div className="text-xs text-blue-700">
                   <p className="font-medium">连接方式说明</p>
                   <ul className="mt-2 space-y-1.5 list-disc list-inside">
-                    <li><strong>串口连接</strong>：钱箱直接通过串口线连接（如USB转串口）</li>
+                    <li><strong>串口连接</strong>：钱箱通过串口线直连（需要Web Serial API）</li>
                     <li><strong>网络连接</strong>：智能钱箱通过网络TCP/IP控制</li>
+                    <li><strong>HTTP/APP模式</strong>：通过收银机APP钱箱SDK控制（推荐APP环境）</li>
                     <li><strong>模拟模式</strong>：测试用，不实际打开钱箱</li>
                   </ul>
                   <p className="mt-2 text-blue-600">
-                    当前模式：{settings.cashDrawerConnectionType === 'serial' ? '串口连接' : 
-                              settings.cashDrawerConnectionType === 'network' ? '网络连接' : '模拟模式'}
+                    当前模式：{
+                      settings.cashDrawerConnectionType === 'serial' ? '串口连接' : 
+                      settings.cashDrawerConnectionType === 'network' ? '网络连接' :
+                      settings.cashDrawerConnectionType === 'http' ? 'HTTP/APP模式' : '模拟模式'
+                    }
                   </p>
                 </div>
               </div>
