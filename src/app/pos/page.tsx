@@ -270,8 +270,6 @@ export default function PosPage() {
   
   // 打印弹窗状态
   const [showPrintDialog, setShowPrintDialog] = useState(false);
-  const [showScreenReceipt, setShowScreenReceipt] = useState(false);
-  const [screenReceipt, setScreenReceipt] = useState('');
   
   // 锁屏状态
   const [isLocked, setIsLocked] = useState(false);
@@ -668,6 +666,22 @@ export default function PosPage() {
   // 晚8点清货状态
   const [clearanceMode, setClearanceMode] = useState(false);
   const [clearanceDiscount, setClearanceDiscount] = useState(0.5); // 默认5折
+  
+  // 称重相关状态
+  const [currentWeight, setCurrentWeight] = useState(0);
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'jin'>('jin');
+  const [scaleConnected, setScaleConnected] = useState(false);
+  
+  // 激活语音播报（需要在用户交互后调用）
+  useEffect(() => {
+    // 页面加载后自动激活语音
+    const timer = setTimeout(() => {
+      if (speechSupported && !speechActivated) {
+        activateSpeech();
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [speechSupported, speechActivated, activateSpeech]);
   
   // AI识别相关状态
   const [showAIRecognize, setShowAIRecognize] = useState(false);
@@ -1847,11 +1861,7 @@ export default function PosPage() {
         const printResult = await printService.print(receiptData);
         
         if (printResult.success) {
-          // 如果有屏幕打印内容，显示在弹窗中
-          if (printResult.screenContent) {
-            setScreenReceipt(printResult.screenContent);
-            setShowScreenReceipt(true);
-          }
+          // 打印成功，静默完成
           console.log('[POS] 打印成功:', printResult.message);
         } else {
           console.warn('[POS] 打印失败:', printResult.message);
@@ -5596,6 +5606,56 @@ export default function PosPage() {
 
             {/* 右侧购物车/结算区 */}
             <div className="w-[340px] bg-white border-l flex flex-col shrink-0">
+              {/* 称重数据显示区 */}
+              <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-3 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Scale className="h-4 w-4" />
+                    <span className="text-sm font-medium">称重数据</span>
+                  </div>
+                  <Badge variant="secondary" className={`text-xs ${scaleConnected ? 'bg-green-400' : 'bg-gray-400'}`}>
+                    {scaleConnected ? '已连接' : '未连接'}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-white/20 rounded-lg p-2">
+                    <p className="text-xs text-green-100">重量</p>
+                    <p className="text-lg font-bold">{currentWeight.toFixed(2)}</p>
+                    <p className="text-xs text-green-100">{weightUnit}</p>
+                  </div>
+                  <div className="bg-white/20 rounded-lg p-2">
+                    <p className="text-xs text-green-100">单价</p>
+                    <p className="text-lg font-bold">
+                      {weightInfo?.price ? `¥${weightInfo.price.toFixed(2)}` : '¥0.00'}
+                    </p>
+                    <p className="text-xs text-green-100">/500g</p>
+                  </div>
+                  <div className="bg-white/20 rounded-lg p-2">
+                    <p className="text-xs text-green-100">小计</p>
+                    <p className="text-lg font-bold">
+                      ¥{weightInfo?.subtotal ? weightInfo.subtotal.toFixed(2) : '0.00'}
+                    </p>
+                    <p className="text-xs text-green-100">元</p>
+                  </div>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="secondary"
+                  className="w-full mt-2 h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
+                  onClick={() => {
+                    // 连接电子秤
+                    setScaleConnected(!scaleConnected);
+                    if (!scaleConnected) {
+                      setCurrentWeight(Math.random() * 2 + 0.5); // 模拟数据
+                    } else {
+                      setCurrentWeight(0);
+                    }
+                  }}
+                >
+                  {scaleConnected ? '断开电子秤' : '连接电子秤'}
+                </Button>
+              </div>
+              
               {/* 金额显示区 - 深色背景 */}
               <div className="bg-[#3a3f47] text-white p-4 shrink-0">
                 <div className="text-center mb-4">
@@ -8629,10 +8689,6 @@ export default function PosPage() {
                     footer: '【预打印小票】',
                   };
                   const result = await printService.print(receiptData);
-                  if (result.screenContent) {
-                    setScreenReceipt(result.screenContent);
-                    setShowScreenReceipt(true);
-                  }
                   setShowPrintDialog(false);
                   alert(result.message);
                 } catch (error) {
@@ -8688,38 +8744,6 @@ export default function PosPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
               关闭
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 屏幕小票弹窗 */}
-      <Dialog open={showScreenReceipt} onOpenChange={setShowScreenReceipt}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Printer className="h-5 w-5 text-green-500" />
-              小票预览
-            </DialogTitle>
-            <DialogDescription>
-              请核对小票内容，如需打印请到打印机设置
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <pre className="bg-gray-100 p-4 rounded-lg text-xs font-mono whitespace-pre-wrap overflow-x-auto">
-              {screenReceipt}
-            </pre>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowScreenReceipt(false)}>
-              关闭
-            </Button>
-            <Button onClick={() => {
-              // 复制小票内容
-              navigator.clipboard.writeText(screenReceipt);
-              alert('小票内容已复制到剪贴板');
-            }}>
-              复制小票
             </Button>
           </DialogFooter>
         </DialogContent>
