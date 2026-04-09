@@ -300,26 +300,18 @@ export default function HardwarePage() {
   const handleOpenCashbox = async () => {
     setIsTesting(true);
     try {
-      // 使用printService打开钱箱
-      const { printService } = await import('@/lib/print-service');
-      const success = await printService.openCashbox();
+      const { cashboxService } = await import('@/lib/cashbox-service');
+      const result = await cashboxService.open();
       
-      if (success) {
-        setTestResult({
-          success: true,
-          message: '钱箱已打开（模拟模式）',
-        });
-      } else {
-        setTestResult({
-          success: false,
-          message: '打开钱箱失败',
-        });
-      }
+      setTestResult({
+        success: result.success,
+        message: result.message,
+      });
     } catch (err) {
       console.error('[Hardware] Open cashbox error:', err);
       setTestResult({
-        success: true, // 即使出错也显示成功，因为可能是模拟模式
-        message: '钱箱指令已发送',
+        success: false,
+        message: '打开钱箱失败',
       });
     } finally {
       setIsTesting(false);
