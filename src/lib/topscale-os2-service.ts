@@ -257,21 +257,43 @@ class TopScaleOS2Service {
   }
 
   // 通过API连接（后端代理模式）
-  private async connectViaApi(type: 'serial' | 'network'): Promise<{ success: boolean; message: string }> {
+  async connectViaApi(type: 'serial' | 'network'): Promise<{ success: boolean; message: string; mode?: string }> {
     console.log(`[TopScale] Connecting via API (${type} mode)...`);
+    console.log(`[TopScale] Config:`, {
+      serial: this.serialConfig,
+      network: this.config,
+      type,
+    });
     
     try {
-      const params = type === 'serial' 
-        ? `type=serial&port=${encodeURIComponent(this.serialConfig.port)}&baudRate=${this.serialConfig.baudRate}`
-        : `type=network&ip=${encodeURIComponent(this.config.ip)}&port=${this.config.port}`;
+      const response = await fetch('/api/scale/os2/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-scale-source': 'web-app',
+        },
+        body: JSON.stringify({
+          action: 'connect',
+          port: this.serialConfig.port,
+          baudRate: this.serialConfig.baudRate,
+          ip: this.config.ip,
+          portNum: this.config.port,
+          model: this.config.model,
+          simulated: false,
+        }),
+      });
       
-      const response = await fetch(`/api/scale/os2/connect?${params}`);
       const data = await response.json();
+      console.log('[TopScale] API response:', data);
       
       if (data.success) {
         this.isConnected = true;
         this.startApiPolling(type);
-        return { success: true, message: data.message || `${type === 'serial' ? '串口' : '网络'}连接成功` };
+        return { 
+          success: true, 
+          message: data.message || `${type === 'serial' ? '串口' : '网络'}连接成功`,
+          mode: data.mode,
+        };
       } else {
         // API也失败了，启用模拟模式
         console.log('[TopScale] API connection failed, enabling simulation mode');
@@ -380,16 +402,18 @@ class TopScaleOS2Service {
           ? `type=serial&port=${encodeURIComponent(this.serialConfig.port)}`
           : `type=network&ip=${encodeURIComponent(this.config.ip)}&port=${this.config.port}`;
         
-        const response = await fetch(`/api/scale/os2?${params}`);
+        const response = await fetch('/api/scale/os2?mock=true');
         const data = await response.json();
         
-        if (data.success && data.weight !== undefined) {
+        console.log('[TopScale] API weight data:', data);
+        
+        if (data.success && data.data) {
           this.lastWeight = {
-            weight: data.weight,
-            unit: 'kg',
-            stable: data.stable !== false,
-            tare: data.tare || 0,
-            netWeight: data.weight - (data.tare || 0),
+            weight: data.data.stable || data.data.instant || 0,
+            unit: data.data.unit || 'kg',
+            stable: data.data.status === 'OK',
+            tare: 0,
+            netWeight: data.data.stable || 0,
             timestamp: Date.now(),
           };
           
@@ -399,7 +423,7 @@ class TopScaleOS2Service {
           }
         }
       } catch (e) {
-        // API请求失败，启用模拟
+        console.error('[TopScale] API polling error:', e);
         this.enableSimulationMode();
         return;
       }

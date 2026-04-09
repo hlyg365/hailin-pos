@@ -602,6 +602,8 @@ export default function PosPage() {
     // 电子秤设置
     scalePort: 'COM1',
     scaleBaudRate: 9600,
+    scaleNetworkIp: '192.168.1.100', // 网络秤IP地址
+    scaleNetworkPort: 4001, // 网络秤端口
     barcodeScaleType: 'none' as 'none' | 'tm-ab' | 'tm-f' | 'ls2zx',
     aiScaleEnabled: false,
     aiScaleModel: 'doubao-seed-1-6-vision-250815',
@@ -4349,9 +4351,63 @@ export default function PosPage() {
                   <option value="none">不使用条码秤</option>
                   <option value="tm-ab">大华 TM-AB</option>
                   <option value="tm-f">大华 TM-F</option>
-                  <option value="ls2zx">顶尖 LS2ZX</option>
+                  <option value="ls2zx">顶尖 LS2ZX（推荐）</option>
                 </select>
               </div>
+              
+              {/* 串口配置 */}
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">串口地址</label>
+                  <Input 
+                    value={settings.scalePort}
+                    onChange={(e) => updateSetting('scalePort', e.target.value)}
+                    placeholder="如 COM1, /dev/ttyUSB0"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">波特率</label>
+                  <select 
+                    className="w-full h-10 px-3 border rounded-md text-sm"
+                    value={settings.scaleBaudRate}
+                    onChange={(e) => updateSetting('scaleBaudRate', parseInt(e.target.value))}
+                  >
+                    <option value="1200">1200</option>
+                    <option value="2400">2400</option>
+                    <option value="4800">4800</option>
+                    <option value="9600">9600（顶尖OS2默认）</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* 网络配置 */}
+              {settings.barcodeScaleType !== 'none' && (
+                <div className="mt-4 pt-4 border-t space-y-3">
+                  <div className="text-xs text-gray-500 mb-2">网络连接配置（可选）</div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">电子秤IP地址</label>
+                    <Input 
+                      value={settings.scaleNetworkIp}
+                      onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
+                      placeholder="如 192.168.1.100"
+                      className="h-9"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">电子秤端口</label>
+                    <Input 
+                      type="number"
+                      value={settings.scaleNetworkPort}
+                      onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
+                      placeholder="4001（顶尖OS2默认）"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* AI秤设置 */}
@@ -4479,9 +4535,39 @@ export default function PosPage() {
               <Button 
                 className="flex-1 bg-red-500 hover:bg-red-600"
                 onClick={() => {
+                  // 保存设置
                   saveAllSettings();
-                  // 同时保存到cashboxService
+                  
+                  // 保存电子秤配置到topScaleService
                   if (typeof window !== 'undefined') {
+                    import('@/lib/topscale-os2-service').then(({ topScaleService }) => {
+                      // 保存串口配置
+                      topScaleService.saveSerialConfig({
+                        port: settings.scalePort || 'COM1',
+                        baudRate: settings.scaleBaudRate || 9600,
+                      });
+                      // 保存秤配置
+                      topScaleService.saveConfig({
+                        ip: settings.scaleNetworkIp || '192.168.1.100',
+                        port: settings.scaleNetworkPort || 4001,
+                        model: settings.barcodeScaleType === 'ls2zx' ? 'OS2T325490065' : 'DEFAULT',
+                        maxWeight: 15,
+                        enabled: true,
+                      });
+                      // 设置连接类型
+                      if (settings.barcodeScaleType === 'none') {
+                        topScaleService.setConnectionType('network');
+                      } else {
+                        topScaleService.setConnectionType('serial');
+                      }
+                      console.log('[POS] 电子秤配置已保存:', {
+                        port: settings.scalePort,
+                        baudRate: settings.scaleBaudRate,
+                        type: settings.barcodeScaleType,
+                      });
+                    });
+                    
+                    // 保存钱箱配置
                     import('@/lib/cashbox-service').then(({ cashboxService }) => {
                       cashboxService.saveConfig({
                         connectionType: settings.cashDrawerConnectionType as 'serial' | 'network' | 'http' | 'simulated',
@@ -4502,6 +4588,31 @@ export default function PosPage() {
               >
                 保存设置
               </Button>
+            </div>
+            
+            {/* 电子秤连接说明 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                  <span className="text-white text-sm">i</span>
+                </div>
+                <div className="text-xs text-blue-700">
+                  <p className="font-medium">电子秤连接说明</p>
+                  <ul className="mt-2 space-y-1.5 list-disc list-inside">
+                    <li><strong>PWA环境</strong>：使用Web Serial API连接串口秤，或通过API代理连接网络秤</li>
+                    <li><strong>APP环境</strong>：通过收银机原生SDK连接电子秤（推荐）</li>
+                    <li><strong>顶尖OS2参数</strong>：波特率9600，机号OS2T325490065，量程15kg</li>
+                  </ul>
+                  <p className="mt-2 text-blue-600">
+                    当前配置：{settings.scalePort} @ {settings.scaleBaudRate}bps | 类型：{
+                      settings.barcodeScaleType === 'none' ? '未启用' :
+                      settings.barcodeScaleType === 'ls2zx' ? '顶尖LS2ZX' :
+                      settings.barcodeScaleType === 'tm-ab' ? '大华TM-AB' :
+                      settings.barcodeScaleType === 'tm-f' ? '大华TM-F' : '未配置'
+                    }
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         );
