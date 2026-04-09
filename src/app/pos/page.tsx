@@ -3685,7 +3685,7 @@ export default function PosPage() {
         );
 
       case 'settings':
-        // 设置页面在外部渲染，这里返回null
+        // 设置页面重定向到系统设置
         return null;
 
       case 'system-settings':
@@ -3772,6 +3772,58 @@ export default function PosPage() {
                     value={settings.voiceVolume}
                     onChange={(e) => updateSetting('voiceVolume', parseInt(e.target.value))}
                   />
+                </div>
+              </div>
+              
+              {/* PWA设置 */}
+              <div className="space-y-1 mb-6">
+                <h4 className="text-sm font-medium text-gray-500 mb-3">PWA设置</h4>
+                <div className="flex items-center justify-between py-3 border-b">
+                  <div>
+                    <span className="text-sm">运行环境</span>
+                    <p className="text-xs text-gray-400">当前：{typeof window !== 'undefined' && 'ontouchstart' in window ? 'PWA环境' : 'APP环境'}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {typeof window !== 'undefined' && 'serviceWorker' in navigator ? 'PWA' : 'APP'}
+                  </Badge>
+                </div>
+                <div className="py-3 border-b space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">清除缓存并更新</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={async () => {
+                      if (confirm('确定要清除缓存并更新到最新版本吗？')) {
+                        try {
+                          // 发送清除缓存消息
+                          if ('serviceWorker' in navigator) {
+                            const registration = await navigator.serviceWorker.ready;
+                            if ('message' in registration) {
+                              // 发送清除缓存消息
+                              navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' });
+                              navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+                            }
+                          }
+                          // 清除本地存储
+                          localStorage.removeItem('pos_settings');
+                          localStorage.removeItem('cashbox_config');
+                          localStorage.removeItem('printer_config');
+                          localStorage.removeItem('scale_config');
+                          // 刷新页面
+                          window.location.reload();
+                        } catch (e) {
+                          console.error('[PWA] 更新失败:', e);
+                          alert('更新失败，请稍后重试');
+                        }
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    清除缓存并重新加载
+                  </Button>
                 </div>
               </div>
               
@@ -5529,7 +5581,7 @@ export default function PosPage() {
               { icon: Calculator, label: '报表', view: 'reports' },
               { icon: Gift, label: '促销', view: 'promotions' },
               { icon: Users, label: '会员', view: 'members' },
-              { icon: Settings, label: '设置', view: 'settings' },
+              { icon: Settings, label: '设置', view: 'system-settings' },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.view;
@@ -5600,7 +5652,6 @@ export default function PosPage() {
                   {currentView === 'services' && '便民服务'}
                   {currentView === 'prints' && '打印管理'}
                   {currentView === 'shift' && '交接班'}
-                  {currentView === 'settings' && '设置'}
                   {currentView === 'system-settings' && '系统设置'}
                   {currentView === 'devices' && '外设管理'}
                   {currentView === 'other-settings' && '其他功能设置'}
@@ -5623,7 +5674,7 @@ export default function PosPage() {
               )}
               
               {/* 设置页面 - 左右布局 */}
-              {['settings', 'system-settings', 'devices', 'other-settings', 'printer-settings', 'scale-settings', 'label-settings', 'ad-settings', 'cash-drawer-settings'].includes(currentView) && (
+              {['system-settings', 'devices', 'other-settings', 'printer-settings', 'scale-settings', 'label-settings', 'ad-settings', 'cash-drawer-settings'].includes(currentView) && (
                 <div className="flex h-[calc(100vh-140px)]">
                   {/* 左侧菜单 - 延伸到底部 */}
                   <div className="w-52 shrink-0 flex flex-col bg-slate-50 border-r border-slate-200">
@@ -5708,7 +5759,7 @@ export default function PosPage() {
               )}
               
               {/* 普通页面 */}
-              {!['settings', 'system-settings', 'devices', 'other-settings', 'printer-settings', 'scale-settings', 'label-settings', 'ad-settings', 'reports', 'orders'].includes(currentView) && (
+              {['system-settings', 'devices', 'other-settings', 'printer-settings', 'scale-settings', 'label-settings', 'ad-settings', 'reports', 'orders'].every(v => currentView !== v) && (
                 <div className="bg-white rounded-lg shadow p-4">
                   {renderSidePanelContent()}
                 </div>
