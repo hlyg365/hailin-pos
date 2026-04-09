@@ -57,7 +57,7 @@ import {
   UserPlus, Barcode, Edit, Volume2, HardDrive, TrendingUp,
   PieChart, BarChart3, ArrowUpRight, ArrowDownRight, Download,
   FileText, Calendar, MapPin, Phone, RotateCcw, Lock, Send, Monitor,
-  MessageCircle, Bot
+  MessageCircle, Bot, Box,
 } from 'lucide-react';
 import { AiAssistantButton } from '@/components/ai-assistant-chat';
 import { QRCodeSVG } from 'qrcode.react';
@@ -270,6 +270,8 @@ export default function PosPage() {
   
   // 打印弹窗状态
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showScreenReceipt, setShowScreenReceipt] = useState(false);
+  const [screenReceipt, setScreenReceipt] = useState('');
   
   // 锁屏状态
   const [isLocked, setIsLocked] = useState(false);
@@ -1803,51 +1805,65 @@ export default function PosPage() {
       // 创建订单（离线时保存到本地，在线时同步到服务器）
       const order = await createOfflineOrder(selectedPayment || 'cash');
       
-      // 打印小票
-      if (printer) {
-        try {
-          const memberDiscount = getMemberDiscount();
-          const receiptData = {
-            shopName: shopConfig.name,
-            shopAddress: shopConfig.address,
-            shopPhone: shopConfig.phone,
-            orderNumber: order.orderNo,
-            timestamp: new Date(order.createdAt).toLocaleString('zh-CN'),
-            cashier: user?.name,
-            items: cartItems.map(item => ({
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              unit: item.unit,
-              subtotal: item.price * item.quantity,
-            })),
-            subtotal: getSubtotal(),
-            discount: getDiscount(),
-            memberDiscount: memberDiscount > 0 ? memberDiscount : undefined,
-            totalAmount: getFinalAmount(),
-            paymentMethod: selectedPayment === 'cash' ? '现金' : 
-                          selectedPayment === 'wechat' ? '微信支付' :
-                          selectedPayment === 'alipay' ? '支付宝' :
-                          selectedPayment === 'card' ? '银行卡' : '混合支付',
-            memberInfo: member ? {
-              name: member.name,
-              memberNo: member.memberNo,
-              points: member.points + earnedPoints,
-              earnedPoints: earnedPoints,
-            } : undefined,
-            footer: clearanceMode ? '【晚8点清货特价】' : undefined,
-          };
-          
-          await printReceipt(receiptData);
-          
-          // 打开钱箱（现金支付时）
-          if (selectedPayment === 'cash') {
-            await openCashbox();
+      // 打印小票（使用打印服务）
+      try {
+        const memberDiscount = getMemberDiscount();
+        const receiptData = {
+          shopName: shopConfig.name,
+          shopAddress: shopConfig.address,
+          shopPhone: shopConfig.phone,
+          orderNumber: order.orderNo,
+          timestamp: new Date(order.createdAt).toLocaleString('zh-CN'),
+          cashier: user?.name,
+          items: cartItems.map(item => ({
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            unit: item.unit,
+            subtotal: item.price * item.quantity,
+          })),
+          subtotal: getSubtotal(),
+          discount: getDiscount(),
+          memberDiscount: memberDiscount > 0 ? memberDiscount : undefined,
+          totalAmount: getFinalAmount(),
+          paymentMethod: selectedPayment === 'cash' ? '现金' : 
+                        selectedPayment === 'wechat' ? '微信支付' :
+                        selectedPayment === 'alipay' ? '支付宝' :
+                        selectedPayment === 'card' ? '银行卡' : '混合支付',
+          changeAmount: (typeof cashReceived === 'number' ? cashReceived : parseFloat(cashReceived) || 0) > getFinalAmount() ? 
+            (typeof cashReceived === 'number' ? cashReceived : parseFloat(cashReceived) || 0) - getFinalAmount() : undefined,
+          memberInfo: member ? {
+            name: member.name,
+            memberNo: member.memberNo,
+            points: member.points + earnedPoints,
+            earnedPoints: earnedPoints,
+          } : undefined,
+          footer: clearanceMode ? '【晚8点清货特价】' : undefined,
+          isClearanceMode: clearanceMode,
+        };
+        
+        // 使用打印服务
+        const { printService } = await import('@/lib/print-service');
+        const printResult = await printService.print(receiptData);
+        
+        if (printResult.success) {
+          // 如果有屏幕打印内容，显示在弹窗中
+          if (printResult.screenContent) {
+            setScreenReceipt(printResult.screenContent);
+            setShowScreenReceipt(true);
           }
-        } catch (printError) {
-          console.error('打印小票失败:', printError);
-          // 打印失败不影响支付成功
+          console.log('[POS] 打印成功:', printResult.message);
+        } else {
+          console.warn('[POS] 打印失败:', printResult.message);
         }
+        
+        // 打开钱箱（现金支付时）
+        if (selectedPayment === 'cash') {
+          await printService.openCashbox();
+        }
+      } catch (printError) {
+        console.error('打印小票失败:', printError);
+        // 打印失败不影响支付成功
       }
       
       // 显示成功提示
@@ -8591,6 +8607,7 @@ export default function PosPage() {
                   return;
                 }
                 try {
+                  const { printService } = await import('@/lib/print-service');
                   const receiptData = {
                     shopName: shopConfig.name,
                     shopAddress: shopConfig.address,
@@ -8611,9 +8628,13 @@ export default function PosPage() {
                     paymentMethod: '未结算',
                     footer: '【预打印小票】',
                   };
-                  await printReceipt(receiptData);
+                  const result = await printService.print(receiptData);
+                  if (result.screenContent) {
+                    setScreenReceipt(result.screenContent);
+                    setShowScreenReceipt(true);
+                  }
                   setShowPrintDialog(false);
-                  alert('打印成功！');
+                  alert(result.message);
                 } catch (error) {
                   console.error('打印失败:', error);
                   alert('打印失败，请检查打印机连接');
@@ -8622,6 +8643,24 @@ export default function PosPage() {
             >
               <FileText className="h-4 w-4 mr-3 text-blue-500" />
               打印当前购物车小票
+            </Button>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start h-12"
+              onClick={async () => {
+                // 打开钱箱
+                try {
+                  const { printService } = await import('@/lib/print-service');
+                  const success = await printService.openCashbox();
+                  setShowPrintDialog(false);
+                  alert(success ? '钱箱已打开' : '钱箱打开失败');
+                } catch (error) {
+                  alert('操作失败');
+                }
+              }}
+            >
+              <Box className="h-4 w-4 mr-3 text-green-500" />
+              打开钱箱
             </Button>
             <Button 
               variant="outline" 
@@ -8649,6 +8688,38 @@ export default function PosPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
               关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 屏幕小票弹窗 */}
+      <Dialog open={showScreenReceipt} onOpenChange={setShowScreenReceipt}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5 text-green-500" />
+              小票预览
+            </DialogTitle>
+            <DialogDescription>
+              请核对小票内容，如需打印请到打印机设置
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <pre className="bg-gray-100 p-4 rounded-lg text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+              {screenReceipt}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowScreenReceipt(false)}>
+              关闭
+            </Button>
+            <Button onClick={() => {
+              // 复制小票内容
+              navigator.clipboard.writeText(screenReceipt);
+              alert('小票内容已复制到剪贴板');
+            }}>
+              复制小票
             </Button>
           </DialogFooter>
         </DialogContent>
