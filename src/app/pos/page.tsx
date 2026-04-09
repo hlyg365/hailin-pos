@@ -68,6 +68,10 @@ import {
 } from 'lucide-react';
 import { AiAssistantButton } from '@/components/ai-assistant-chat';
 import { QRCodeSVG } from 'qrcode.react';
+import { 
+  customerDisplayService,
+  type CustomerDisplayState 
+} from '@/lib/customer-display-service';
 
 // 从字符串生成稳定的数字ID（用于条码转ID）
 function generateStableId(str: string): number {
@@ -282,6 +286,13 @@ export default function PosPage() {
   const [isLocked, setIsLocked] = useState(false);
   const [lockPassword, setLockPassword] = useState('');
   const [lockError, setLockError] = useState('');
+  
+  // 客显屏状态
+  const [customerDisplayState, setCustomerDisplayState] = useState<CustomerDisplayState>({
+    isOpen: false,
+    isOnSecondaryScreen: false,
+    lastSyncTime: 0,
+  });
   
   // 会员搜索状态
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
@@ -1094,6 +1105,41 @@ export default function PosPage() {
       }
     };
   }, []);
+
+  // 客显屏初始化
+  useEffect(() => {
+    // 监听客显屏状态变化
+    const unsubscribe = customerDisplayService.addStateListener((state) => {
+      setCustomerDisplayState(state);
+      console.log('[POS] 客显屏状态更新:', state);
+    });
+    
+    // 获取初始状态
+    const initialState = customerDisplayService.getState();
+    setCustomerDisplayState(initialState);
+    
+    // 尝试请求屏幕权限（用于检测多显示器）
+    customerDisplayService.requestPermission().then((granted) => {
+      console.log('[POS] 屏幕权限:', granted ? '已授权' : '未授权');
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+  
+  // 同步数据到客显屏（当购物车、会员、店铺配置变化时）
+  useEffect(() => {
+    customerDisplayService.syncCart(cartItems);
+  }, [cartItems]);
+  
+  useEffect(() => {
+    customerDisplayService.syncMember(member);
+  }, [member]);
+  
+  useEffect(() => {
+    customerDisplayService.syncShopConfig(shopConfig);
+  }, [shopConfig]);
 
   // 加载离线商品数据
   useEffect(() => {
@@ -2007,6 +2053,11 @@ export default function PosPage() {
                               selectedPayment === 'wechat' ? '微信' :
                               selectedPayment === 'alipay' ? '支付宝' :
                               selectedPayment === 'card' ? '银行卡' : '';
+        
+        // 使用客显屏服务发送收款播报
+        customerDisplayService.announcePayment(getFinalAmount(), paymentMethod);
+        
+        // 保留 localStorage 方式作为备用（兼容旧版本）
         localStorage.setItem('pos_payment_event', JSON.stringify({
           amount: getFinalAmount(),
           method: paymentMethod,
@@ -4023,6 +4074,74 @@ export default function PosPage() {
               </div>
             </div>
             
+            {/* 客显屏连接状态 */}
+            <div className="bg-white rounded-lg border p-4 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-3 h-3 rounded-full",
+                    customerDisplayState.isOpen ? "bg-green-500 animate-pulse" : "bg-gray-300"
+                  )} />
+                  <div>
+                    <p className="text-sm font-medium">
+                      客显屏 {customerDisplayState.isOpen ? '已连接' : '未连接'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {customerDisplayState.isOpen 
+                        ? (customerDisplayState.isOnSecondaryScreen ? '当前显示在副屏' : '当前显示在主屏')
+                        : '点击右侧按钮打开客显屏'
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {customerDisplayState.isOpen && !customerDisplayState.isOnSecondaryScreen && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={async () => {
+                        const result = await customerDisplayService.moveToSecondary();
+                        if (!result.success) {
+                          alert(result.message);
+                        }
+                      }}
+                    >
+                      移到副屏
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant={customerDisplayState.isOpen ? "destructive" : "default"}
+                    className={customerDisplayState.isOpen ? "" : "bg-green-600 hover:bg-green-700"}
+                    onClick={async () => {
+                      if (customerDisplayState.isOpen) {
+                        customerDisplayService.close();
+                      } else {
+                        const result = await customerDisplayService.open({
+                          width: 1280,
+                          height: 800,
+                          autoPosition: true,
+                        });
+                        if (!result.success) {
+                          alert(result.message);
+                        }
+                      }
+                    }}
+                  >
+                    {customerDisplayState.isOpen ? '关闭客显屏' : '打开客显屏'}
+                  </Button>
+                </div>
+              </div>
+              {/* 屏幕信息 */}
+              {customerDisplayState.isOpen && (
+                <div className="mt-3 pt-3 border-t text-xs text-gray-500 flex items-center gap-4">
+                  <span>分辨率：1280 x 800</span>
+                  <span>•</span>
+                  <span>最后同步：{new Date(customerDisplayState.lastSyncTime).toLocaleTimeString()}</span>
+                </div>
+              )}
+            </div>
+
             {/* 广告预览 */}
             <div className="bg-white rounded-lg border p-4">
               <h4 className="font-medium text-sm mb-3">广告预览</h4>
@@ -5632,15 +5751,39 @@ export default function PosPage() {
           <Button 
             variant="ghost" 
             size="sm" 
-            className="h-8 text-xs"
-            onClick={() => {
-              // 打开客显屏窗口
-              const displayUrl = `${window.location.origin}/pos/customer-display`;
-              window.open(displayUrl, 'customerDisplay', 'width=1200,height=800,menubar=no,toolbar=no,location=no,status=no');
+            className={cn(
+              "h-8 text-xs",
+              customerDisplayState.isOpen 
+                ? "bg-green-100 text-green-700 hover:bg-green-200" 
+                : ""
+            )}
+            onClick={async () => {
+              if (customerDisplayState.isOpen) {
+                // 关闭客显屏
+                customerDisplayService.close();
+              } else {
+                // 打开客显屏
+                const result = await customerDisplayService.open({
+                  width: 1280,
+                  height: 800,
+                  autoPosition: true,
+                  stayOnTop: true,
+                });
+                console.log('[POS] 打开客显屏结果:', result);
+                if (!result.success) {
+                  alert(result.message);
+                }
+              }
             }}
           >
-            <Smartphone className="h-4 w-4 mr-1" />
-            客显屏
+            <Smartphone className={cn(
+              "h-4 w-4 mr-1",
+              customerDisplayState.isOpen ? "text-green-600" : ""
+            )} />
+            {customerDisplayState.isOpen 
+              ? (customerDisplayState.isOnSecondaryScreen ? '副屏已开' : '客显已开')
+              : '客显屏'
+            }
           </Button>
           <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setShowPrintDialog(true)}>
             <Printer className="h-4 w-4 mr-1" />
