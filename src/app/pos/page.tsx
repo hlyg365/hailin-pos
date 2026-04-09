@@ -669,8 +669,42 @@ export default function PosPage() {
   
   // 称重相关状态
   const [currentWeight, setCurrentWeight] = useState(0);
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'jin'>('jin');
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'jin'>('kg');
   const [scaleConnected, setScaleConnected] = useState(false);
+  const [scaleConnecting, setScaleConnecting] = useState(false);
+  
+  // 连接电子秤
+  const connectScale = async () => {
+    if (scaleConnected) {
+      // 断开
+      const { topScaleService } = await import('@/lib/topscale-os2-service');
+      topScaleService.disconnect();
+      setScaleConnected(false);
+      setCurrentWeight(0);
+    } else {
+      // 连接
+      setScaleConnecting(true);
+      try {
+        const { topScaleService } = await import('@/lib/topscale-os2-service');
+        const result = await topScaleService.connect();
+        if (result.success) {
+          setScaleConnected(true);
+          // 设置回调
+          topScaleService.setCallback((data) => {
+            if (data.stable) {
+              setCurrentWeight(data.weight);
+            }
+          });
+        } else {
+          console.warn('[POS] Scale connect failed:', result.message);
+        }
+      } catch (e) {
+        console.error('[POS] Scale connect error:', e);
+      } finally {
+        setScaleConnecting(false);
+      }
+    }
+  };
   
   // 激活语音播报（需要在用户交互后调用）
   useEffect(() => {
@@ -5430,6 +5464,46 @@ export default function PosPage() {
           <>
             {/* 左侧商品选择区 */}
             <div className="flex-1 flex flex-col min-w-0 bg-[#f5f7fa]">
+              {/* 称重数据面板 - 放在左侧顶部 */}
+              {scaleConnected && (
+                <div className="bg-gradient-to-r from-green-600 to-green-500 text-white px-4 py-2 shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Scale className="h-4 w-4" />
+                        <span className="text-sm font-medium">称重中</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-center">
+                        <div>
+                          <p className="text-xs text-green-100">重量</p>
+                          <p className="text-lg font-bold">{currentWeight.toFixed(3)} kg</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-green-100">单价</p>
+                          <p className="text-lg font-bold">
+                            {weightInfo?.price ? `¥${weightInfo.price.toFixed(2)}/500g` : '¥0.00/500g'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-green-100">小计</p>
+                          <p className="text-lg font-bold text-yellow-200">
+                            ¥{weightInfo?.subtotal ? weightInfo.subtotal.toFixed(2) : '0.00'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
+                      onClick={connectScale}
+                    >
+                      断开
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               {/* 搜索栏 */}
               <div className="bg-white border-b p-3 shrink-0">
                 <div className="flex items-center gap-3">
@@ -5606,55 +5680,6 @@ export default function PosPage() {
 
             {/* 右侧购物车/结算区 */}
             <div className="w-[340px] bg-white border-l flex flex-col shrink-0">
-              {/* 称重数据显示区 */}
-              <div className="bg-gradient-to-r from-green-600 to-green-500 text-white p-3 shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Scale className="h-4 w-4" />
-                    <span className="text-sm font-medium">称重数据</span>
-                  </div>
-                  <Badge variant="secondary" className={`text-xs ${scaleConnected ? 'bg-green-400' : 'bg-gray-400'}`}>
-                    {scaleConnected ? '已连接' : '未连接'}
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-white/20 rounded-lg p-2">
-                    <p className="text-xs text-green-100">重量</p>
-                    <p className="text-lg font-bold">{currentWeight.toFixed(2)}</p>
-                    <p className="text-xs text-green-100">{weightUnit}</p>
-                  </div>
-                  <div className="bg-white/20 rounded-lg p-2">
-                    <p className="text-xs text-green-100">单价</p>
-                    <p className="text-lg font-bold">
-                      {weightInfo?.price ? `¥${weightInfo.price.toFixed(2)}` : '¥0.00'}
-                    </p>
-                    <p className="text-xs text-green-100">/500g</p>
-                  </div>
-                  <div className="bg-white/20 rounded-lg p-2">
-                    <p className="text-xs text-green-100">小计</p>
-                    <p className="text-lg font-bold">
-                      ¥{weightInfo?.subtotal ? weightInfo.subtotal.toFixed(2) : '0.00'}
-                    </p>
-                    <p className="text-xs text-green-100">元</p>
-                  </div>
-                </div>
-                <Button 
-                  size="sm" 
-                  variant="secondary"
-                  className="w-full mt-2 h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
-                  onClick={() => {
-                    // 连接电子秤
-                    setScaleConnected(!scaleConnected);
-                    if (!scaleConnected) {
-                      setCurrentWeight(Math.random() * 2 + 0.5); // 模拟数据
-                    } else {
-                      setCurrentWeight(0);
-                    }
-                  }}
-                >
-                  {scaleConnected ? '断开电子秤' : '连接电子秤'}
-                </Button>
-              </div>
               
               {/* 金额显示区 - 深色背景 */}
               <div className="bg-[#3a3f47] text-white p-4 shrink-0">
