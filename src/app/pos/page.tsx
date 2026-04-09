@@ -638,7 +638,32 @@ export default function PosPage() {
   
   // 更新设置的帮助函数
   const updateSetting = (key: keyof typeof settings, value: any) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings(prev => {
+      const newSettings = { ...prev, [key]: value };
+      // 同时保存到localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          const savedSettings = JSON.parse(localStorage.getItem('pos_settings') || '{}');
+          savedSettings[key] = value;
+          localStorage.setItem('pos_settings', JSON.stringify(savedSettings));
+        } catch (e) {
+          console.error('[Settings] Failed to save to localStorage:', e);
+        }
+      }
+      return newSettings;
+    });
+  };
+  
+  // 批量保存所有设置
+  const saveAllSettings = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('pos_settings', JSON.stringify(settings));
+        console.log('[Settings] All settings saved');
+      } catch (e) {
+        console.error('[Settings] Failed to save settings:', e);
+      }
+    }
   };
   
   // 保存设置的提示
@@ -4400,7 +4425,23 @@ export default function PosPage() {
               </Button>
               <Button 
                 className="flex-1 bg-red-500 hover:bg-red-600"
-                onClick={() => showSaveMessage('电子秤设置已保存')}
+                onClick={() => {
+                  saveAllSettings();
+                  // 同时保存到cashboxService
+                  if (typeof window !== 'undefined') {
+                    import('@/lib/cashbox-service').then(({ cashboxService }) => {
+                      cashboxService.saveConfig({
+                        connectionType: settings.cashDrawerConnectionType as 'serial' | 'network' | 'simulated',
+                        serialPort: settings.cashDrawerSerialPort,
+                        serialBaudRate: settings.cashDrawerBaudRate,
+                        networkIp: settings.cashDrawerNetworkIp,
+                        networkPort: settings.cashDrawerNetworkPort,
+                        enabled: settings.cashDrawerEnabled,
+                      });
+                    });
+                  }
+                  showSaveMessage('电子秤和钱箱设置已保存');
+                }}
               >
                 保存设置
               </Button>

@@ -177,9 +177,22 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET - 获取AI秤配置信息
+ * GET - 获取AI秤配置信息或测试服务
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get('action');
+
+  // 处理测试请求
+  if (action === 'test') {
+    return NextResponse.json({
+      success: true,
+      message: 'AI秤服务运行正常',
+      model: AI_SCALE_CONFIG.model,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   return NextResponse.json({
     success: true,
     data: {
