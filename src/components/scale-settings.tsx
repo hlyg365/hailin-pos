@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Scale, Wifi, WifiOff, Settings, RefreshCw, Check, X } from 'lucide-react';
+import { Scale, Wifi, WifiOff, Settings, RefreshCw, Check, X, Plug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { topScaleService, ScaleConfig } from '@/lib/topscale-os2-service';
 
 interface ScaleSettingsProps {
@@ -15,6 +15,7 @@ interface ScaleSettingsProps {
 }
 
 export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
+  const [connectionType, setConnectionType] = useState<'serial' | 'network'>('serial');
   const [config, setConfig] = useState<ScaleConfig>({
     ip: '192.168.1.100',
     port: 4001,
@@ -22,15 +23,22 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
     maxWeight: 15,
     enabled: false,
   });
+  const [serialConfig, setSerialConfig] = useState({
+    port: 'COM1',
+    baudRate: 9600,
+  });
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [testWeight, setTestWeight] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     // 加载配置
     const savedConfig = topScaleService.getConfig();
-    setConfig(savedConfig);
+    if (savedConfig.ip !== '192.168.1.100' || savedConfig.port !== 4001) {
+      setConfig(savedConfig);
+    }
     setIsConnected(topScaleService.getIsConnected());
 
     // 设置回调
@@ -44,6 +52,7 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
   const handleConnect = async () => {
     setIsConnecting(true);
     setError(null);
+    setMessage(null);
     
     try {
       // 保存配置
@@ -54,6 +63,7 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
       
       if (result.success) {
         setIsConnected(true);
+        setMessage(result.message);
         onConnect?.(true);
       } else {
         setError(result.message);
@@ -69,12 +79,14 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
     topScaleService.disconnect();
     setIsConnected(false);
     setTestWeight(null);
+    setMessage('已断开电子秤');
     onConnect?.(false);
   };
 
-  const handleTest = async () => {
+  const handleTest = () => {
     // 测试去皮
     topScaleService.tare();
+    setMessage('已发送去皮命令');
   };
 
   return (
@@ -103,7 +115,12 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
                   {isConnected ? '已连接电子秤' : '未连接'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {isConnected ? `${config.ip}:${config.port}` : '请点击连接按钮'}
+                  {isConnected 
+                    ? `IP: ${config.ip}:${config.port}` 
+                    : connectionType === 'serial' 
+                      ? `串口: ${serialConfig.port} @ ${serialConfig.baudRate}bps`
+                      : `IP: ${config.ip}:${config.port}`
+                  }
                 </p>
               </div>
             </div>
@@ -112,30 +129,95 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
             </Badge>
           </div>
 
-          {/* 连接参数 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="scale-ip">电子秤IP地址</Label>
-              <Input
-                id="scale-ip"
-                placeholder="192.168.1.100"
-                value={config.ip}
-                onChange={(e) => setConfig({ ...config, ip: e.target.value })}
+          {/* 连接类型选择 */}
+          <div className="space-y-2">
+            <Label>连接方式</Label>
+            <div className="flex gap-2">
+              <Button
+                variant={connectionType === 'serial' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setConnectionType('serial')}
                 disabled={isConnected}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="scale-port">端口</Label>
-              <Input
-                id="scale-port"
-                placeholder="4001"
-                value={config.port}
-                onChange={(e) => setConfig({ ...config, port: parseInt(e.target.value) || 4001 })}
+                className="flex-1"
+              >
+                <Plug className="h-4 w-4 mr-2" />
+                串口连接
+              </Button>
+              <Button
+                variant={connectionType === 'network' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setConnectionType('network')}
                 disabled={isConnected}
-              />
+                className="flex-1"
+              >
+                <Wifi className="h-4 w-4 mr-2" />
+                网络连接
+              </Button>
             </div>
           </div>
 
+          {/* 串口设置 */}
+          {connectionType === 'serial' ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="serial-port">串口地址</Label>
+                <Input
+                  id="serial-port"
+                  placeholder="COM1"
+                  value={serialConfig.port}
+                  onChange={(e) => setSerialConfig({ ...serialConfig, port: e.target.value })}
+                  disabled={isConnected}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="baud-rate">波特率</Label>
+                <Select
+                  value={String(serialConfig.baudRate)}
+                  onValueChange={(v) => setSerialConfig({ ...serialConfig, baudRate: parseInt(v) })}
+                  disabled={isConnected}
+                >
+                  <SelectTrigger id="baud-rate">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2400">2400 bps</SelectItem>
+                    <SelectItem value="4800">4800 bps</SelectItem>
+                    <SelectItem value="9600">9600 bps</SelectItem>
+                    <SelectItem value="19200">19200 bps</SelectItem>
+                    <SelectItem value="38400">38400 bps</SelectItem>
+                    <SelectItem value="115200">115200 bps</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          ) : (
+            /* 网络设置 */
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="scale-ip">电子秤IP地址</Label>
+                <Input
+                  id="scale-ip"
+                  placeholder="192.168.1.100"
+                  value={config.ip}
+                  onChange={(e) => setConfig({ ...config, ip: e.target.value })}
+                  disabled={isConnected}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="scale-port">端口</Label>
+                <Input
+                  id="scale-port"
+                  type="number"
+                  placeholder="4001"
+                  value={config.port}
+                  onChange={(e) => setConfig({ ...config, port: parseInt(e.target.value) || 4001 })}
+                  disabled={isConnected}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 电子秤信息 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="scale-model">机号/型号</Label>
@@ -158,9 +240,18 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
             </div>
           </div>
 
+          {/* 消息提示 */}
+          {message && (
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg text-sm flex items-center gap-2">
+              <Check className="h-4 w-4" />
+              {message}
+            </div>
+          )}
+
           {/* 错误信息 */}
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm flex items-center gap-2">
+              <X className="h-4 w-4" />
               {error}
             </div>
           )}
@@ -221,10 +312,11 @@ export function ScaleSettings({ onConnect }: ScaleSettingsProps) {
 
           {/* 提示信息 */}
           <div className="text-xs text-gray-500 space-y-1">
-            <p>• 顶尖OS2协议电子秤默认端口为 4001</p>
+            <p className="font-medium text-gray-700">连接说明：</p>
+            <p>• <strong>串口连接</strong>：使用USB转串口线，波特率通常为9600</p>
+            <p>• <strong>网络连接</strong>：电子秤需支持TCP/IP，端口默认4001</p>
             <p>• 请确保电子秤和收银机在同一网络</p>
-            <p>• 首次连接可能需要输入电子秤的IP地址</p>
-            <p>• 支持的电子秤型号：OS2T、OS2等顶尖系列</p>
+            <p>• 顶尖OS2协议电子秤支持串口和网络两种模式</p>
           </div>
         </CardContent>
       </Card>
