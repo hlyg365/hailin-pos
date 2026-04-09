@@ -213,7 +213,7 @@ export default function HardwarePage() {
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) {
-      router.push('/pos/login');
+      router.push('/pos/auth/login');
     }
   }, [isAuthenticated, loading, router]);
 
