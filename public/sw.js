@@ -1,5 +1,7 @@
-// 海邻收银台 Service Worker
-const CACHE_NAME = 'hailin-pos-v30';
+// 海邻收银台 Service Worker v31
+// 修复PWA内容重复问题，严格缓存策略
+
+const CACHE_NAME = 'hailin-pos-v31';
 const OFFLINE_URL = '/pos/offline';
 
 // 需要缓存的静态资源
@@ -11,32 +13,36 @@ const STATIC_ASSETS = [
 
 // 安装事件 - 预缓存静态资源
 self.addEventListener('install', (event) => {
-  console.log('[SW] 安装中...');
+  console.log('[SW v31] 安装中...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] 预缓存静态资源');
+      console.log('[SW v31] 预缓存静态资源');
       return cache.addAll(STATIC_ASSETS);
+    }).then(() => {
+      // 立即激活新版本
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
 // 激活事件 - 清理旧缓存
 self.addEventListener('activate', (event) => {
-  console.log('[SW] 激活中...');
+  console.log('[SW v31] 激活中...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
           .map((name) => {
-            console.log('[SW] 删除旧缓存:', name);
+            console.log('[SW v31] 删除旧缓存:', name);
             return caches.delete(name);
           })
       );
+    }).then(() => {
+      // 立即控制所有客户端
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
 // 网络优先策略 - 用于API请求
@@ -49,7 +55,7 @@ async function networkFirst(request) {
     }
     return networkResponse;
   } catch (error) {
-    console.log('[SW] 网络请求失败，尝试缓存:', request.url);
+    console.log('[SW v31] 网络请求失败，尝试缓存:', request.url);
     const cachedResponse = await caches.match(request);
     if (cachedResponse) {
       return cachedResponse;
@@ -72,8 +78,20 @@ async function cacheFirst(request) {
     }
     return networkResponse;
   } catch (error) {
-    console.log('[SW] 静态资源加载失败:', request.url);
+    console.log('[SW v31] 静态资源加载失败:', request.url);
     throw error;
+  }
+}
+
+// 仅网络策略 - 用于页面导航，避免缓存导致的内容重复
+async function networkOnly(request) {
+  try {
+    const networkResponse = await fetch(request);
+    return networkResponse;
+  } catch (error) {
+    console.log('[SW v31] 网络请求失败:', request.url);
+    // 网络失败时返回离线页面
+    return caches.match(OFFLINE_URL) || caches.match('/pos');
   }
 }
 
@@ -104,20 +122,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 页面请求使用网络优先
+  // 页面请求使用仅网络策略，避免内容重复
   if (request.mode === 'navigate') {
-    event.respondWith(
-      networkFirst(request).catch(() => {
-        return caches.match(OFFLINE_URL) || caches.match('/pos');
-      })
-    );
+    event.respondWith(networkOnly(request));
     return;
   }
 });
 
 // 后台同步
 self.addEventListener('sync', (event) => {
-  console.log('[SW] 后台同步:', event.tag);
+  console.log('[SW v31] 后台同步:', event.tag);
   if (event.tag === 'sync-orders') {
     event.waitUntil(syncOrders());
   }
@@ -126,26 +140,29 @@ self.addEventListener('sync', (event) => {
 // 监听 SKIP_WAITING 消息，强制激活新版本
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW v31] 收到SKIP_WAITING消息，强制更新');
     self.skipWaiting();
+  }
+  // 添加清除缓存命令
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('[SW v31] 清除所有缓存');
+    event.waitUntil(
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((name) => caches.delete(name))
+        );
+      }).then(() => {
+        // 重新打开当前缓存
+        return caches.open(CACHE_NAME);
+      })
+    );
   }
 });
 
 // 同步订单数据
 async function syncOrders() {
-  console.log('[SW] 同步订单数据...');
+  console.log('[SW v31] 同步订单数据...');
   // 这里可以从IndexedDB读取待同步的订单并上传
 }
 
-// 推送通知
-self.addEventListener('push', (event) => {
-  if (event.data) {
-    const data = event.data.json();
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-72.png',
-    });
-  }
-});
-
-console.log('[SW] Service Worker 已加载');
+console.log('[SW v31] Service Worker 已加载，版本31');
