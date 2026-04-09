@@ -15,6 +15,13 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -622,6 +629,11 @@ export default function PosPage() {
     cashDrawerAutoOpen: true,
     cashDrawerOpenDelay: 100, // 打开延迟（毫秒）
     cashDrawerPulseWidth: 50, // 脉冲宽度（毫秒）
+    cashDrawerConnectionType: 'simulated', // 连接方式：serial, network, simulated
+    cashDrawerSerialPort: 'COM3', // 串口地址
+    cashDrawerBaudRate: 9600, // 波特率
+    cashDrawerNetworkIp: '', // 网络IP地址
+    cashDrawerNetworkPort: 9100, // 网络端口
   });
   
   // 更新设置的帮助函数
@@ -4416,6 +4428,105 @@ export default function PosPage() {
               
               {settings.cashDrawerEnabled && (
                 <div className="space-y-4 pt-4 border-t">
+                  {/* 连接方式 */}
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">连接方式</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        variant={settings.cashDrawerConnectionType === 'serial' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateSetting('cashDrawerConnectionType', 'serial')}
+                        className="text-xs"
+                      >
+                        串口连接
+                      </Button>
+                      <Button
+                        variant={settings.cashDrawerConnectionType === 'network' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateSetting('cashDrawerConnectionType', 'network')}
+                        className="text-xs"
+                      >
+                        网络连接
+                      </Button>
+                      <Button
+                        variant={settings.cashDrawerConnectionType === 'simulated' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => updateSetting('cashDrawerConnectionType', 'simulated')}
+                        className="text-xs"
+                      >
+                        模拟模式
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* 串口配置 */}
+                  {settings.cashDrawerConnectionType === 'serial' && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">串口地址</label>
+                        <Select
+                          value={settings.cashDrawerSerialPort || 'COM3'}
+                          onValueChange={(v) => updateSetting('cashDrawerSerialPort', v)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="COM1">COM1</SelectItem>
+                            <SelectItem value="COM2">COM2</SelectItem>
+                            <SelectItem value="COM3">COM3</SelectItem>
+                            <SelectItem value="COM4">COM4</SelectItem>
+                            <SelectItem value="COM5">COM5</SelectItem>
+                            <SelectItem value="COM6">COM6</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">波特率</label>
+                        <Select
+                          value={String(settings.cashDrawerBaudRate || 9600)}
+                          onValueChange={(v) => updateSetting('cashDrawerBaudRate', parseInt(v))}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="2400">2400</SelectItem>
+                            <SelectItem value="4800">4800</SelectItem>
+                            <SelectItem value="9600">9600</SelectItem>
+                            <SelectItem value="19200">19200</SelectItem>
+                            <SelectItem value="38400">38400</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 网络配置 */}
+                  {settings.cashDrawerConnectionType === 'network' && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">IP地址</label>
+                        <Input
+                          value={settings.cashDrawerNetworkIp || ''}
+                          onChange={(e) => updateSetting('cashDrawerNetworkIp', e.target.value)}
+                          placeholder="192.168.1.100"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">端口</label>
+                        <Input
+                          type="number"
+                          value={settings.cashDrawerNetworkPort || 9100}
+                          onChange={(e) => updateSetting('cashDrawerNetworkPort', parseInt(e.target.value))}
+                          placeholder="9100"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* 自动打开设置 */}
                   <div className="flex items-center justify-between py-2">
                     <div>
@@ -4493,11 +4604,14 @@ export default function PosPage() {
                 <div className="text-xs text-blue-700">
                   <p className="font-medium">连接方式说明</p>
                   <ul className="mt-2 space-y-1.5 list-disc list-inside">
-                    <li>通过打印机连接：钱箱连接到小票打印机的钱箱接口</li>
-                    <li>通过USB连接：钱箱直接连接到电脑USB端口</li>
-                    <li>通过网络连接：部分智能钱箱支持网络控制</li>
+                    <li><strong>串口连接</strong>：钱箱直接通过串口线连接（如USB转串口）</li>
+                    <li><strong>网络连接</strong>：智能钱箱通过网络TCP/IP控制</li>
+                    <li><strong>模拟模式</strong>：测试用，不实际打开钱箱</li>
                   </ul>
-                  <p className="mt-2 text-blue-600">当前连接方式：通过打印机控制</p>
+                  <p className="mt-2 text-blue-600">
+                    当前模式：{settings.cashDrawerConnectionType === 'serial' ? '串口连接' : 
+                              settings.cashDrawerConnectionType === 'network' ? '网络连接' : '模拟模式'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -4518,11 +4632,20 @@ export default function PosPage() {
                   }
                   
                   try {
-                    const { printService } = await import('@/lib/print-service');
-                    await printService.openCashbox();
-                    alert('钱箱已打开');
+                    const { cashboxService } = await import('@/lib/cashbox-service');
+                    // 先保存配置
+                    cashboxService.saveConfig({
+                      connectionType: (settings.cashDrawerConnectionType || 'simulated') as 'serial' | 'network' | 'simulated',
+                      serialPort: settings.cashDrawerSerialPort || 'COM3',
+                      serialBaudRate: settings.cashDrawerBaudRate || 9600,
+                      networkIp: settings.cashDrawerNetworkIp,
+                      networkPort: settings.cashDrawerNetworkPort || 9100,
+                      enabled: settings.cashDrawerEnabled,
+                    });
+                    const result = await cashboxService.open();
+                    alert(result.message);
                   } catch (error) {
-                    alert('打开钱箱失败：' + (error as Error).message);
+                    alert('打开钱箱失败');
                   }
                 }}
               >
