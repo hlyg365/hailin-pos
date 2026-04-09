@@ -691,7 +691,7 @@ export default function PosPage() {
     // 如果未认证，跳转到登录页
     if (!isAuthenticated) {
       console.log('[POS] 未登录，跳转到登录页');
-      router.push('/pos/login');
+      router.push('/pos/auth/login');
     }
   }, [isAuthenticated, loading, router]);
 
@@ -5366,7 +5366,7 @@ export default function PosPage() {
                         onClick={() => {
                           if (confirm('确定要退出登录吗？')) {
                             logout();
-                            router.push('/pos/login');
+                            router.push('/pos/auth/login');
                           }
                         }}
                       >

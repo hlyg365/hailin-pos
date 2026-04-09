@@ -37,7 +37,7 @@ export default function PreviewPage() {
 
   const pages = [
     { name: '收银台主页', path: '/pos', desc: '收银、购物车、结算', icon: '🛒' },
-    { name: '收银台登录', path: '/pos/login', desc: '员工登录页面', icon: '🔐' },
+    { name: '收银台登录', path: '/pos/auth/login', desc: '员工登录页面', icon: '🔐' },
     { name: '商品管理', path: '/pos/products', desc: '商品列表、新增、编辑', icon: '📦' },
     { name: '订单管理', path: '/pos/orders', desc: '订单列表、详情', icon: '📋' },
     { name: '会员管理', path: '/pos/members', desc: '会员列表、信息', icon: '👥' },
