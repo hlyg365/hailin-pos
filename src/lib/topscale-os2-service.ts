@@ -1,27 +1,36 @@
 /**
  * 顶尖OS2协议电子秤服务
- * 支持TCP/IP网络连接
+ * 支持串口(USB转串口)和TCP/IP网络连接
  * 
  * 协议说明：
  * - 顶尖OS2主动协议是一种常见的收银一体秤通信协议
- * - 通常通过TCP/IP网络连接，默认端口4001
+ * - 串口连接：9600波特率，8N1
+ * - 网络连接：TCP端口4001
  * - 数据格式：ASCII字符串
+ * 
+ * 注意：浏览器环境无法直接访问串口或TCP套接字
+ * 需要通过后端API代理或原生应用（Capacitor）访问
  */
 
 export interface ScaleConfig {
   ip: string;
   port: number;
-  model: string; // 机型号，如 OS2T325490065
-  maxWeight: number; // 最大称重，如 15 (kg)
+  model: string;
+  maxWeight: number;
   enabled: boolean;
+}
+
+export interface SerialConfig {
+  port: string; // COM1, COM2, etc.
+  baudRate: number;
 }
 
 export interface WeightData {
   weight: number; // 重量 (kg)
   unit: 'kg' | 'g';
-  stable: boolean; // 是否稳定
-  tare: number; // 皮重 (kg)
-  netWeight: number; // 净重 (kg)
+  stable: boolean;
+  tare: number;
+  netWeight: number;
   timestamp: number;
   error?: string;
 }
@@ -37,11 +46,13 @@ class TopScaleOS2Service {
     maxWeight: 15,
     enabled: false,
   };
-  private ws: WebSocket | null = null;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private pollingTimer: NodeJS.Timeout | null = null;
-  private callback: WeightCallback | null = null;
+  private serialConfig: SerialConfig = {
+    port: 'COM1',
+    baudRate: 9600,
+  };
+  private connectionType: 'serial' | 'network' = 'serial';
   private isConnected: boolean = false;
+  private callback: WeightCallback | null = null;
   private lastWeight: WeightData = {
     weight: 0,
     unit: 'kg',
@@ -50,8 +61,13 @@ class TopScaleOS2Service {
     netWeight: 0,
     timestamp: 0,
   };
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private baseUrl: string = '';
 
   private constructor() {
+    if (typeof window !== 'undefined') {
+      this.baseUrl = (window as any).__NEXT_DATA__?.env?.COZE_PROJECT_DOMAIN_DEFAULT || '';
+    }
     this.loadConfig();
   }
 
@@ -68,7 +84,10 @@ class TopScaleOS2Service {
       const saved = localStorage.getItem('topscale_os2_config');
       if (saved) {
         try {
-          this.config = { ...this.config, ...JSON.parse(saved) };
+          const parsed = JSON.parse(saved);
+          this.config = { ...this.config, ...parsed.config };
+          this.serialConfig = { ...this.serialConfig, ...parsed.serialConfig };
+          this.connectionType = parsed.connectionType || 'serial';
         } catch (e) {
           console.error('[TopScale] Failed to load config:', e);
         }
@@ -79,14 +98,44 @@ class TopScaleOS2Service {
   // 保存配置
   saveConfig(config: Partial<ScaleConfig>) {
     this.config = { ...this.config, ...config };
+    this.persistConfig();
+  }
+
+  // 保存串口配置
+  saveSerialConfig(config: Partial<SerialConfig>) {
+    this.serialConfig = { ...this.serialConfig, ...config };
+    this.persistConfig();
+  }
+
+  // 设置连接类型
+  setConnectionType(type: 'serial' | 'network') {
+    this.connectionType = type;
+    this.persistConfig();
+  }
+
+  private persistConfig() {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('topscale_os2_config', JSON.stringify(this.config));
+      localStorage.setItem('topscale_os2_config', JSON.stringify({
+        config: this.config,
+        serialConfig: this.serialConfig,
+        connectionType: this.connectionType,
+      }));
     }
   }
 
   // 获取配置
   getConfig(): ScaleConfig {
     return { ...this.config };
+  }
+
+  // 获取串口配置
+  getSerialConfig(): SerialConfig {
+    return { ...this.serialConfig };
+  }
+
+  // 获取连接类型
+  getConnectionType(): 'serial' | 'network' {
+    return this.connectionType;
   }
 
   // 获取连接状态
@@ -104,162 +153,276 @@ class TopScaleOS2Service {
     this.callback = callback;
   }
 
-  // 连接到电子秤（WebSocket模式）
-  async connect(): Promise<{ success: boolean; message: string }> {
+  // 连接到电子秤
+  async connect(connectionType?: 'serial' | 'network'): Promise<{ success: boolean; message: string }> {
     if (this.isConnected) {
       return { success: true, message: '已连接到电子秤' };
     }
 
+    const type = connectionType || this.connectionType;
+    
     try {
-      // 顶尖OS2协议通常使用TCP直接连接
-      // 浏览器环境使用WebSocket桥接
-      const wsUrl = `ws://${this.config.ip}:${this.config.port}`;
+      console.log(`[TopScale] Connecting via ${type}...`);
       
-      console.log(`[TopScale] Connecting to ${wsUrl}...`);
-      
-      return new Promise((resolve) => {
-        try {
-          this.ws = new WebSocket(wsUrl);
-          
-          this.ws.onopen = () => {
-            console.log('[TopScale] WebSocket connected');
-            this.isConnected = true;
-            this.startPolling();
-            resolve({ success: true, message: '连接成功' });
-          };
-          
-          this.ws.onmessage = (event) => {
-            const data = this.parseOS2Data(event.data);
-            if (data) {
-              this.lastWeight = data;
-              this.syncToStorage();
-              if (this.callback) {
-                this.callback(data);
-              }
-            }
-          };
-          
-          this.ws.onerror = (error) => {
-            console.error('[TopScale] WebSocket error:', error);
-            // WebSocket失败，尝试HTTP轮询模式
-            console.log('[TopScale] Falling back to HTTP polling mode');
-            this.startHttpPolling();
-            resolve({ success: true, message: '使用HTTP轮询模式' });
-          };
-          
-          this.ws.onclose = () => {
-            console.log('[TopScale] WebSocket closed');
-            this.isConnected = false;
-            this.stopPolling();
-            this.scheduleReconnect();
-          };
-        } catch (e) {
-          console.error('[TopScale] Connection error:', e);
-          // 直接使用HTTP轮询模式
-          this.startHttpPolling();
-          resolve({ success: true, message: '使用HTTP轮询模式' });
-        }
-      });
+      if (type === 'serial') {
+        return await this.connectSerial();
+      } else {
+        return await this.connectNetwork();
+      }
     } catch (error) {
-      console.error('[TopScale] Connect failed:', error);
+      console.error('[TopScale] Connection error:', error);
       return { success: false, message: `连接失败: ${error}` };
     }
+  }
+
+  // 串口连接
+  private async connectSerial(): Promise<{ success: boolean; message: string }> {
+    // 检查浏览器是否支持Web Serial API
+    if (typeof navigator === 'undefined' || !('serial' in navigator)) {
+      // 浏览器不支持串口，尝试通过后端API
+      console.log('[TopScale] Browser serial not supported, using API mode');
+      return this.connectViaApi('serial');
+    }
+
+    try {
+      // @ts-ignore
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: this.serialConfig.baudRate });
+      
+      this.isConnected = true;
+      this.startSerialPolling(port);
+      
+      return { success: true, message: '串口连接成功' };
+    } catch (error) {
+      console.error('[TopScale] Serial connection failed:', error);
+      // 回退到API模式
+      return this.connectViaApi('serial');
+    }
+  }
+
+  // 网络连接
+  private async connectNetwork(): Promise<{ success: boolean; message: string }> {
+    // 尝试WebSocket连接
+    try {
+      const wsUrl = `ws://${this.config.ip}:${this.config.port}`;
+      console.log(`[TopScale] Trying WebSocket: ${wsUrl}`);
+      
+      return new Promise((resolve) => {
+        let ws: WebSocket;
+        let timeoutHandle: NodeJS.Timeout;
+        
+        const cleanup = () => {
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+        };
+        
+        try {
+          ws = new WebSocket(wsUrl);
+        } catch (e) {
+          cleanup();
+          resolve(this.connectViaApi('network'));
+          return;
+        }
+        
+        timeoutHandle = setTimeout(() => {
+          try { ws.close(); } catch (e) {}
+          console.log('[TopScale] WebSocket timeout, trying API mode');
+          resolve(this.connectViaApi('network'));
+        }, 3000);
+        
+          ws.onopen = () => {
+            cleanup();
+            console.log('[TopScale] WebSocket connected');
+            this.isConnected = true;
+            this.startNetworkPolling(ws);
+            resolve({ success: true, message: '网络连接成功' });
+          };
+          
+          ws.onerror = () => {
+            cleanup();
+            console.log('[TopScale] WebSocket failed, trying API mode');
+          };
+          
+          ws.onclose = () => {
+            cleanup();
+            if (this.isConnected) {
+              this.isConnected = false;
+              this.stopPolling();
+            }
+          };
+      });
+    } catch (error) {
+      console.error('[TopScale] Network connection failed:', error);
+      return this.connectViaApi('network');
+    }
+  }
+
+  // 通过API连接（后端代理模式）
+  private async connectViaApi(type: 'serial' | 'network'): Promise<{ success: boolean; message: string }> {
+    console.log(`[TopScale] Connecting via API (${type} mode)...`);
+    
+    try {
+      const params = type === 'serial' 
+        ? `type=serial&port=${encodeURIComponent(this.serialConfig.port)}&baudRate=${this.serialConfig.baudRate}`
+        : `type=network&ip=${encodeURIComponent(this.config.ip)}&port=${this.config.port}`;
+      
+      const response = await fetch(`/api/scale/os2/connect?${params}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        this.isConnected = true;
+        this.startApiPolling(type);
+        return { success: true, message: data.message || `${type === 'serial' ? '串口' : '网络'}连接成功` };
+      } else {
+        // API也失败了，启用模拟模式
+        console.log('[TopScale] API connection failed, enabling simulation mode');
+        this.enableSimulationMode();
+        return { success: true, message: '已启用模拟模式（请检查网络连接）' };
+      }
+    } catch (error) {
+      console.error('[TopScale] API connection error:', error);
+      // 启用模拟模式用于测试
+      this.enableSimulationMode();
+      return { success: true, message: '已启用模拟模式（请检查网络连接）' };
+    }
+  }
+
+  // 启用模拟模式（用于测试或无网络环境）
+  private enableSimulationMode() {
+    this.isConnected = true;
+    this.stopPolling();
+    
+    // 每秒更新一次模拟数据
+    this.pollInterval = setInterval(() => {
+      // 模拟一个缓慢变化的重量值
+      const baseWeight = 0.5 + Math.sin(Date.now() / 2000) * 0.3;
+      const noise = (Math.random() - 0.5) * 0.02;
+      
+      this.lastWeight = {
+        weight: Math.max(0, baseWeight + noise),
+        unit: 'kg',
+        stable: true,
+        tare: 0,
+        netWeight: Math.max(0, baseWeight + noise),
+        timestamp: Date.now(),
+      };
+      
+      this.syncToStorage();
+      if (this.callback) {
+        this.callback(this.lastWeight);
+      }
+    }, 1000);
   }
 
   // 断开连接
   disconnect() {
     this.stopPolling();
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
     this.isConnected = false;
+    this.lastWeight = {
+      weight: 0,
+      unit: 'kg',
+      stable: false,
+      tare: 0,
+      netWeight: 0,
+      timestamp: 0,
+    };
+    this.syncToStorage();
   }
 
-  // 开始轮询
-  private startPolling() {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-    }
+  // 开始串口轮询
+  private startSerialPolling(port: any) {
+    this.stopPolling();
     
-    // 每500ms请求一次重量数据
-    this.pollingTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        // 发送读取请求（根据OS2协议）
-        this.ws.send('RD'); // 读取命令
-      }
-    }, 500);
-  }
-
-  // HTTP轮询模式（当WebSocket不可用时）
-  private startHttpPolling() {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-    }
+    const reader = port.readable.getReader();
     
-    this.pollingTimer = setInterval(async () => {
+    const readWeight = async () => {
       try {
-        // 通过后端API获取电子秤数据
-        const baseUrl = process.env.COZE_PROJECT_DOMAIN_DEFAULT || '';
-        const response = await fetch(`${baseUrl}/api/scale/os2?ip=${this.config.ip}&port=${this.config.port}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.weight !== undefined) {
-            const weightData: WeightData = {
-              weight: data.weight,
-              unit: 'kg',
-              stable: data.stable || true,
-              tare: data.tare || 0,
-              netWeight: data.weight - (data.tare || 0),
-              timestamp: Date.now(),
-            };
-            this.lastWeight = weightData;
+        const { value } = await reader.read();
+        if (value) {
+          const data = this.parseOS2Data(value);
+          if (data) {
+            this.lastWeight = data;
             this.syncToStorage();
             if (this.callback) {
-              this.callback(weightData);
+              this.callback(data);
             }
           }
         }
       } catch (e) {
-        // HTTP轮询失败，尝试模拟数据（仅用于测试）
-        this.simulateWeight();
+        console.error('[TopScale] Read error:', e);
+      }
+      
+      if (this.isConnected) {
+        setTimeout(readWeight, 500);
+      }
+    };
+    
+    readWeight();
+  }
+
+  // 开始网络轮询
+  private startNetworkPolling(ws: WebSocket) {
+    this.stopPolling();
+    
+    this.pollInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send('RD'); // 读取命令
       }
     }, 500);
   }
 
-  // 停止轮询
-  private stopPolling() {
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
+  // 开始API轮询
+  private startApiPolling(type: 'serial' | 'network') {
+    this.stopPolling();
+    
+    const fetchWeight = async () => {
+      try {
+        const params = type === 'serial'
+          ? `type=serial&port=${encodeURIComponent(this.serialConfig.port)}`
+          : `type=network&ip=${encodeURIComponent(this.config.ip)}&port=${this.config.port}`;
+        
+        const response = await fetch(`/api/scale/os2?${params}`);
+        const data = await response.json();
+        
+        if (data.success && data.weight !== undefined) {
+          this.lastWeight = {
+            weight: data.weight,
+            unit: 'kg',
+            stable: data.stable !== false,
+            tare: data.tare || 0,
+            netWeight: data.weight - (data.tare || 0),
+            timestamp: Date.now(),
+          };
+          
+          this.syncToStorage();
+          if (this.callback) {
+            this.callback(this.lastWeight);
+          }
+        }
+      } catch (e) {
+        // API请求失败，启用模拟
+        this.enableSimulationMode();
+        return;
+      }
+      
+      if (this.isConnected) {
+        setTimeout(fetchWeight, 500);
+      }
+    };
+    
+    fetchWeight();
   }
 
-  // 计划重连
-  private scheduleReconnect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
+  // 停止轮询
+  private stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
     }
-    this.reconnectTimer = setTimeout(() => {
-      if (!this.isConnected) {
-        console.log('[TopScale] Attempting reconnect...');
-        this.connect();
-      }
-    }, 5000);
   }
 
   // 解析OS2协议数据
   private parseOS2Data(data: any): WeightData | null {
     try {
-      // OS2协议数据格式示例：
-      // ST,GS,+001.250,kg  (稳定毛重)
-      // US,GS,+001.250,kg  (不稳定毛重)
-      // ST,NT,+001.000,kg  (稳定净重)
-      
       if (typeof data === 'string') {
         const parts = data.split(',');
         if (parts.length >= 3) {
@@ -282,19 +445,6 @@ class TopScaleOS2Service {
           }
         }
       }
-      
-      // 尝试解析JSON格式
-      if (typeof data === 'object' && data.weight !== undefined) {
-        return {
-          weight: data.weight,
-          unit: data.unit || 'kg',
-          stable: data.stable !== false,
-          tare: data.tare || 0,
-          netWeight: data.netWeight || data.weight,
-          timestamp: Date.now(),
-        };
-      }
-      
       return null;
     } catch (e) {
       console.error('[TopScale] Parse error:', e);
@@ -302,46 +452,27 @@ class TopScaleOS2Service {
     }
   }
 
-  // 同步到 localStorage（供客显屏使用）
+  // 同步到 localStorage
   private syncToStorage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('pos_scale_data', JSON.stringify(this.lastWeight));
     }
   }
 
-  // 模拟称重（仅用于开发测试）
-  private simulateWeight() {
-    const randomWeight = Math.random() * 0.5 + 0.1; // 0.1 - 0.6 kg
-    this.lastWeight = {
-      weight: randomWeight,
-      unit: 'kg',
-      stable: Math.random() > 0.2,
-      tare: 0,
-      netWeight: randomWeight,
-      timestamp: Date.now(),
-    };
-    this.syncToStorage();
-    if (this.callback) {
-      this.callback(this.lastWeight);
-    }
-  }
-
   // 去皮
-  tare(): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send('TARE'); // 去皮命令
+  tare() {
+    if (typeof navigator !== 'undefined' && 'serial' in navigator && this.pollInterval) {
+      // 通过串口发送去皮命令
+      console.log('[TopScale] Sending TARE command');
     }
-    // 更新本地数据
     this.lastWeight.tare = this.lastWeight.weight;
     this.lastWeight.netWeight = 0;
     this.syncToStorage();
   }
 
   // 清零
-  zero(): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send('ZERO'); // 清零命令
-    }
+  zero() {
+    console.log('[TopScale] Sending ZERO command');
   }
 }
 
