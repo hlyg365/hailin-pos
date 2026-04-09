@@ -636,6 +636,37 @@ export default function PosPage() {
     setTimeout(() => setSaveMessage(null), 2000);
   };
   
+  // 外设管理 - 设备类型更改弹窗
+  const [deviceTypeDialog, setDeviceTypeDialog] = useState<{
+    open: boolean;
+    device: { id: string; name: string; type: string; typeLabel: string } | null;
+  }>({ open: false, device: null });
+  const [deviceList, setDeviceList] = useState([
+    { id: 'usb-001', name: 'USB Printer P', manufacturer: 'XPrinter', productId: 8227, vendorId: 11575, type: 'printer', typeLabel: '打印机' },
+    { id: 'usb-002', name: 'A031-PC2.1-ZC', manufacturer: 'Sonix Technology', productId: 25451, vendorId: 3141, type: 'other', typeLabel: '其它类型' },
+    { id: 'usb-003', name: 'Alipay KD4 2.4G-USB Dongle', manufacturer: 'Telink', productId: 35280, vendorId: 9354, type: 'scanner', typeLabel: '扫码枪' },
+    { id: 'usb-004', name: 'TMS HIDKeyBoard', manufacturer: '未知', productId: 34817, vendorId: 9969, type: 'other', typeLabel: '其它类型' },
+  ]);
+  
+  const deviceTypeOptions = [
+    { value: 'printer', label: '打印机' },
+    { value: 'scanner', label: '扫码枪' },
+    { value: 'scale', label: '电子秤' },
+    { value: 'cashbox', label: '钱箱' },
+    { value: 'display', label: '客显屏' },
+    { value: 'other', label: '其它类型' },
+  ];
+  
+  const handleChangeDeviceType = (deviceId: string, newType: string) => {
+    const option = deviceTypeOptions.find(o => o.value === newType);
+    setDeviceList(prev => prev.map(d => 
+      d.id === deviceId 
+        ? { ...d, type: newType, typeLabel: option?.label || '其它类型' }
+        : d
+    ));
+    setDeviceTypeDialog({ open: false, device: null });
+  };
+  
   // 硬件设备相关
   const {
     scanner,
@@ -3721,19 +3752,17 @@ export default function PosPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium text-lg">外设管理</h3>
-              <Button variant="outline" size="sm" className="text-xs">
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => {
+                // 模拟刷新设备
+                setDeviceList([...deviceList]);
+              }}>
                 <RefreshCw className="h-3 w-3 mr-1" />
                 刷新设备
               </Button>
             </div>
             
             {/* 设备列表 */}
-            {[
-              { id: 'usb-001', name: 'USB Printer P', manufacturer: 'XPrinter', productId: 8227, vendorId: 11575, type: 'printer', typeLabel: '打印机' },
-              { id: 'usb-002', name: 'A031-PC2.1-ZC', manufacturer: 'Sonix Technology', productId: 25451, vendorId: 3141, type: 'other', typeLabel: '其它类型' },
-              { id: 'usb-003', name: 'Alipay KD4 2.4G-USB Dongle', manufacturer: 'Telink', productId: 35280, vendorId: 9354, type: 'scanner', typeLabel: '扫码枪' },
-              { id: 'usb-004', name: 'TMS HIDKeyBoard', manufacturer: '未知', productId: 34817, vendorId: 9969, type: 'other', typeLabel: '其它类型' },
-            ].map((device) => (
+            {deviceList.map((device) => (
               <div key={device.id} className="bg-white rounded-lg border p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div>
@@ -3750,11 +3779,48 @@ export default function PosPage() {
                   <div>连接方式: USB</div>
                   <div>状态: <span className="text-green-500">已连接</span></div>
                 </div>
-                <Button variant="outline" size="sm" className="w-full text-red-500 border-red-200 hover:bg-red-50">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-red-500 border-red-200 hover:bg-red-50"
+                  onClick={() => setDeviceTypeDialog({ open: true, device })}
+                >
                   更改设备类型
                 </Button>
               </div>
             ))}
+            
+            {/* 设备类型更改弹窗 */}
+            <Dialog open={deviceTypeDialog.open} onOpenChange={(open) => {
+              if (!open) setDeviceTypeDialog({ open: false, device: null });
+            }}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>更改设备类型</DialogTitle>
+                  <DialogDescription>
+                    选择设备 "{deviceTypeDialog.device?.name}" 的新类型
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-4">
+                  {deviceTypeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                        deviceTypeDialog.device?.type === option.value 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'hover:bg-gray-50'
+                      }`}
+                      onClick={() => deviceTypeDialog.device && handleChangeDeviceType(deviceTypeDialog.device.id, option.value)}
+                    >
+                      <span className="font-medium">{option.label}</span>
+                      {deviceTypeDialog.device?.type === option.value && (
+                        <Badge variant="default" className="bg-blue-500">当前</Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         );
 
@@ -3837,15 +3903,6 @@ export default function PosPage() {
                 <div>
                   <p className="text-sm font-medium">收银渠道设置</p>
                   <p className="text-xs text-red-400">请谨慎操作</p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-gray-400" />
-              </button>
-              <button 
-                className="w-full flex items-center justify-between p-4 border-b hover:bg-gray-50"
-                onClick={() => window.open('https://www.jd.com', '_blank')}
-              >
-                <div>
-                  <p className="text-sm font-medium">收银配件购买</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-400" />
               </button>
