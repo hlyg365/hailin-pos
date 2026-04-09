@@ -1,5 +1,5 @@
 // 海邻收银台 Service Worker
-const CACHE_NAME = 'hailin-pos-v21';
+const CACHE_NAME = 'hailin-pos-v25';
 const OFFLINE_URL = '/pos/offline';
 
 // 需要缓存的静态资源
