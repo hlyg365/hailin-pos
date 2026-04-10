@@ -4104,73 +4104,19 @@ export default function PosPage() {
                   </div>
                   <div>
                     <p className="text-sm font-bold">
-                      {customerDisplayState.isOpen ? '客显屏已打开' : '客显屏未连接'}
+                      {customerDisplayState.isOpen ? '客显屏已开启' : '客显屏未连接'}
                     </p>
                     <p className="text-xs text-gray-500">
                       {customerDisplayState.isOpen 
-                        ? (customerDisplayState.isOnSecondaryScreen 
-                            ? `✓ 已在副屏显示 (${customerDisplayState.secondaryScreenInfo?.left || 0}, ${customerDisplayState.secondaryScreenInfo?.top || 0})` 
-                            : '⚠ 在主屏显示，请移到副屏')
-                        : '点击下方按钮打开客显屏窗口'}
+                        ? '客显屏正在显示广告和收款信息' 
+                        : '点击按钮打开客显屏'}
                     </p>
                   </div>
-                </div>
-              </div>
-              
-              {/* 屏幕信息卡片 */}
-              <div className="bg-gray-50 rounded-lg p-3 mb-3 text-xs">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">主屏</span>
-                    <span className="font-mono">{(() => {
-                      const info = customerDisplayService.getPrimaryScreen();
-                      return `${info.width}x${info.height}`;
-                    })()}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">副屏</span>
-                    <span className="font-mono">
-                      {customerDisplayState.secondaryScreenInfo?.detected 
-                        ? `${customerDisplayState.secondaryScreenInfo.width}x${customerDisplayState.secondaryScreenInfo.height}`
-                        : '未检测'}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2 text-gray-500">
-                  检测方式: <span className="font-medium">
-                    {customerDisplayState.secondaryScreenInfo?.method === 'auto' ? '浏览器API自动' :
-                     customerDisplayState.secondaryScreenInfo?.method === 'manual' ? '手动设置' :
-                     customerDisplayState.secondaryScreenInfo?.method === 'default' ? '默认位置' : '无'}
-                  </span>
                 </div>
               </div>
               
               {/* 主操作按钮 */}
-              <div className="flex gap-2 mb-3">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="flex-1"
-                  onClick={async () => {
-                    const result = await customerDisplayService.detectScreens();
-                    const primary = customerDisplayService.getPrimaryScreen();
-                    alert(
-                      `=== 屏幕检测结果 ===\n\n` +
-                      `主屏: ${primary.width}x${primary.height}\n` +
-                      `副屏: ${result.secondaryScreen ? '已检测到' : '未检测到'}\n` +
-                      (result.secondaryScreen ? 
-                        `副屏分辨率: ${result.secondaryScreen.width}x${result.secondaryScreen.height}\n` +
-                        `副屏位置: (${result.secondaryScreen.left}, ${result.secondaryScreen.top})\n` : ''
-                      ) +
-                      `检测方式: ${result.detectionMethod === 'auto' ? '浏览器API' :
-                                 result.detectionMethod === 'manual' ? '手动设置' : '默认位置'}`
-                    );
-                  }}
-                >
-                  <Monitor className="h-4 w-4 mr-1" />
-                  检测屏幕
-                </Button>
-                
+              <div className="flex gap-2">
                 <Button 
                   size="sm" 
                   variant={customerDisplayState.isOpen ? "destructive" : "default"}
@@ -4197,103 +4143,30 @@ export default function PosPage() {
                 </Button>
               </div>
               
-              {/* 移到副屏按钮 - 仅在客显屏打开时显示 */}
-              {customerDisplayState.isOpen && (
-                <div className="border-t pt-3">
-                  <p className="text-xs text-orange-600 mb-2 font-medium">
-                    ⚠ 客显屏已打开，请选择副屏位置：
-                  </p>
-                  
-                  {/* 副屏位置预设按钮 */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      className="text-xs h-auto py-2"
-                      onClick={async () => {
-                        const primary = customerDisplayService.getPrimaryScreen();
-                        const result = await customerDisplayService.moveToPosition(primary.width, 0, 1280, 800);
-                        alert(result.message);
-                      }}
-                    >
-                      <div className="text-center">
-                        <div className="font-bold">主屏右侧</div>
-                        <div className="text-gray-400">X=主屏宽度</div>
-                      </div>
-                    </Button>
-                    
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      className="text-xs h-auto py-2"
-                      onClick={async () => {
-                        const primary = customerDisplayService.getPrimaryScreen();
-                        const result = await customerDisplayService.moveToPosition(0, primary.height, 1280, 800);
-                        alert(result.message);
-                      }}
-                    >
-                      <div className="text-center">
-                        <div className="font-bold">主屏下方</div>
-                        <div className="text-gray-400">Y=主屏高度</div>
-                      </div>
-                    </Button>
-                    
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      className="text-xs h-auto py-2"
-                      onClick={async () => {
-                        const result = await customerDisplayService.moveToPosition(-1280, 0, 1280, 800);
-                        alert(result.message);
-                      }}
-                    >
-                      <div className="text-center">
-                        <div className="font-bold">主屏左侧</div>
-                        <div className="text-gray-400">X=-1280</div>
-                      </div>
-                    </Button>
-                  </div>
-                  
-                  {/* 自定义位置输入 */}
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                    <span className="text-xs text-gray-500 whitespace-nowrap">自定义:</span>
-                    <input 
-                      type="number"
-                      id="secondary-x"
-                      placeholder="X"
-                      defaultValue={(() => {const p = customerDisplayService.getPrimaryScreen(); return p.width;})()}
-                      className="w-20 h-8 px-2 border rounded text-xs text-center"
-                    />
-                    <span className="text-gray-400">×</span>
-                    <input 
-                      type="number"
-                      id="secondary-y"
-                      placeholder="Y"
-                      defaultValue="0"
-                      className="w-20 h-8 px-2 border rounded text-xs text-center"
-                    />
-                    <Button 
-                      size="sm" 
-                      className="bg-blue-600 hover:bg-blue-700 text-xs"
-                      onClick={async () => {
-                        const x = parseInt((document.getElementById('secondary-x') as HTMLInputElement)?.value) || 0;
-                        const y = parseInt((document.getElementById('secondary-y') as HTMLInputElement)?.value) || 0;
-                        const result = await customerDisplayService.moveToPosition(x, y, 1280, 800);
-                        alert(result.message);
-                      }}
-                    >
-                      移动
-                    </Button>
-                  </div>
+              {/* 帮助提示 - 针对移动端/单屏设备 */}
+              <div className="mt-3 pt-2 border-t text-xs text-gray-500 space-y-1">
+                <p><strong>客显屏使用说明：</strong></p>
+                <p>1. 在收银机上使用：保持当前窗口即可</p>
+                <p>2. 双设备方案：用另一台设备访问以下地址</p>
+                <div className="bg-gray-100 rounded p-2 mt-1 break-all">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}/pos/customer-display
                 </div>
-              )}
-              
-              {/* 帮助提示 */}
-              <div className="mt-3 pt-2 border-t text-xs text-gray-400">
-                <p>💡 提示：打开客显屏后，如需定位到副屏，请选择上方预设位置或输入自定义坐标。</p>
-                <p>⚠️ 如果浏览器阻止了新窗口，请在地址栏允许弹出窗口。</p>
               </div>
             </div>
+
+            {/* 客显屏URL显示（方便复制到其他设备） */}
+            {customerDisplayState.isOpen && (
+              <div className="bg-white rounded-lg border-2 border-green-200 p-4">
+                <h4 className="font-medium text-sm mb-2 text-green-700">客显屏已开启</h4>
+                <p className="text-xs text-gray-500 mb-2">在其他设备上打开以下地址可显示客显屏：</p>
+                <div className="bg-gray-100 rounded p-2 text-xs font-mono break-all">
+                  {typeof window !== 'undefined' ? window.location.origin : ''}/pos/customer-display
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  客显屏会自动全屏显示并同步收银数据
+                </p>
+              </div>
+            )}
 
             {/* 广告预览 */}
             <div className="bg-white rounded-lg border p-4">
