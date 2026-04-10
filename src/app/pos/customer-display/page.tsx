@@ -521,42 +521,63 @@ export default function CustomerDisplayPage() {
 
   // 一键调整到副屏（主屏右侧）
   const adjustToSecondaryScreen = useCallback(() => {
-    const primaryWidth = screen.width;
-    const target: TargetPosition = {
-      left: primaryWidth,
-      top: 0,
-      width: 1280,
-      height: 800,
-    };
-    
-    console.log('[CustomerDisplay] 调整到副屏:', target);
-    
-    window.moveTo(target.left, target.top);
-    window.resizeTo(target.width, target.height);
-    
-    setWindowPosition({
-      left: target.left,
-      top: target.top,
-      width: target.width,
-      height: target.height,
-    });
-    
-    setTargetPosition(null);
-  }, []);
-
-  // 最大化窗口
-  const maximizeWindow = useCallback(() => {
+    // 首先最大化窗口
     window.moveTo(0, 0);
     window.resizeTo(window.screen.width, window.screen.height);
     
+    // 延迟后尝试移到副屏位置（如果有的话）
+    setTimeout(() => {
+      const secondaryLeft = window.screen.width;
+      const secondaryTop = 0;
+      
+      // 尝试移动到副屏
+      try {
+        window.moveTo(secondaryLeft, secondaryTop);
+        window.resizeTo(1280, 800);
+      } catch (e) {
+        console.log('[CustomerDisplay] 无法移动到副屏，窗口已在全屏状态');
+      }
+      
+      setWindowPosition({
+        left: secondaryLeft,
+        top: secondaryTop,
+        width: 1280,
+        height: 800,
+      });
+      
+      setTargetPosition(null);
+    }, 100);
+  }, []);
+
+  // 最大化窗口（填满当前屏幕）
+  const maximizeWindow = useCallback(() => {
+    const left = window.screenX || window.screenLeft || 0;
+    const top = window.screenY || window.screenTop || 0;
+    
+    window.moveTo(left, top);
+    window.resizeTo(window.screen.width, window.screen.height);
+    
     setWindowPosition({
-      left: 0,
-      top: 0,
+      left,
+      top,
       width: window.screen.width,
       height: window.screen.height,
     });
     
     setTargetPosition(null);
+  }, []);
+
+  // 手动调整位置
+  const manualAdjustPosition = useCallback((left: number, top: number, width: number = 1280, height: number = 800) => {
+    window.moveTo(left, top);
+    window.resizeTo(width, height);
+    
+    setWindowPosition({
+      left,
+      top,
+      width,
+      height,
+    });
   }, []);
 
   // 检测是否在主屏（x=0, y=0 附近）
@@ -565,6 +586,10 @@ export default function CustomerDisplayPage() {
     Math.abs(windowPosition.left - targetPosition.left) > 50 ||
     Math.abs(windowPosition.top - targetPosition.top) > 50
   );
+
+  // 获取屏幕分辨率
+  const screenWidth = typeof window !== 'undefined' ? window.screen.width : 1920;
+  const screenHeight = typeof window !== 'undefined' ? window.screen.height : 1080;
 
   // 更新时间
   useEffect(() => {
@@ -736,91 +761,106 @@ export default function CustomerDisplayPage() {
   return (
     <div className="min-h-screen bg-gray-900 flex relative">
       {/* 窗口位置状态栏 - 固定在顶部 */}
-      {mounted && showPositionBar && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm text-white text-xs p-2">
-          <div className="flex items-center justify-between px-4">
+      {mounted && (
+        <div className="absolute top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-sm text-white text-xs">
+          {/* 主信息栏 */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
             {/* 左侧：位置信息 */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
-                <Monitor className="w-4 h-4" />
-                <span className={isOnPrimaryScreen ? 'text-yellow-400' : 'text-green-400'}>
+                <Monitor className="w-4 h-4 text-blue-400" />
+                <span className="font-bold">客显屏</span>
+                <span className={`px-2 py-0.5 rounded text-xs ${isOnPrimaryScreen ? 'bg-yellow-600' : 'bg-green-600'}`}>
                   {isOnPrimaryScreen ? '主屏' : '副屏'}
                 </span>
               </div>
               <div className="text-gray-400">
-                位置: ({windowPosition.left}, {windowPosition.top})
+                X:<span className="text-white ml-1">{windowPosition.left}</span>
+                Y:<span className="text-white ml-1">{windowPosition.top}</span>
               </div>
               <div className="text-gray-400">
-                大小: {windowPosition.width}x{windowPosition.height}
+                分辨率:<span className="text-white ml-1">{screenWidth}x{screenHeight}</span>
               </div>
             </div>
             
-            {/* 右侧：操作按钮 */}
+            {/* 右侧：快捷操作按钮 */}
             <div className="flex items-center gap-2">
-              {/* 一键移到副屏按钮 */}
-              {isOnPrimaryScreen && (
-                <button
-                  onClick={adjustToSecondaryScreen}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors"
-                >
-                  <Monitor className="w-3 h-3" />
-                  移到副屏
-                </button>
-              )}
-              
-              {/* 最大化按钮 */}
               <button
                 onClick={maximizeWindow}
-                className="flex items-center gap-1 px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors font-medium"
+                title="填满当前屏幕"
               >
                 <Maximize2 className="w-3 h-3" />
-                全屏
+                填满屏幕
               </button>
-              
-              {/* 隐藏状态栏按钮 */}
               <button
-                onClick={() => setShowPositionBar(false)}
-                className="p-1 hover:bg-gray-700 rounded transition-colors"
+                onClick={() => setShowPositionBar(!showPositionBar)}
+                className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                title={showPositionBar ? '隐藏设置' : '显示设置'}
               >
-                <X className="w-4 h-4" />
+                {showPositionBar ? <X className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
               </button>
             </div>
           </div>
           
-          {/* 移动确认提示 */}
-          {needsPositionAdjustment && targetPosition && (
-            <div className="mt-2 px-4 py-2 bg-yellow-600/80 rounded flex items-center justify-between">
-              <span>
-                收到移动指令：点击下方按钮将窗口移动到 ({targetPosition.left}, {targetPosition.top})
-              </span>
-              <div className="flex gap-2">
+          {/* 高级设置面板 */}
+          {showPositionBar && (
+            <div className="px-4 py-3 bg-gray-800">
+              <div className="text-xs text-gray-400 mb-2">💡 提示：点击下方按钮可调整窗口位置，如果浏览器限制窗口移动，请手动拖动窗口到副屏</div>
+              
+              {/* 快捷位置按钮 */}
+              <div className="flex flex-wrap gap-2 mb-3">
                 <button
-                  onClick={executeMove}
-                  className="px-4 py-1 bg-green-600 hover:bg-green-700 rounded text-white font-medium transition-colors"
+                  onClick={() => manualAdjustPosition(0, 0, screenWidth, screenHeight)}
+                  className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs transition-colors"
                 >
-                  确认移动
+                  主屏(0,0)
                 </button>
                 <button
-                  onClick={() => setTargetPosition(null)}
-                  className="px-4 py-1 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
+                  onClick={() => manualAdjustPosition(screenWidth, 0, 1280, 800)}
+                  className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs transition-colors"
                 >
-                  取消
+                  右侧({screenWidth},0)
+                </button>
+                <button
+                  onClick={() => manualAdjustPosition(0, screenHeight, 1280, 800)}
+                  className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs transition-colors"
+                >
+                  下方(0,{screenHeight})
+                </button>
+                <button
+                  onClick={() => manualAdjustPosition(-1280, 0, 1280, 800)}
+                  className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs transition-colors"
+                >
+                  左侧(-1280,0)
                 </button>
               </div>
+              
+              {/* 移动确认提示 */}
+              {needsPositionAdjustment && targetPosition && (
+                <div className="mt-2 px-4 py-2 bg-yellow-600/80 rounded flex items-center justify-between">
+                  <span>
+                    收到移动指令：点击确认将窗口移动到 ({targetPosition.left}, {targetPosition.top})
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={executeMove}
+                      className="px-4 py-1 bg-green-600 hover:bg-green-700 rounded text-white font-medium transition-colors"
+                    >
+                      确认移动
+                    </button>
+                    <button
+                      onClick={() => setTargetPosition(null)}
+                      className="px-4 py-1 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
+                    >
+                      忽略
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
-      
-      {/* 重新显示状态栏按钮（当状态栏隐藏时） */}
-      {mounted && !showPositionBar && (
-        <button
-          onClick={() => setShowPositionBar(true)}
-          className="absolute top-2 right-2 z-50 p-2 bg-black/60 hover:bg-black/80 rounded text-white/60 hover:text-white transition-colors"
-          title="显示窗口位置"
-        >
-          <Monitor className="w-4 h-4" />
-        </button>
       )}
       
       {/* 空闲状态：全屏显示广告 */}
