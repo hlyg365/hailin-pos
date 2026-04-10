@@ -1,9 +1,25 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { QrCode, Volume2, VolumeX } from 'lucide-react';
+import { QrCode, Volume2, VolumeX, Monitor, Maximize2, X } from 'lucide-react';
 import { getSpeechService, SpeechService } from '@/lib/speech-service';
 import QRCode from 'qrcode';
+
+// 窗口位置信息
+interface WindowPosition {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+// 目标位置（待确认）
+interface TargetPosition {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 
 // 商品类型
 interface CartItem {
@@ -379,6 +395,11 @@ export default function CustomerDisplayPage() {
   const adIndexRef = useRef<number>(0);
   const isSpeakingRef = useRef<boolean>(false);
 
+  // 窗口位置相关状态
+  const [windowPosition, setWindowPosition] = useState<WindowPosition>({ left: 0, top: 0, width: 1280, height: 800 });
+  const [targetPosition, setTargetPosition] = useState<TargetPosition | null>(null);
+  const [showPositionBar, setShowPositionBar] = useState(true); // 是否显示位置状态栏
+
   // 客户端挂载
   useEffect(() => {
     setMounted(true);
@@ -401,38 +422,45 @@ export default function CustomerDisplayPage() {
     const targetWidth = parseInt(params.get('width') || '1280', 10);
     const targetHeight = parseInt(params.get('height') || '800', 10);
     
-    // 检查是否需要调整位置
-    const currentLeft = window.screenX || window.screenLeft || 0;
-    const currentTop = window.screenY || window.screenTop || 0;
-    const needsReposition = Math.abs(currentLeft - targetLeft) > 10 || Math.abs(currentTop - targetTop) > 10;
+    // 更新当前窗口位置状态
+    setWindowPosition({
+      left: window.screenX || window.screenLeft || 0,
+      top: window.screenY || window.screenTop || 0,
+      width: window.outerWidth || targetWidth,
+      height: window.outerHeight || targetHeight,
+    });
+    
+    // 设置初始目标位置
+    setTargetPosition({
+      left: targetLeft,
+      top: targetTop,
+      width: targetWidth,
+      height: targetHeight,
+    });
     
     console.log('[CustomerDisplay] 客显屏加载完成:', {
       targetPosition: { left: targetLeft, top: targetTop, width: targetWidth, height: targetHeight },
-      currentPosition: { left: currentLeft, top: currentTop },
-      needsReposition,
     });
     
-    // 如果位置不对，先移动到目标位置
-    if (needsReposition) {
-      // 先最大化窗口以确保可以移动
-      window.moveTo(targetLeft, targetTop);
-      window.resizeTo(targetWidth, targetHeight);
-      console.log('[CustomerDisplay] 已调整窗口位置到目标位置');
-    } else {
-      // 位置正确，调整窗口大小
-      window.resizeTo(targetWidth, targetHeight);
-    }
+    // 初始化窗口大小
+    window.resizeTo(targetWidth, targetHeight);
     
-    // 监听来自主窗口的移动指令
+    // 监听来自主窗口的移动指令 - 改为设置待确认的目标位置
     const handleMessage = (event: MessageEvent) => {
       const { type, left, top, width, height } = event.data || {};
       
       if (type === 'MOVE_TO' && typeof left === 'number' && typeof top === 'number') {
         console.log('[CustomerDisplay] 收到移动指令:', { left, top, width, height });
-        window.moveTo(left, top);
-        window.resizeTo(width || 1280, height || 800);
         
-        // 更新URL参数（方便刷新后保持位置）
+        // 设置待确认的目标位置，让用户点击确认
+        setTargetPosition({
+          left,
+          top,
+          width: width || 1280,
+          height: height || 800,
+        });
+        
+        // 更新URL参数
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set('left', String(left));
         newUrl.searchParams.set('top', String(top));
@@ -444,16 +472,15 @@ export default function CustomerDisplayPage() {
     
     window.addEventListener('message', handleMessage);
     
-    // 定期检查位置是否正确（备用方案）
+    // 定期更新当前窗口位置状态（不主动移动）
     const positionCheckInterval = setInterval(() => {
-      const left = window.screenX || window.screenLeft || 0;
-      const top = window.screenY || window.screenTop || 0;
-      
-      if (Math.abs(left - targetLeft) > 10 || Math.abs(top - targetTop) > 10) {
-        console.log('[CustomerDisplay] 位置偏移，修正中...');
-        window.moveTo(targetLeft, targetTop);
-      }
-    }, 5000);
+      setWindowPosition({
+        left: window.screenX || window.screenLeft || 0,
+        top: window.screenY || window.screenTop || 0,
+        width: window.outerWidth,
+        height: window.outerHeight,
+      });
+    }, 2000);
     
     return () => {
       // 清理
@@ -464,6 +491,80 @@ export default function CustomerDisplayPage() {
       clearInterval(positionCheckInterval);
     };
   }, []);
+
+  // 执行窗口移动（需要用户点击触发）
+  const executeMove = useCallback(() => {
+    if (!targetPosition) return;
+    
+    console.log('[CustomerDisplay] 执行窗口移动到:', targetPosition);
+    
+    // 执行移动（浏览器允许用户点击触发的移动）
+    window.moveTo(targetPosition.left, targetPosition.top);
+    window.resizeTo(targetPosition.width, targetPosition.height);
+    
+    // 更新当前位置状态
+    setWindowPosition({
+      left: targetPosition.left,
+      top: targetPosition.top,
+      width: targetPosition.width,
+      height: targetPosition.height,
+    });
+    
+    // 清除目标位置
+    setTargetPosition(null);
+    
+    // 隐藏状态栏（3秒后自动隐藏）
+    setTimeout(() => {
+      setShowPositionBar(false);
+    }, 3000);
+  }, [targetPosition]);
+
+  // 一键调整到副屏（主屏右侧）
+  const adjustToSecondaryScreen = useCallback(() => {
+    const primaryWidth = screen.width;
+    const target: TargetPosition = {
+      left: primaryWidth,
+      top: 0,
+      width: 1280,
+      height: 800,
+    };
+    
+    console.log('[CustomerDisplay] 调整到副屏:', target);
+    
+    window.moveTo(target.left, target.top);
+    window.resizeTo(target.width, target.height);
+    
+    setWindowPosition({
+      left: target.left,
+      top: target.top,
+      width: target.width,
+      height: target.height,
+    });
+    
+    setTargetPosition(null);
+  }, []);
+
+  // 最大化窗口
+  const maximizeWindow = useCallback(() => {
+    window.moveTo(0, 0);
+    window.resizeTo(window.screen.width, window.screen.height);
+    
+    setWindowPosition({
+      left: 0,
+      top: 0,
+      width: window.screen.width,
+      height: window.screen.height,
+    });
+    
+    setTargetPosition(null);
+  }, []);
+
+  // 检测是否在主屏（x=0, y=0 附近）
+  const isOnPrimaryScreen = windowPosition.left < 100 && windowPosition.top < 100;
+  const needsPositionAdjustment = targetPosition && (
+    Math.abs(windowPosition.left - targetPosition.left) > 50 ||
+    Math.abs(windowPosition.top - targetPosition.top) > 50
+  );
 
   // 更新时间
   useEffect(() => {
@@ -633,7 +734,95 @@ export default function CustomerDisplayPage() {
   const earnedPoints = Math.floor(finalAmount);
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-900 flex relative">
+      {/* 窗口位置状态栏 - 固定在顶部 */}
+      {mounted && showPositionBar && (
+        <div className="absolute top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-sm text-white text-xs p-2">
+          <div className="flex items-center justify-between px-4">
+            {/* 左侧：位置信息 */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Monitor className="w-4 h-4" />
+                <span className={isOnPrimaryScreen ? 'text-yellow-400' : 'text-green-400'}>
+                  {isOnPrimaryScreen ? '主屏' : '副屏'}
+                </span>
+              </div>
+              <div className="text-gray-400">
+                位置: ({windowPosition.left}, {windowPosition.top})
+              </div>
+              <div className="text-gray-400">
+                大小: {windowPosition.width}x{windowPosition.height}
+              </div>
+            </div>
+            
+            {/* 右侧：操作按钮 */}
+            <div className="flex items-center gap-2">
+              {/* 一键移到副屏按钮 */}
+              {isOnPrimaryScreen && (
+                <button
+                  onClick={adjustToSecondaryScreen}
+                  className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-white transition-colors"
+                >
+                  <Monitor className="w-3 h-3" />
+                  移到副屏
+                </button>
+              )}
+              
+              {/* 最大化按钮 */}
+              <button
+                onClick={maximizeWindow}
+                className="flex items-center gap-1 px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
+              >
+                <Maximize2 className="w-3 h-3" />
+                全屏
+              </button>
+              
+              {/* 隐藏状态栏按钮 */}
+              <button
+                onClick={() => setShowPositionBar(false)}
+                className="p-1 hover:bg-gray-700 rounded transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          
+          {/* 移动确认提示 */}
+          {needsPositionAdjustment && targetPosition && (
+            <div className="mt-2 px-4 py-2 bg-yellow-600/80 rounded flex items-center justify-between">
+              <span>
+                收到移动指令：点击下方按钮将窗口移动到 ({targetPosition.left}, {targetPosition.top})
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={executeMove}
+                  className="px-4 py-1 bg-green-600 hover:bg-green-700 rounded text-white font-medium transition-colors"
+                >
+                  确认移动
+                </button>
+                <button
+                  onClick={() => setTargetPosition(null)}
+                  className="px-4 py-1 bg-gray-600 hover:bg-gray-700 rounded text-white transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* 重新显示状态栏按钮（当状态栏隐藏时） */}
+      {mounted && !showPositionBar && (
+        <button
+          onClick={() => setShowPositionBar(true)}
+          className="absolute top-2 right-2 z-50 p-2 bg-black/60 hover:bg-black/80 rounded text-white/60 hover:text-white transition-colors"
+          title="显示窗口位置"
+        >
+          <Monitor className="w-4 h-4" />
+        </button>
+      )}
+      
       {/* 空闲状态：全屏显示广告 */}
       {isIdle ? (
         <div className="w-full h-screen">
