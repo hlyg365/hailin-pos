@@ -394,11 +394,74 @@ export default function CustomerDisplayPage() {
       });
     }
     
+    // 处理窗口位置 - 从URL参数读取目标位置
+    const params = new URLSearchParams(window.location.search);
+    const targetLeft = parseInt(params.get('left') || '0', 10);
+    const targetTop = parseInt(params.get('top') || '0', 10);
+    const targetWidth = parseInt(params.get('width') || '1280', 10);
+    const targetHeight = parseInt(params.get('height') || '800', 10);
+    
+    // 检查是否需要调整位置
+    const currentLeft = window.screenX || window.screenLeft || 0;
+    const currentTop = window.screenY || window.screenTop || 0;
+    const needsReposition = Math.abs(currentLeft - targetLeft) > 10 || Math.abs(currentTop - targetTop) > 10;
+    
+    console.log('[CustomerDisplay] 客显屏加载完成:', {
+      targetPosition: { left: targetLeft, top: targetTop, width: targetWidth, height: targetHeight },
+      currentPosition: { left: currentLeft, top: currentTop },
+      needsReposition,
+    });
+    
+    // 如果位置不对，先移动到目标位置
+    if (needsReposition) {
+      // 先最大化窗口以确保可以移动
+      window.moveTo(targetLeft, targetTop);
+      window.resizeTo(targetWidth, targetHeight);
+      console.log('[CustomerDisplay] 已调整窗口位置到目标位置');
+    } else {
+      // 位置正确，调整窗口大小
+      window.resizeTo(targetWidth, targetHeight);
+    }
+    
+    // 监听来自主窗口的移动指令
+    const handleMessage = (event: MessageEvent) => {
+      const { type, left, top, width, height } = event.data || {};
+      
+      if (type === 'MOVE_TO' && typeof left === 'number' && typeof top === 'number') {
+        console.log('[CustomerDisplay] 收到移动指令:', { left, top, width, height });
+        window.moveTo(left, top);
+        window.resizeTo(width || 1280, height || 800);
+        
+        // 更新URL参数（方便刷新后保持位置）
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('left', String(left));
+        newUrl.searchParams.set('top', String(top));
+        newUrl.searchParams.set('width', String(width || 1280));
+        newUrl.searchParams.set('height', String(height || 800));
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    
+    // 定期检查位置是否正确（备用方案）
+    const positionCheckInterval = setInterval(() => {
+      const left = window.screenX || window.screenLeft || 0;
+      const top = window.screenY || window.screenTop || 0;
+      
+      if (Math.abs(left - targetLeft) > 10 || Math.abs(top - targetTop) > 10) {
+        console.log('[CustomerDisplay] 位置偏移，修正中...');
+        window.moveTo(targetLeft, targetTop);
+      }
+    }, 5000);
+    
     return () => {
       // 清理
       if (speechServiceRef.current) {
         speechServiceRef.current.stopAll();
       }
+      window.removeEventListener('message', handleMessage);
+      clearInterval(positionCheckInterval);
     };
   }, []);
 
