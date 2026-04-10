@@ -4500,33 +4500,98 @@ export default function PosPage() {
               </div>
             </div>
             
-            {/* 基础串口设置 */}
-            <div className="bg-white rounded-lg border p-4">
-              <h4 className="text-sm font-medium mb-4 text-gray-700">串口设置（网络秤/IP秤配置）</h4>
-              <div className="space-y-4">
+            {/* 称重一体机网络秤设置 - 主要方案 */}
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-300 p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                  <Scale className="w-5 h-5 text-white" />
+                </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">秤IP地址</label>
+                  <h4 className="text-base font-bold text-green-800">称重一体机配置（推荐）</h4>
+                  <p className="text-xs text-green-600">适用于PWA环境和安卓系统</p>
+                </div>
+              </div>
+              
+              <div className="bg-white/80 rounded-lg p-4 space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    电子秤 IP 地址 <span className="text-red-500">*</span>
+                  </label>
                   <Input 
                     value={settings.scaleNetworkIp}
                     onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
-                    placeholder="如：192.168.1.100"
+                    placeholder="例如：192.168.1.100"
+                    className="h-12 text-base font-mono"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    请输入电子秤的IP地址，通常在秤的设置菜单中可以查看
+                  </p>
                 </div>
+                
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">网络端口</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    网络端口
+                  </label>
                   <Input 
                     type="number"
                     value={settings.scaleNetworkPort}
                     onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
                     placeholder="4001"
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    顶尖OS2协议默认端口：4001
+                  </p>
                 </div>
+                
+                {/* 连接测试按钮 */}
+                <div className="pt-2">
+                  <Button 
+                    className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700"
+                    onClick={async () => {
+                      if (!settings.scaleNetworkIp) {
+                        alert('请先输入电子秤IP地址');
+                        return;
+                      }
+                      
+                      try {
+                        const response = await fetch('/api/scale/network/', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'connect',
+                            ip: settings.scaleNetworkIp,
+                            port: settings.scaleNetworkPort || 4001,
+                          }),
+                        });
+                        const result = await response.json();
+                        alert(result.success ? '连接成功！' : '连接失败：' + result.error);
+                      } catch (e) {
+                        alert('连接失败：网络错误');
+                      }
+                    }}
+                  >
+                    <Scale className="w-5 h-5 mr-2" />
+                    测试连接
+                  </Button>
+                </div>
+              </div>
+              
+              {/* 说明 */}
+              <div className="mt-4 text-xs text-green-700 bg-green-100/50 rounded-lg p-3">
+                <p className="font-medium mb-1">💡 使用说明：</p>
+                <ul className="list-disc list-inside space-y-0.5 text-green-600">
+                  <li>称重一体收银机通常通过网线连接电子秤</li>
+                  <li>在电子秤设置中查看IP地址（通常为192.168.1.x）</li>
+                  <li>确保收银机和电子秤在同一网络</li>
+                  <li>如无法连接，请检查网络配置或联系设备厂商</li>
+                </ul>
               </div>
             </div>
 
             {/* 条码秤设置 */}
             <div className="bg-white rounded-lg border p-4">
-              <h4 className="text-sm font-medium mb-4 text-gray-700">条码秤设置</h4>
+              <h4 className="text-sm font-medium mb-4 text-gray-700">条码秤设置（可选）</h4>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">条码秤类型</label>
                 <select 
@@ -4537,32 +4602,8 @@ export default function PosPage() {
                   <option value="none">不使用条码秤</option>
                   <option value="tm-ab">大华 TM-AB</option>
                   <option value="tm-f">大华 TM-F</option>
-                  <option value="ls2zx">顶尖 LS2ZX（推荐）</option>
+                  <option value="ls2zx">顶尖 LS2ZX</option>
                 </select>
-              </div>
-              
-              {/* 网络配置 */}
-              <div className="mt-4 pt-4 border-t space-y-3">
-                <div className="text-xs text-gray-500 mb-2">网络连接配置（可选）</div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">电子秤IP地址</label>
-                  <Input 
-                    value={settings.scaleNetworkIp}
-                    onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
-                    placeholder="如 192.168.1.100"
-                    className="h-9"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">电子秤端口</label>
-                  <Input 
-                    type="number"
-                    value={settings.scaleNetworkPort}
-                    onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
-                    placeholder="4001（顶尖OS2默认）"
-                    className="h-9"
-                  />
-                </div>
               </div>
             </div>
 
