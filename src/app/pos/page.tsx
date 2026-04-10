@@ -761,6 +761,8 @@ export default function PosPage() {
   const [weightUnit, setWeightUnit] = useState<'kg' | 'jin'>('kg');
   const [scaleConnected, setScaleConnected] = useState(false);
   const [scaleConnecting, setScaleConnecting] = useState(false);
+  const [showManualWeightInput, setShowManualWeightInput] = useState(false);
+  const [manualWeightValue, setManualWeightValue] = useState('');
   
   // 连接电子秤
   const connectScale = async () => {
@@ -4455,30 +4457,69 @@ export default function PosPage() {
           <div className="space-y-6">
             <h3 className="font-medium text-lg">电子秤设置</h3>
             
+            {/* PWA环境说明 */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                  <span className="text-white text-xs">!</span>
+                </div>
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">PWA环境说明</p>
+                  <p className="mt-1 text-xs">
+                    由于浏览器安全限制，PWA环境下无法直接访问USB/串口设备。
+                    <br/>
+                    <strong>推荐方案：</strong>
+                  </p>
+                  <ul className="mt-2 text-xs list-disc list-inside space-y-1">
+                    <li><strong>使用手动输入重量</strong> - 在称重界面点击"手动输入"按钮</li>
+                    <li>使用网络电子秤 - 通过TCP/IP网络连接</li>
+                    <li>使用AI图像识别 - 自动识别商品重量</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            
+            {/* 手动输入说明 */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                  <Scale className="w-4 h-4 text-white" />
+                </div>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium">手动输入重量使用方法</p>
+                  <p className="mt-1 text-xs">
+                    1. 点击右上角"连接"按钮连接秤（如已连接可跳过）
+                    <br/>
+                    2. 点击"手动输入"按钮切换到手动模式
+                    <br/>
+                    3. 在输入框中输入商品重量（单位：千克）
+                    <br/>
+                    4. 点击商品添加到购物车
+                  </p>
+                </div>
+              </div>
+            </div>
+            
             {/* 基础串口设置 */}
             <div className="bg-white rounded-lg border p-4">
-              <h4 className="text-sm font-medium mb-4 text-gray-700">串口设置</h4>
+              <h4 className="text-sm font-medium mb-4 text-gray-700">串口设置（网络秤/IP秤配置）</h4>
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">串口地址</label>
+                  <label className="text-xs text-gray-500 mb-1 block">秤IP地址</label>
                   <Input 
-                    value={settings.scalePort}
-                    onChange={(e) => updateSetting('scalePort', e.target.value)}
-                    placeholder="如：COM1 或 /dev/ttyUSB0"
+                    value={settings.scaleNetworkIp}
+                    onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
+                    placeholder="如：192.168.1.100"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">波特率</label>
-                  <select 
-                    className="w-full h-10 px-3 border rounded-md text-sm"
-                    value={settings.scaleBaudRate}
-                    onChange={(e) => updateSetting('scaleBaudRate', parseInt(e.target.value))}
-                  >
-                    <option value={9600}>9600</option>
-                    <option value={19200}>19200</option>
-                    <option value={38400}>38400</option>
-                    <option value={115200}>115200</option>
-                  </select>
+                  <label className="text-xs text-gray-500 mb-1 block">网络端口</label>
+                  <Input 
+                    type="number"
+                    value={settings.scaleNetworkPort}
+                    onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
+                    placeholder="4001"
+                  />
                 </div>
               </div>
             </div>
@@ -4500,59 +4541,29 @@ export default function PosPage() {
                 </select>
               </div>
               
-              {/* 串口配置 */}
-              <div className="mt-4 space-y-3">
+              {/* 网络配置 */}
+              <div className="mt-4 pt-4 border-t space-y-3">
+                <div className="text-xs text-gray-500 mb-2">网络连接配置（可选）</div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">串口地址</label>
+                  <label className="text-xs text-gray-500 mb-1 block">电子秤IP地址</label>
                   <Input 
-                    value={settings.scalePort}
-                    onChange={(e) => updateSetting('scalePort', e.target.value)}
-                    placeholder="如 COM1, /dev/ttyUSB0"
+                    value={settings.scaleNetworkIp}
+                    onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
+                    placeholder="如 192.168.1.100"
                     className="h-9"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">波特率</label>
-                  <select 
-                    className="w-full h-10 px-3 border rounded-md text-sm"
-                    value={settings.scaleBaudRate}
-                    onChange={(e) => updateSetting('scaleBaudRate', parseInt(e.target.value))}
-                  >
-                    <option value="1200">1200</option>
-                    <option value="2400">2400</option>
-                    <option value="4800">4800</option>
-                    <option value="9600">9600（顶尖OS2默认）</option>
-                    <option value="19200">19200</option>
-                    <option value="38400">38400</option>
-                  </select>
+                  <label className="text-xs text-gray-500 mb-1 block">电子秤端口</label>
+                  <Input 
+                    type="number"
+                    value={settings.scaleNetworkPort}
+                    onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
+                    placeholder="4001（顶尖OS2默认）"
+                    className="h-9"
+                  />
                 </div>
               </div>
-              
-              {/* 网络配置 */}
-              {settings.barcodeScaleType !== 'none' && (
-                <div className="mt-4 pt-4 border-t space-y-3">
-                  <div className="text-xs text-gray-500 mb-2">网络连接配置（可选）</div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">电子秤IP地址</label>
-                    <Input 
-                      value={settings.scaleNetworkIp}
-                      onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
-                      placeholder="如 192.168.1.100"
-                      className="h-9"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">电子秤端口</label>
-                    <Input 
-                      type="number"
-                      value={settings.scaleNetworkPort}
-                      onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
-                      placeholder="4001（顶尖OS2默认）"
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* AI秤设置 */}
@@ -6056,18 +6067,49 @@ export default function PosPage() {
             {/* 左侧商品选择区 */}
             <div className="flex-1 flex flex-col min-w-0 bg-[#f5f7fa]">
               {/* 称重数据面板 - 放在左侧顶部 */}
-              {scaleConnected && (
+              {(scaleConnected || showManualWeightInput) && (
                 <div className="bg-gradient-to-r from-green-600 to-green-500 text-white px-4 py-2 shrink-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <Scale className="h-4 w-4" />
-                        <span className="text-sm font-medium">称重中</span>
+                        <span className="text-sm font-medium">
+                          {showManualWeightInput ? '手动称重' : '称重中'}
+                        </span>
+                        {showManualWeightInput && (
+                          <span className="text-xs bg-yellow-500 px-2 py-0.5 rounded">手动模式</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-center">
                         <div>
                           <p className="text-xs text-green-100">重量</p>
-                          <p className="text-lg font-bold">{currentWeight.toFixed(3)} kg</p>
+                          {showManualWeightInput ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                id="manual-weight-input"
+                                className="w-24 h-7 px-2 text-lg font-bold text-green-900 bg-white rounded border-0 text-center"
+                                placeholder="0.000"
+                                step="0.001"
+                                min="0"
+                                max="15"
+                                value={manualWeightValue}
+                                onChange={(e) => {
+                                  setManualWeightValue(e.target.value);
+                                  const val = parseFloat(e.target.value) || 0;
+                                  if (val > 0 && val <= 15) {
+                                    import('@/lib/topscale-os2-service').then(({ topScaleService }) => {
+                                      topScaleService.setManualWeight(val);
+                                    });
+                                    setCurrentWeight(val);
+                                  }
+                                }}
+                              />
+                              <span className="text-sm">kg</span>
+                            </div>
+                          ) : (
+                            <p className="text-lg font-bold">{currentWeight.toFixed(3)} kg</p>
+                          )}
                         </div>
                         <div>
                           <p className="text-xs text-green-100">单价</p>
@@ -6083,15 +6125,47 @@ export default function PosPage() {
                         </div>
                       </div>
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="secondary"
-                      className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
-                      onClick={connectScale}
-                    >
-                      断开
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {/* 切换手动/自动称重按钮 */}
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
+                        onClick={() => {
+                          setShowManualWeightInput(!showManualWeightInput);
+                          if (!showManualWeightInput) {
+                            // 切换到手动模式
+                            setManualWeightValue('');
+                          } else {
+                            // 切换回自动模式，清除手动值
+                            import('@/lib/topscale-os2-service').then(({ topScaleService }) => {
+                              topScaleService.clearManualWeight();
+                            });
+                            setCurrentWeight(0);
+                          }
+                        }}
+                      >
+                        {showManualWeightInput ? '自动称重' : '手动输入'}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
+                        onClick={connectScale}
+                      >
+                        断开
+                      </Button>
+                    </div>
                   </div>
+                  
+                  {/* 手动输入提示 */}
+                  {showManualWeightInput && (
+                    <div className="mt-2 text-xs text-green-100 bg-white/10 rounded px-3 py-2">
+                      💡 请在下方输入框中输入商品重量（单位：千克 kg）
+                      <br/>
+                      例如：0.500 表示 500克，1.250 表示 1斤2两半
+                    </div>
+                  )}
                 </div>
               )}
               
