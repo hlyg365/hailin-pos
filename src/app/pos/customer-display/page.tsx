@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { QrCode, Volume2, VolumeX, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { QrCode, Volume2, VolumeX, RefreshCw, Wifi, WifiOff, Maximize2, Smartphone, Monitor } from 'lucide-react';
 import { getSpeechService, SpeechService } from '@/lib/speech-service';
 import QRCode from 'qrcode';
 
@@ -9,6 +9,22 @@ import QRCode from 'qrcode';
 const isMobileDevice = (): boolean => {
   if (typeof window === 'undefined') return false;
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
+// 尝试进入全屏模式
+const tryEnterFullscreen = () => {
+  if (typeof document === 'undefined') return;
+  
+  // 尝试不同的全屏API
+  const elem = document.documentElement;
+  
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(() => {});
+  } else if ((elem as any).webkitRequestFullscreen) {
+    (elem as any).webkitRequestFullscreen();
+  } else if ((elem as any).msRequestFullscreen) {
+    (elem as any).msRequestFullscreen();
+  }
 };
 
 // 商品类型
@@ -323,7 +339,25 @@ export default function CustomerDisplayPage() {
       });
     }
     
-    console.log('[CustomerDisplay] 客显屏已启动（独立设备模式）');
+    // 尝试进入全屏模式（双屏收银机副屏专用）
+    // 注意：可能需要用户首次点击授权
+    setTimeout(() => {
+      tryEnterFullscreen();
+    }, 1000);
+    
+    console.log('[CustomerDisplay] 客显屏已启动（双屏收银机副屏模式）');
+    console.log('[CustomerDisplay] 屏幕信息:', {
+      width: window.screen.width,
+      height: window.screen.height,
+      availWidth: window.screen.availWidth,
+      availHeight: window.screen.availHeight,
+    });
+    
+    // 监听全屏变化
+    const handleFullscreenChange = () => {
+      console.log('[CustomerDisplay] 全屏状态变化:', !!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
     
     return () => {
       if (speechServiceRef.current) {
@@ -331,6 +365,7 @@ export default function CustomerDisplayPage() {
       }
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, []);
 
@@ -476,6 +511,15 @@ export default function CustomerDisplayPage() {
     });
   };
 
+  // 全屏切换
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      tryEnterFullscreen();
+    }
+  };
+
   // 手动刷新数据
   const refreshData = () => {
     syncData();
@@ -488,20 +532,42 @@ export default function CustomerDisplayPage() {
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
   const earnedPoints = Math.floor(finalAmount);
 
+  // 屏幕信息
+  const screenInfo = {
+    width: typeof window !== 'undefined' ? window.screen.width : 1920,
+    height: typeof window !== 'undefined' ? window.screen.height : 1080,
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      {/* 顶部状态栏 - 简化版 */}
+      {/* 顶部状态栏 - 双屏收银机副屏专用 */}
       <div className="bg-black/80 text-white px-4 py-2 flex items-center justify-between text-sm">
         <div className="flex items-center gap-4">
-          <span className="font-bold text-lg">客显屏</span>
+          <div className="flex items-center gap-2">
+            <Monitor className="w-5 h-5 text-green-400" />
+            <span className="font-bold text-lg">客显屏</span>
+          </div>
           <span className={`px-2 py-0.5 rounded text-xs ${isOnline ? 'bg-green-600' : 'bg-red-600'}`}>
             {isOnline ? '在线' : '离线'}
           </span>
-          <span className="text-gray-400">
+          <span className="text-gray-400 text-xs">
+            {screenInfo.width}x{screenInfo.height}
+          </span>
+          <span className="text-gray-500">
             {currentTime?.toLocaleTimeString('zh-CN')}
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {/* 全屏按钮 */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 hover:bg-gray-700 rounded transition-colors flex items-center gap-1"
+            title="全屏/退出全屏"
+          >
+            <Maximize2 className="w-4 h-4" />
+            <span className="text-xs">全屏</span>
+          </button>
+          {/* 刷新按钮 */}
           <button
             onClick={refreshData}
             className="p-2 hover:bg-gray-700 rounded transition-colors"
