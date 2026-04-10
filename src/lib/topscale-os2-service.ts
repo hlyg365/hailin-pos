@@ -498,6 +498,52 @@ class TopScaleOS2Service {
   zero() {
     console.log('[TopScale] Sending ZERO command');
   }
+
+  // 手动设置重量（用于手动输入模式）
+  setManualWeight(weight: number, unit: 'kg' | 'g' = 'kg') {
+    this.isConnected = true;
+    
+    // 转换为kg
+    const weightInKg = unit === 'g' ? weight / 1000 : weight;
+    
+    this.lastWeight = {
+      weight: weightInKg,
+      unit: 'kg',
+      stable: true,
+      tare: 0,
+      netWeight: weightInKg,
+      timestamp: Date.now(),
+    };
+    
+    this.syncToStorage();
+    if (this.callback) {
+      this.callback(this.lastWeight);
+    }
+    
+    console.log('[TopScale] Manual weight set:', this.lastWeight);
+  }
+
+  // 清除手动重量
+  clearManualWeight() {
+    this.lastWeight = {
+      weight: 0,
+      unit: 'kg',
+      stable: false,
+      tare: 0,
+      netWeight: 0,
+      timestamp: Date.now(),
+    };
+    
+    this.syncToStorage();
+    if (this.callback) {
+      this.callback(this.lastWeight);
+    }
+  }
+
+  // 检查是否为手动模式
+  isManualMode(): boolean {
+    return false; // 未来可扩展
+  }
 }
 
 // 导出单例
