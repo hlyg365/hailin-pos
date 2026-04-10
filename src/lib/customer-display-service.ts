@@ -1,14 +1,11 @@
 /**
- * 客显屏服务 v2.0
- * 负责管理客显屏窗口，包括：
- * - 多显示器检测（自动+手动）
- * - 打开/关闭客显屏窗口
- * - 将窗口定位到副屏
- * - 数据同步
- * - 支持Edge和安卓浏览器
+ * 客显屏服务 v3.0
+ * 修复问题：
+ * 1. 主屏副屏数据检测问题
+ * 2. 窗口打开覆盖收银台问题
+ * 3. 增强UI交互
  */
 
-// 扩展 Screen 类型以支持 Screen Details API
 interface ExtendedScreen {
   width: number;
   height: number;
@@ -27,7 +24,6 @@ export interface CustomerDisplayConfig {
   autoPosition: boolean;
   stayOnTop: boolean;
   silent: boolean;
-  // 手动设置的副屏位置
   manualSecondaryPosition?: {
     left: number;
     top: number;
@@ -50,7 +46,22 @@ export interface CustomerDisplayState {
   };
 }
 
-// 默认配置
+export interface ScreenInfo {
+  primaryScreen: {
+    width: number;
+    height: number;
+    left: number;
+    top: number;
+  };
+  secondaryScreen: {
+    width: number;
+    height: number;
+    left: number;
+    top: number;
+  } | null;
+  detectionMethod: 'auto' | 'manual' | 'default';
+}
+
 const DEFAULT_CONFIG: CustomerDisplayConfig = {
   width: 1280,
   height: 800,
@@ -59,7 +70,9 @@ const DEFAULT_CONFIG: CustomerDisplayConfig = {
   silent: true,
 };
 
-// 服务状态
+// 使用唯一ID避免窗口被替换
+const CUSTOMER_DISPLAY_WINDOW_ID = 'hailin_customer_display_' + Date.now();
+
 let customerWindow: Window | null = null;
 let config: CustomerDisplayConfig = { ...DEFAULT_CONFIG };
 let state: CustomerDisplayState = {
@@ -69,171 +82,139 @@ let state: CustomerDisplayState = {
   secondaryScreenInfo: {
     detected: false,
     method: 'none',
-    left: 1920, // 默认副屏在主屏右侧
+    left: 0,
     top: 0,
     width: 1280,
     height: 800,
   },
 };
 
-// 监听器
 type StateChangeListener = (state: CustomerDisplayState) => void;
 const listeners: Set<StateChangeListener> = new Set();
 
-/**
- * 通知状态变化
- */
 function notifyStateChange() {
   state.lastSyncTime = Date.now();
   listeners.forEach(listener => listener({ ...state }));
 }
 
-/**
- * 检测是否为安卓/iOS设备
- */
 function isMobileDevice(): boolean {
   if (typeof window === 'undefined') return false;
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
 /**
- * 获取显示器信息（支持Edge和安卓）
+ * 检测屏幕信息
  */
-async function getScreenInfo(): Promise<{
-  screens: ExtendedScreen[];
-  primaryScreen: ExtendedScreen;
-  secondaryScreens: ExtendedScreen[];
-  detectionMethod: 'screen-details-api' | 'manual-config' | 'fallback';
-}> {
+export async function detectScreensInfo(): Promise<ScreenInfo> {
   if (typeof window === 'undefined') {
-    return { 
-      screens: [], 
-      primaryScreen: { width: 1920, height: 1080 }, 
-      secondaryScreens: [],
-      detectionMethod: 'fallback'
+    return {
+      primaryScreen: { width: 1920, height: 1080, left: 0, top: 0 },
+      secondaryScreen: null,
+      detectionMethod: 'default',
     };
   }
 
-  // 尝试使用 Screen Details API (Chrome 100+, Edge 100+)
+  let primary: ExtendedScreen = { width: screen.width, height: screen.height, left: 0, top: 0, isPrimary: true };
+  let secondary: ExtendedScreen | null = null;
+  let method: 'auto' | 'manual' | 'default' = 'default';
+
+  // 1. 尝试 Screen Details API
   if ('getScreenDetails' in window) {
     try {
       const screenDetails = await (window as any).getScreenDetails();
       const screens: ExtendedScreen[] = screenDetails.screens;
-      const primaryScreen = screens.find((s: ExtendedScreen) => s.isPrimary) || screens[0];
-      const secondaryScreens = screens.filter((s: ExtendedScreen) => !s.isPrimary);
       
-      console.log('[CustomerDisplay] Screen Details API 检测到屏幕:', {
-        total: screens.length,
-        primary: primaryScreen.width + 'x' + primaryScreen.height,
-        secondary: secondaryScreens.length,
+      // 找到主屏（通常是包含当前窗口的屏幕）
+      const currentScreen = screens.find(s => {
+        const left = s.availLeft ?? s.left ?? 0;
+        const top = s.availTop ?? s.top ?? 0;
+        return window.screenX >= left && window.screenX < left + s.width &&
+               window.screenY >= top && window.screenY < top + s.height;
+      }) || screens.find(s => s.isPrimary);
+      
+      primary = currentScreen || screens[0];
+      primary.isPrimary = true;
+      
+      // 其他屏幕都是副屏
+      secondary = screens.find(s => s !== primary && !s.isPrimary) || null;
+      
+      // 如果只有一个屏幕，创建一个虚拟副屏
+      if (!secondary && screens.length === 1) {
+        secondary = {
+          width: DEFAULT_CONFIG.width,
+          height: DEFAULT_CONFIG.height,
+          left: (primary.availWidth ?? primary.width) || 1920,
+          top: 0,
+          isPrimary: false,
+        };
+      }
+      
+      method = 'auto';
+      console.log('[CustomerDisplay] Screen Details API 检测结果:', {
+        primary: `${primary.width}x${primary.height} @ (${primary.left}, ${primary.top})`,
+        secondary: secondary ? `${secondary.width}x${secondary.height} @ (${secondary.left}, ${secondary.top})` : 'null',
       });
       
       return {
-        screens,
-        primaryScreen,
-        secondaryScreens,
-        detectionMethod: 'screen-details-api',
+        primaryScreen: {
+          width: primary.width,
+          height: primary.height,
+          left: primary.left ?? primary.availLeft ?? 0,
+          top: primary.top ?? primary.availTop ?? 0,
+        },
+        secondaryScreen: secondary ? {
+          width: secondary.width || DEFAULT_CONFIG.width,
+          height: secondary.height || DEFAULT_CONFIG.height,
+          left: secondary.left ?? secondary.availLeft ?? ((primary.availWidth ?? primary.width) || 1920),
+          top: secondary.top ?? secondary.availTop ?? 0,
+        } : null,
+        detectionMethod: method,
       };
     } catch (error) {
-      console.warn('[CustomerDisplay] Screen Details API 不可用:', error);
+      console.warn('[CustomerDisplay] Screen Details API 失败:', error);
     }
   }
 
-  // 回退方案：使用 localStorage 中手动配置的副屏位置
+  // 2. 检查手动配置的副屏
   const manualConfig = localStorage.getItem('secondary_screen_config');
   if (manualConfig) {
     try {
       const parsed = JSON.parse(manualConfig);
-      console.log('[CustomerDisplay] 使用手动配置的副屏位置:', parsed);
-      return {
-        screens: [
-          { width: screen.width, height: screen.height, isPrimary: true },
-          { ...parsed, isPrimary: false }
-        ],
-        primaryScreen: { width: screen.width, height: screen.height, isPrimary: true },
-        secondaryScreens: [{ ...parsed, isPrimary: false }],
-        detectionMethod: 'manual-config',
-      };
+      secondary = { ...parsed, isPrimary: false };
+      method = 'manual';
+      console.log('[CustomerDisplay] 使用手动配置的副屏:', secondary);
     } catch (e) {
-      console.warn('[CustomerDisplay] 手动配置解析失败:', e);
+      console.warn('[CustomerDisplay] 手动配置解析失败');
     }
   }
 
-  // 最后的回退方案：假设副屏在主屏右侧
-  const primaryScreen: ExtendedScreen = {
-    width: screen.width,
-    height: screen.height,
-    left: 0,
-    top: 0,
-    availWidth: screen.width,
-    availHeight: screen.height,
-    availLeft: 0,
-    availTop: 0,
-    isPrimary: true,
-  };
-  
-  // 保存默认副屏位置
-  const defaultSecondary: ExtendedScreen = {
-    width: 1280,
-    height: 800,
-    left: primaryScreen.width,
-    top: 0,
-    availWidth: 1280,
-    availHeight: 800,
-    availLeft: primaryScreen.width,
-    availTop: 0,
-    isPrimary: false,
-  };
-  
-  console.log('[CustomerDisplay] 使用默认副屏位置（主屏右侧）:', defaultSecondary);
-  
-  return {
-    screens: [primaryScreen, defaultSecondary],
-    primaryScreen,
-    secondaryScreens: [defaultSecondary],
-    detectionMethod: 'fallback',
-  };
-}
+  // 3. 默认副屏位置（主屏右侧）
+  if (!secondary) {
+    const primaryWidth = primary.availWidth ?? primary.width;
+    secondary = {
+      width: DEFAULT_CONFIG.width,
+      height: DEFAULT_CONFIG.height,
+      left: primaryWidth,
+      top: 0,
+      isPrimary: false,
+    };
+    console.log('[CustomerDisplay] 使用默认副屏位置:', secondary);
+  }
 
-/**
- * 获取副屏位置
- */
-async function getSecondaryScreenPosition(): Promise<{
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  method: 'auto' | 'manual' | 'default';
-}> {
-  const { secondaryScreens, primaryScreen, detectionMethod } = await getScreenInfo();
-  
-  // 1. 如果有检测到的副屏
-  if (secondaryScreens.length > 0) {
-    const secondary = secondaryScreens[0];
-    return {
-      left: secondary.availLeft ?? secondary.left ?? primaryScreen.width,
-      top: secondary.availTop ?? secondary.top ?? 0,
-      width: secondary.availWidth ?? secondary.width ?? DEFAULT_CONFIG.width,
-      height: secondary.availHeight ?? secondary.height ?? DEFAULT_CONFIG.height,
-      method: detectionMethod === 'manual-config' ? 'manual' : 'auto',
-    };
-  }
-  
-  // 2. 如果有手动配置的副屏位置
-  if (config.manualSecondaryPosition) {
-    return {
-      ...config.manualSecondaryPosition,
-      method: 'manual',
-    };
-  }
-  
-  // 3. 默认位置：主屏右侧
   return {
-    left: primaryScreen.availWidth ?? primaryScreen.width,
-    top: 0,
-    width: DEFAULT_CONFIG.width,
-    height: primaryScreen.availHeight ?? primaryScreen.height,
-    method: 'default',
+    primaryScreen: {
+      width: primary.width,
+      height: primary.height,
+      left: primary.left ?? primary.availLeft ?? 0,
+      top: primary.top ?? primary.availTop ?? 0,
+    },
+    secondaryScreen: {
+      width: secondary.width,
+      height: secondary.height,
+      left: secondary.left ?? secondary.availLeft ?? ((primary.availWidth ?? primary.width) || 1920),
+      top: secondary.top ?? secondary.availTop ?? 0,
+    },
+    detectionMethod: method,
   };
 }
 
@@ -252,28 +233,12 @@ export function setManualSecondaryPosition(position: {
     left: position.left,
     top: position.top,
   };
-  
-  // 保存到 localStorage
   localStorage.setItem('secondary_screen_config', JSON.stringify(config.manualSecondaryPosition));
-  
   console.log('[CustomerDisplay] 已设置手动副屏位置:', config.manualSecondaryPosition);
 }
 
 /**
- * 获取当前副屏位置
- */
-export async function getCurrentSecondaryPosition(): Promise<{
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  method: 'auto' | 'manual' | 'default';
-}> {
-  return getSecondaryScreenPosition();
-}
-
-/**
- * 打开客显屏窗口
+ * 打开客显屏窗口 - 关键修复：确保在新窗口/新标签页中打开
  */
 export async function openCustomerDisplay(customConfig?: Partial<CustomerDisplayConfig>): Promise<{
   success: boolean;
@@ -284,7 +249,6 @@ export async function openCustomerDisplay(customConfig?: Partial<CustomerDisplay
     return { success: false, message: '非浏览器环境', isOnSecondaryScreen: false };
   }
 
-  // 合并配置
   config = { ...config, ...customConfig };
 
   // 如果窗口已存在，先关闭
@@ -296,93 +260,112 @@ export async function openCustomerDisplay(customConfig?: Partial<CustomerDisplay
   try {
     const displayUrl = `${window.location.origin}/pos/customer-display`;
     
-    // 获取副屏位置
-    const position = await getSecondaryScreenPosition();
+    // 检测屏幕信息
+    const screenInfo = await detectScreensInfo();
     state.secondaryScreenInfo = {
-      detected: position.method !== 'default',
-      method: position.method,
-      left: position.left,
-      top: position.top,
-      width: position.width,
-      height: position.height,
+      detected: screenInfo.secondaryScreen !== null,
+      method: screenInfo.detectionMethod,
+      left: screenInfo.secondaryScreen?.left || 0,
+      top: screenInfo.secondaryScreen?.top || 0,
+      width: screenInfo.secondaryScreen?.width || DEFAULT_CONFIG.width,
+      height: screenInfo.secondaryScreen?.height || DEFAULT_CONFIG.height,
     };
+
+    console.log('[CustomerDisplay] 打开客显屏，屏幕信息:', screenInfo);
+    console.log('[CustomerDisplay] 目标副屏位置:', state.secondaryScreenInfo);
+
+    // 构建窗口特性
+    const windowFeatures: string[] = [];
+    windowFeatures.push(`width=${config.width}`);
+    windowFeatures.push(`height=${config.height}`);
     
-    console.log('[CustomerDisplay] 准备打开客显屏:', {
-      position,
-      url: displayUrl,
-      isMobile: isMobileDevice(),
-    });
-    
-    // 构建窗口特性字符串
-    let windowFeatures = `width=${config.width},height=${config.height}`;
-    
-    if (config.autoPosition && position) {
-      windowFeatures += `,left=${position.left},top=${position.top}`;
-      state.isOnSecondaryScreen = position.left > 0;
+    // 设置窗口位置到副屏
+    if (screenInfo.secondaryScreen) {
+      windowFeatures.push(`left=${screenInfo.secondaryScreen.left}`);
+      windowFeatures.push(`top=${screenInfo.secondaryScreen.top}`);
+      state.isOnSecondaryScreen = screenInfo.secondaryScreen.left !== 0 || screenInfo.secondaryScreen.top !== 0;
     }
     
-    windowFeatures += ',menubar=no,toolbar=no,location=no,status=no,resizable=yes';
+    // 其他窗口特性
+    windowFeatures.push('menubar=no');
+    windowFeatures.push('toolbar=no');
+    windowFeatures.push('location=no');
+    windowFeatures.push('status=no');
+    windowFeatures.push('resizable=yes');
+    windowFeatures.push('scrollbars=no');
+    
+    if (config.stayOnTop) {
+      windowFeatures.push('alwaysRaised=yes');
+    }
+
+    const featuresString = windowFeatures.join(',');
+    
+    console.log('[CustomerDisplay] 窗口特性:', featuresString);
+
+    // 使用随机窗口名称确保打开新窗口，而不是替换已有窗口
+    const windowName = 'hailin_pos_customer_display_' + Math.random().toString(36).substr(2, 9);
     
     // 打开新窗口
-    customerWindow = window.open(displayUrl, 'customerDisplay', windowFeatures);
-    
+    customerWindow = window.open(displayUrl, windowName, featuresString);
+
     if (!customerWindow) {
-      // 被阻止了
-      console.warn('[CustomerDisplay] 窗口被阻止');
-      customerWindow = window.open(displayUrl, 'customerDisplay', 'width=1280,height=800');
+      // 被阻止了，尝试更简单的方式
+      console.warn('[CustomerDisplay] 标准窗口打开失败，尝试备用方式');
+      
+      // 使用 _blank 强制在新标签页打开
+      customerWindow = window.open(displayUrl, '_blank', featuresString);
       
       if (!customerWindow) {
+        // 完全被阻止
         state.isOpen = false;
         state.isOnSecondaryScreen = false;
         notifyStateChange();
-        return { success: false, message: '窗口被浏览器阻止，请允许弹出窗口', isOnSecondaryScreen: false };
+        
+        return { 
+          success: false, 
+          message: '窗口被浏览器阻止！请允许弹出窗口，然后重试。\n\n如果浏览器弹出拦截，请点击地址栏的"始终允许"选项。', 
+          isOnSecondaryScreen: false 
+        };
       }
-      
-      // 窗口打开了但没有定位成功
-      state.isOpen = true;
-      state.isOnSecondaryScreen = false;
-      notifyStateChange();
-      
-      return {
-        success: true,
-        message: '客显屏已打开（请手动拖动到副屏）',
-        isOnSecondaryScreen: false,
-      };
     }
-    
+
     // 窗口已打开
     state.isOpen = true;
     notifyStateChange();
-    
-    // 保存状态
     localStorage.setItem('customer_display_open', 'true');
-    
+
     // 监听窗口关闭
-    customerWindow.addEventListener('unload', () => {
-      state.isOpen = false;
-      state.isOnSecondaryScreen = false;
-      customerWindow = null;
-      localStorage.setItem('customer_display_open', 'false');
-      notifyStateChange();
-    });
-    
+    const checkClosed = setInterval(() => {
+      if (customerWindow?.closed) {
+        clearInterval(checkClosed);
+        state.isOpen = false;
+        state.isOnSecondaryScreen = false;
+        customerWindow = null;
+        localStorage.setItem('customer_display_open', 'false');
+        notifyStateChange();
+        console.log('[CustomerDisplay] 客显屏窗口已关闭');
+      }
+    }, 500);
+
     console.log('[CustomerDisplay] 客显屏已打开', {
       isOnSecondaryScreen: state.isOnSecondaryScreen,
-      position,
+      windowName,
     });
-    
+
     return {
       success: true,
-      message: state.isOnSecondaryScreen ? '客显屏已打开到副屏' : '客显屏已打开（请手动拖动到副屏）',
+      message: state.isOnSecondaryScreen 
+        ? '客显屏已打开到副屏！' 
+        : '客显屏已打开（请使用下方的"移到副屏"按钮定位）',
       isOnSecondaryScreen: state.isOnSecondaryScreen,
     };
-    
+
   } catch (error: any) {
     console.error('[CustomerDisplay] 打开客显屏失败:', error);
     state.isOpen = false;
     state.isOnSecondaryScreen = false;
     notifyStateChange();
-    
+
     return {
       success: false,
       message: error.message || '打开客显屏失败',
@@ -397,14 +380,12 @@ export async function openCustomerDisplay(customConfig?: Partial<CustomerDisplay
 export function closeCustomerDisplay(): void {
   if (customerWindow && !customerWindow.closed) {
     customerWindow.close();
-    customerWindow = null;
   }
-  
+  customerWindow = null;
   state.isOpen = false;
   state.isOnSecondaryScreen = false;
   localStorage.setItem('customer_display_open', 'false');
   notifyStateChange();
-  
   console.log('[CustomerDisplay] 客显屏已关闭');
 }
 
@@ -423,61 +404,70 @@ export function isCustomerDisplayOpen(): boolean {
 }
 
 /**
- * 将客显屏窗口移到副屏
+ * 移动客显屏到副屏
  */
 export async function moveToSecondaryScreen(): Promise<{
   success: boolean;
   message: string;
 }> {
   if (!isCustomerDisplayOpen()) {
-    return { success: false, message: '客显屏未打开' };
+    return { success: false, message: '请先打开客显屏！' };
   }
   
   try {
-    const position = await getSecondaryScreenPosition();
+    const screenInfo = await detectScreensInfo();
     
-    // 移动窗口
-    customerWindow?.moveTo(position.left, position.top);
+    if (!screenInfo.secondaryScreen) {
+      // 没有检测到副屏，使用默认位置
+      screenInfo.secondaryScreen = {
+        width: DEFAULT_CONFIG.width,
+        height: DEFAULT_CONFIG.height,
+        left: screenInfo.primaryScreen.width,
+        top: 0,
+      };
+    }
+    
+    // 移动并调整窗口大小
+    customerWindow?.moveTo(screenInfo.secondaryScreen.left, screenInfo.secondaryScreen.top);
     customerWindow?.resizeTo(DEFAULT_CONFIG.width, DEFAULT_CONFIG.height);
     customerWindow?.focus();
     
-    state.isOnSecondaryScreen = position.method !== 'default';
+    state.isOnSecondaryScreen = true;
     state.secondaryScreenInfo = {
-      detected: position.method !== 'default',
-      ...position,
+      detected: true,
+      method: screenInfo.detectionMethod,
+      ...screenInfo.secondaryScreen,
     };
     notifyStateChange();
     
-    console.log('[CustomerDisplay] 窗口已移到副屏', position);
+    console.log('[CustomerDisplay] 窗口已移到副屏', screenInfo.secondaryScreen);
     
     return {
       success: true,
-      message: position.method !== 'default' ? '窗口已移到副屏' : '窗口已移动（请确认位置是否正确）',
+      message: `已移动到副屏 (${screenInfo.secondaryScreen.left}, ${screenInfo.secondaryScreen.top})`,
     };
   } catch (error: any) {
     return {
       success: false,
-      message: error.message || '移动窗口失败',
+      message: error.message || '移动失败',
     };
   }
 }
 
 /**
- * 手动设置并移动到指定位置
+ * 移动到指定位置
  */
 export async function moveToPosition(x: number, y: number, width?: number, height?: number): Promise<{
   success: boolean;
   message: string;
 }> {
   if (!isCustomerDisplayOpen()) {
-    return { success: false, message: '客显屏未打开' };
+    return { success: false, message: '请先打开客显屏！' };
   }
   
   try {
-    // 设置手动位置
     setManualSecondaryPosition({ left: x, top: y, width, height });
     
-    // 移动窗口
     customerWindow?.moveTo(x, y);
     customerWindow?.resizeTo(width || DEFAULT_CONFIG.width, height || DEFAULT_CONFIG.height);
     customerWindow?.focus();
@@ -493,22 +483,35 @@ export async function moveToPosition(x: number, y: number, width?: number, heigh
     };
     notifyStateChange();
     
-    console.log('[CustomerDisplay] 窗口已移动到指定位置', { x, y, width, height });
+    console.log('[CustomerDisplay] 窗口已移动到', { x, y, width, height });
     
     return {
       success: true,
-      message: `窗口已移动到 (${x}, ${y})`,
+      message: `已移动到 (${x}, ${y})`,
     };
   } catch (error: any) {
     return {
       success: false,
-      message: error.message || '移动窗口失败',
+      message: error.message || '移动失败',
     };
   }
 }
 
 /**
- * 同步购物车数据到客显屏
+ * 获取主屏信息
+ */
+export function getPrimaryScreen(): { width: number; height: number } {
+  if (typeof window === 'undefined') {
+    return { width: 1920, height: 1080 };
+  }
+  return { 
+    width: screen.width, 
+    height: screen.height 
+  };
+}
+
+/**
+ * 同步购物车数据
  */
 export function syncCartToDisplay(cart: unknown[]): void {
   if (isCustomerDisplayOpen()) {
@@ -522,7 +525,7 @@ export function syncCartToDisplay(cart: unknown[]): void {
 }
 
 /**
- * 同步会员数据到客显屏
+ * 同步会员数据
  */
 export function syncMemberToDisplay(member: unknown): void {
   if (isCustomerDisplayOpen()) {
@@ -536,21 +539,21 @@ export function syncMemberToDisplay(member: unknown): void {
 }
 
 /**
- * 同步店铺配置到客显屏
+ * 同步店铺配置
  */
-export function syncShopConfigToDisplay(shopConfig: unknown): void {
+export function syncShopConfigToDisplay(config: unknown): void {
   if (isCustomerDisplayOpen()) {
     customerWindow?.postMessage({
       type: 'shop_config_update',
-      data: shopConfig,
+      data: config,
       timestamp: Date.now(),
     }, '*');
   }
-  localStorage.setItem('pos_shop_config', JSON.stringify(shopConfig));
+  localStorage.setItem('pos_shop_config', JSON.stringify(config));
 }
 
 /**
- * 触发收款播报到客显屏
+ * 收款播报
  */
 export function announcePaymentToDisplay(amount: number, method: string): void {
   const paymentEvent = { amount, method, timestamp: Date.now() };
@@ -566,7 +569,7 @@ export function announcePaymentToDisplay(amount: number, method: string): void {
 }
 
 /**
- * 请求客显屏权限（Screen Details API）
+ * 请求屏幕权限
  */
 export async function requestScreenPermission(): Promise<{
   success: boolean;
@@ -576,71 +579,16 @@ export async function requestScreenPermission(): Promise<{
     return { success: false, method: 'none' };
   }
   
-  // 检查是否支持 Screen Details API
   if (!('getScreenDetails' in window)) {
-    console.warn('[CustomerDisplay] 浏览器不支持 Screen Details API');
     return { success: false, method: 'unsupported' };
   }
   
   try {
     await (window as any).getScreenDetails();
-    console.log('[CustomerDisplay] Screen Details API 权限已获取');
     return { success: true, method: 'screen-details-api' };
   } catch (error: any) {
-    console.error('[CustomerDisplay] Screen Details API 权限获取失败:', error);
     return { success: false, method: 'permission-denied' };
   }
-}
-
-/**
- * 检测屏幕信息
- */
-export async function detectScreens(): Promise<{
-  primaryScreen: { width: number; height: number };
-  secondaryScreen: { width: number; height: number; left: number; top: number } | null;
-  detectionMethod: 'auto' | 'manual' | 'default';
-}> {
-  const { primaryScreen, secondaryScreens, detectionMethod } = await getScreenInfo();
-  
-  // 转换检测方法到统一格式
-  const methodMap: Record<string, 'auto' | 'manual' | 'default'> = {
-    'screen-details-api': 'auto',
-    'manual-config': 'manual',
-    'fallback': 'default',
-  };
-  const normalizedMethod = methodMap[detectionMethod] || 'default';
-  
-  return {
-    primaryScreen: {
-      width: primaryScreen.width,
-      height: primaryScreen.height,
-    },
-    secondaryScreen: secondaryScreens.length > 0 ? {
-      width: secondaryScreens[0].width || DEFAULT_CONFIG.width,
-      height: secondaryScreens[0].height || DEFAULT_CONFIG.height,
-      left: secondaryScreens[0].left || primaryScreen.width,
-      top: secondaryScreens[0].top || 0,
-    } : null,
-    detectionMethod: normalizedMethod,
-  };
-}
-
-/**
- * 检查是否有副屏
- */
-export async function hasSecondaryScreen(): Promise<boolean> {
-  const { secondaryScreens } = await getScreenInfo();
-  return secondaryScreens.length > 0;
-}
-
-/**
- * 获取主屏幕信息
- */
-export function getPrimaryScreenInfo(): { width: number; height: number } {
-  if (typeof window === 'undefined') {
-    return { width: 1920, height: 1080 };
-  }
-  return { width: screen.width, height: screen.height };
 }
 
 /**
@@ -652,7 +600,7 @@ export function addStateChangeListener(listener: StateChangeListener): () => voi
 }
 
 /**
- * 导出单例对象
+ * 导出单例
  */
 export const customerDisplayService = {
   open: openCustomerDisplay,
@@ -662,15 +610,13 @@ export const customerDisplayService = {
   moveToSecondary: moveToSecondaryScreen,
   moveToPosition: moveToPosition,
   setManualPosition: setManualSecondaryPosition,
-  getCurrentPosition: getCurrentSecondaryPosition,
+  detectScreens: detectScreensInfo,
+  getPrimaryScreen,
   syncCart: syncCartToDisplay,
   syncMember: syncMemberToDisplay,
   syncShopConfig: syncShopConfigToDisplay,
   announcePayment: announcePaymentToDisplay,
   requestPermission: requestScreenPermission,
-  detectScreens,
-  hasSecondary: hasSecondaryScreen,
-  getPrimaryScreen: getPrimaryScreenInfo,
   addStateListener: addStateChangeListener,
 };
 
