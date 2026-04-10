@@ -292,6 +292,14 @@ export default function PosPage() {
     isOpen: false,
     isOnSecondaryScreen: false,
     lastSyncTime: 0,
+    secondaryScreenInfo: {
+      detected: false,
+      method: 'none',
+      left: 1920,
+      top: 0,
+      width: 1280,
+      height: 800,
+    },
   });
   
   // 会员搜索状态
@@ -4076,7 +4084,7 @@ export default function PosPage() {
             
             {/* 客显屏连接状态 */}
             <div className="bg-white rounded-lg border p-4 mb-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     "w-3 h-3 rounded-full",
@@ -4095,20 +4103,18 @@ export default function PosPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {customerDisplayState.isOpen && !customerDisplayState.isOnSecondaryScreen && (
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={async () => {
-                        const result = await customerDisplayService.moveToSecondary();
-                        if (!result.success) {
-                          alert(result.message);
-                        }
-                      }}
-                    >
-                      移到副屏
-                    </Button>
-                  )}
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={async () => {
+                      const result = await customerDisplayService.detectScreens();
+                      const primary = customerDisplayService.getPrimaryScreen();
+                      alert(`主屏: ${primary.width}x${primary.height}\n副屏: ${result.secondaryScreen ? `${result.secondaryScreen.width}x${result.secondaryScreen.height} @ (${result.secondaryScreen.left}, ${result.secondaryScreen.top})` : '未检测到'}\n检测方式: ${result.detectionMethod}`);
+                    }}
+                  >
+                    <Monitor className="h-3 w-3 mr-1" />
+                    检测屏幕
+                  </Button>
                   <Button 
                     size="sm" 
                     variant={customerDisplayState.isOpen ? "destructive" : "default"}
@@ -4132,12 +4138,131 @@ export default function PosPage() {
                   </Button>
                 </div>
               </div>
+              
               {/* 屏幕信息 */}
+              <div className="text-xs text-gray-500 mb-3 flex items-center gap-4 flex-wrap">
+                <span>主屏: {(() => {
+                  const info = customerDisplayService.getPrimaryScreen();
+                  return `${info.width}x${info.height}`;
+                })()}</span>
+                <span>•</span>
+                <span>
+                  副屏: {customerDisplayState.secondaryScreenInfo?.detected 
+                    ? `已检测 (${customerDisplayState.secondaryScreenInfo.width}x${customerDisplayState.secondaryScreenInfo.height})` 
+                    : '未检测到'}
+                </span>
+                <span>•</span>
+                <span>
+                  检测方式: {customerDisplayState.secondaryScreenInfo?.method || 'none'}
+                </span>
+              </div>
+              
+              {/* 副屏位置预设 */}
+              <div className="border-t pt-3">
+                <p className="text-xs text-gray-500 mb-2">副屏位置预设（点击后将客显屏移到对应位置）：</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="text-xs"
+                    onClick={async () => {
+                      if (!customerDisplayState.isOpen) {
+                        alert('请先打开客显屏');
+                        return;
+                      }
+                      // 1920x1080 主屏，副屏在右侧
+                      const result = await customerDisplayService.moveToPosition(1920, 0, 1280, 800);
+                      alert(result.message);
+                    }}
+                  >
+                    主屏右侧 (1920, 0)
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="text-xs"
+                    onClick={async () => {
+                      if (!customerDisplayState.isOpen) {
+                        alert('请先打开客显屏');
+                        return;
+                      }
+                      // 副屏在下方
+                      const primary = customerDisplayService.getPrimaryScreen();
+                      const result = await customerDisplayService.moveToPosition(0, primary.height, primary.width, 800);
+                      alert(result.message);
+                    }}
+                  >
+                    主屏下方 (0, {(() => {
+                      const info = customerDisplayService.getPrimaryScreen();
+                      return info.height;
+                    })()})
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="text-xs"
+                    onClick={async () => {
+                      if (!customerDisplayState.isOpen) {
+                        alert('请先打开客显屏');
+                        return;
+                      }
+                      // 副屏在左侧
+                      const result = await customerDisplayService.moveToPosition(-1280, 0, 1280, 800);
+                      alert(result.message);
+                    }}
+                  >
+                    主屏左侧 (-1280, 0)
+                  </Button>
+                </div>
+              </div>
+              
+              {/* 自定义位置 */}
+              <div className="border-t pt-3 mt-3">
+                <p className="text-xs text-gray-500 mb-2">自定义位置：</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400">X坐标</label>
+                    <Input 
+                      id="secondary-x"
+                      type="number"
+                      placeholder="1920"
+                      className="h-8 text-xs"
+                      defaultValue="1920"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400">Y坐标</label>
+                    <Input 
+                      id="secondary-y"
+                      type="number"
+                      placeholder="0"
+                      className="h-8 text-xs"
+                      defaultValue="0"
+                    />
+                  </div>
+                  <Button 
+                    size="sm" 
+                    className="bg-blue-600 hover:bg-blue-700 mt-4"
+                    onClick={async () => {
+                      if (!customerDisplayState.isOpen) {
+                        alert('请先打开客显屏');
+                        return;
+                      }
+                      const x = parseInt((document.getElementById('secondary-x') as HTMLInputElement)?.value) || 1920;
+                      const y = parseInt((document.getElementById('secondary-y') as HTMLInputElement)?.value) || 0;
+                      const result = await customerDisplayService.moveToPosition(x, y, 1280, 800);
+                      alert(result.message);
+                    }}
+                  >
+                    移动到
+                  </Button>
+                </div>
+              </div>
+              
+              {/* 最后同步时间 */}
               {customerDisplayState.isOpen && (
-                <div className="mt-3 pt-3 border-t text-xs text-gray-500 flex items-center gap-4">
-                  <span>分辨率：1280 x 800</span>
-                  <span>•</span>
-                  <span>最后同步：{new Date(customerDisplayState.lastSyncTime).toLocaleTimeString()}</span>
+                <div className="mt-3 pt-3 border-t text-xs text-gray-400">
+                  最后同步：{new Date(customerDisplayState.lastSyncTime).toLocaleTimeString()}
                 </div>
               )}
             </div>
