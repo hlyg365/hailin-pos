@@ -64,7 +64,7 @@ import {
   UserPlus, Barcode, Edit, Volume2, HardDrive, TrendingUp,
   PieChart, BarChart3, ArrowUpRight, ArrowDownRight, Download,
   FileText, Calendar, MapPin, Phone, RotateCcw, Lock, Send, Monitor,
-  MessageCircle, Bot, Box,
+  MessageCircle, Bot, Box, Wifi,
 } from 'lucide-react';
 import { AiAssistantButton } from '@/components/ai-assistant-chat';
 import { QRCodeSVG } from 'qrcode.react';
@@ -4454,174 +4454,132 @@ export default function PosPage() {
 
       case 'scale-settings':
         return (
-          <div className="space-y-6">
-            <h3 className="font-medium text-lg">电子秤设置</h3>
-            
-            {/* PWA环境说明 */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-                  <span className="text-white text-xs">!</span>
-                </div>
-                <div className="text-sm text-amber-800">
-                  <p className="font-medium">PWA环境说明</p>
-                  <p className="mt-1 text-xs">
-                    由于浏览器安全限制，PWA环境下无法直接访问USB/串口设备。
-                    <br/>
-                    <strong>推荐方案：</strong>
-                  </p>
-                  <ul className="mt-2 text-xs list-disc list-inside space-y-1">
-                    <li><strong>使用手动输入重量</strong> - 在称重界面点击"手动输入"按钮</li>
-                    <li>使用网络电子秤 - 通过TCP/IP网络连接</li>
-                    <li>使用AI图像识别 - 自动识别商品重量</li>
-                  </ul>
-                </div>
-              </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-lg flex items-center gap-2">
+                <Scale className="w-5 h-5" />
+                电子秤设置
+              </h3>
+              <Badge variant="outline" className="bg-green-50 text-green-700">网络连接</Badge>
             </div>
             
-            {/* 手动输入说明 */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
-                  <Scale className="w-4 h-4 text-white" />
-                </div>
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium">手动输入重量使用方法</p>
-                  <p className="mt-1 text-xs">
-                    1. 点击右上角"连接"按钮连接秤（如已连接可跳过）
-                    <br/>
-                    2. 点击"手动输入"按钮切换到手动模式
-                    <br/>
-                    3. 在输入框中输入商品重量（单位：千克）
-                    <br/>
-                    4. 点击商品添加到购物车
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            {/* 称重一体机网络秤设置 - 主要方案 */}
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-300 p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
-                  <Scale className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-green-800">称重一体机配置（推荐）</h4>
-                  <p className="text-xs text-green-600">适用于PWA环境和安卓系统</p>
-                </div>
-              </div>
+            {/* 称重一体机网络秤配置 - 最前面 */}
+            <div className="bg-white rounded-lg border-2 border-green-300 p-5">
+              <h4 className="text-base font-bold text-green-800 mb-4 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm">1</span>
+                网络秤配置（必填）
+              </h4>
               
-              <div className="bg-white/80 rounded-lg p-4 space-y-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    电子秤 IP 地址 <span className="text-red-500">*</span>
+                  <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                    IP地址 <span className="text-red-500">*</span>
                   </label>
                   <Input 
                     value={settings.scaleNetworkIp}
                     onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
-                    placeholder="例如：192.168.1.100"
-                    className="h-12 text-base font-mono"
+                    placeholder="192.168.1.100"
+                    className="h-12 text-lg font-mono text-center"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    请输入电子秤的IP地址，通常在秤的设置菜单中可以查看
-                  </p>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    网络端口
+                  <label className="text-sm font-medium text-gray-700 mb-2">
+                    端口（默认4001）
                   </label>
                   <Input 
                     type="number"
-                    value={settings.scaleNetworkPort}
-                    onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value))}
+                    value={settings.scaleNetworkPort || 4001}
+                    onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value) || 4001)}
                     placeholder="4001"
-                    className="h-12 text-base"
+                    className="h-12 text-lg text-center"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    顶尖OS2协议默认端口：4001
-                  </p>
                 </div>
                 
-                {/* 连接测试按钮 */}
-                <div className="pt-2">
-                  <Button 
-                    className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700"
-                    onClick={async () => {
-                      if (!settings.scaleNetworkIp) {
-                        alert('请先输入电子秤IP地址');
-                        return;
-                      }
-                      
-                      try {
-                        const response = await fetch('/api/scale/network/', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            action: 'connect',
-                            ip: settings.scaleNetworkIp,
-                            port: settings.scaleNetworkPort || 4001,
-                          }),
-                        });
-                        const result = await response.json();
-                        alert(result.success ? '连接成功！' : '连接失败：' + result.error);
-                      } catch (e) {
-                        alert('连接失败：网络错误');
-                      }
-                    }}
-                  >
-                    <Scale className="w-5 h-5 mr-2" />
-                    测试连接
-                  </Button>
-                </div>
-              </div>
-              
-              {/* 说明 */}
-              <div className="mt-4 text-xs text-green-700 bg-green-100/50 rounded-lg p-3">
-                <p className="font-medium mb-1">💡 使用说明：</p>
-                <ul className="list-disc list-inside space-y-0.5 text-green-600">
-                  <li>称重一体收银机通常通过网线连接电子秤</li>
-                  <li>在电子秤设置中查看IP地址（通常为192.168.1.x）</li>
-                  <li>确保收银机和电子秤在同一网络</li>
-                  <li>如无法连接，请检查网络配置或联系设备厂商</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* 条码秤设置 */}
-            <div className="bg-white rounded-lg border p-4">
-              <h4 className="text-sm font-medium mb-4 text-gray-700">条码秤设置（可选）</h4>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">条码秤类型</label>
-                <select 
-                  className="w-full h-10 px-3 border rounded-md text-sm"
-                  value={settings.barcodeScaleType}
-                  onChange={(e) => updateSetting('barcodeScaleType', e.target.value)}
+                <Button 
+                  className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700"
+                  onClick={async () => {
+                    if (!settings.scaleNetworkIp) {
+                      alert('请先输入电子秤IP地址');
+                      return;
+                    }
+                    
+                    try {
+                      const response = await fetch('/api/scale/network/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'connect',
+                          ip: settings.scaleNetworkIp,
+                          port: settings.scaleNetworkPort || 4001,
+                        }),
+                      });
+                      const result = await response.json();
+                      alert(result.success ? '✅ 连接成功！' : '❌ 连接失败：' + result.error);
+                    } catch (e) {
+                      alert('❌ 连接失败：网络错误');
+                    }
+                  }}
                 >
-                  <option value="none">不使用条码秤</option>
-                  <option value="tm-ab">大华 TM-AB</option>
-                  <option value="tm-f">大华 TM-F</option>
-                  <option value="ls2zx">顶尖 LS2ZX</option>
-                </select>
+                  <Wifi className="w-5 h-5 mr-2" />
+                  测试连接
+                </Button>
               </div>
             </div>
-
-            {/* AI秤设置 */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700">AI智能识别</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">使用AI视觉模型自动识别商品</p>
-                </div>
-                <Switch 
-                  checked={settings.aiScaleEnabled}
-                  onCheckedChange={(checked) => updateSetting('aiScaleEnabled', checked)}
-                />
+            
+            {/* 手动输入重量 */}
+            <div className="bg-blue-50 rounded-lg border border-blue-300 p-4">
+              <h4 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs">2</span>
+                手动输入重量（备用方案）
+              </h4>
+              <p className="text-xs text-blue-600">
+                在称重界面点击「手动输入」按钮，直接输入商品重量（单位：千克）
+              </p>
+            </div>
+            
+            {/* 连接状态 */}
+            <div className="bg-gray-50 rounded-lg border p-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">当前状态</h4>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`w-3 h-3 rounded-full ${scaleConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                <span className={scaleConnected ? 'text-green-700' : 'text-gray-500'}>
+                  {scaleConnected ? '已连接电子秤' : '未连接'}
+                </span>
               </div>
+              {scaleConnected && (
+                <p className="text-xs text-gray-500 mt-2">
+                  当前秤IP：{settings.scaleNetworkIp}:{settings.scaleNetworkPort || 4001}
+                </p>
+              )}
+            </div>
+            
+            {/* 其他设置 */}
+            <details className="bg-white rounded-lg border">
+              <summary className="p-4 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                其他设置选项
+              </summary>
+              <div className="p-4 pt-0 space-y-4">
+                
+                {/* 条码秤设置 */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">条码秤类型</h4>
+                  <select 
+                    className="w-full h-10 px-3 border rounded-md text-sm"
+                    value={settings.barcodeScaleType}
+                    onChange={(e) => updateSetting('barcodeScaleType', e.target.value)}
+                  >
+                    <option value="none">不使用条码秤</option>
+                    <option value="tm-ab">大华 TM-AB</option>
+                    <option value="tm-f">大华 TM-F</option>
+                    <option value="ls2zx">顶尖 LS2ZX</option>
+                  </select>
+                </div>
 
-              {settings.aiScaleEnabled && (
-                <div className="space-y-4 mt-4 pt-4 border-t border-purple-200">
+                {/* AI秤设置 */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">AI智能识别（可选）</h4>
+                  
                   {/* AI模型选择 */}
                   <div>
                     <label className="text-xs text-gray-500 mb-1 block">识别模型</label>
@@ -4634,13 +4592,10 @@ export default function PosPage() {
                       <option value="doubao-seed-1-8-251228">多模态增强模型</option>
                       <option value="kimi-k2-5-260127">Kimi智能模型</option>
                     </select>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      视觉模型识别速度快、准确率高；多模态模型适合复杂场景
-                    </p>
                   </div>
 
                   {/* 识别精度设置 */}
-                  <div>
+                  <div className="mt-3">
                     <label className="text-xs text-gray-500 mb-2 block">
                       识别精度（温度）：{settings.aiScaleTemperature}
                     </label>
@@ -4661,7 +4616,7 @@ export default function PosPage() {
                   </div>
 
                   {/* 置信度阈值 */}
-                  <div>
+                  <div className="mt-3">
                     <label className="text-xs text-gray-500 mb-2 block">
                       置信度阈值：{Math.round(settings.aiScaleConfidence * 100)}%
                     </label>
@@ -4678,139 +4633,20 @@ export default function PosPage() {
                       低于此阈值的识别结果将提示用户手动确认
                     </p>
                   </div>
-
-                  {/* 自动识别开关 */}
-                  <div className="flex items-center justify-between py-2">
-                    <div>
-                      <span className="text-sm">自动识别</span>
-                      <p className="text-xs text-gray-400">检测到商品后自动启动识别</p>
-                    </div>
-                    <Switch 
-                      checked={settings.aiScaleAutoRecognize}
-                      onCheckedChange={(checked) => updateSetting('aiScaleAutoRecognize', checked)}
-                    />
-                  </div>
-
-                  {/* 接口状态提示 */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="flex items-start gap-2">
-                      <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center mt-0.5">
-                        <span className="text-white text-[10px]">i</span>
-                      </div>
-                      <div className="text-xs text-blue-700">
-                        <p className="font-medium">AI接口已配置</p>
-                        <p className="mt-0.5">识别接口：<code className="bg-blue-100 px-1 rounded">POST /api/ai-scale</code></p>
-                        <p className="mt-0.5">无需额外配置API密钥，系统自动管理</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 测试按钮 */}
-            <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                className="flex-1"
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/ai-scale?action=test');
-                    const data = await response.json();
-                    if (data.success) {
-                      alert('AI秤服务运行正常！\n模型：' + data.model);
-                    } else {
-                      alert('AI秤服务异常：' + data.error);
-                    }
-                  } catch (error) {
-                    alert('测试失败，请检查网络连接');
-                  }
-                }}
-              >
-                测试AI服务
-              </Button>
-              <Button 
-                className="flex-1 bg-red-500 hover:bg-red-600"
-                onClick={() => {
-                  // 保存设置
-                  saveAllSettings();
-                  
-                  // 保存电子秤配置到topScaleService
-                  if (typeof window !== 'undefined') {
-                    import('@/lib/topscale-os2-service').then(({ topScaleService }) => {
-                      // 保存串口配置
-                      topScaleService.saveSerialConfig({
-                        port: settings.scalePort || 'COM1',
-                        baudRate: settings.scaleBaudRate || 9600,
-                      });
-                      // 保存秤配置
-                      topScaleService.saveConfig({
-                        ip: settings.scaleNetworkIp || '192.168.1.100',
-                        port: settings.scaleNetworkPort || 4001,
-                        model: settings.barcodeScaleType === 'ls2zx' ? 'OS2T325490065' : 'DEFAULT',
-                        maxWeight: 15,
-                        enabled: true,
-                      });
-                      // 设置连接类型
-                      if (settings.barcodeScaleType === 'none') {
-                        topScaleService.setConnectionType('network');
-                      } else {
-                        topScaleService.setConnectionType('serial');
-                      }
-                      console.log('[POS] 电子秤配置已保存:', {
-                        port: settings.scalePort,
-                        baudRate: settings.scaleBaudRate,
-                        type: settings.barcodeScaleType,
-                      });
-                    });
-                    
-                    // 保存钱箱配置
-                    import('@/lib/cashbox-service').then(({ cashboxService }) => {
-                      cashboxService.saveConfig({
-                        connectionType: settings.cashDrawerConnectionType as 'serial' | 'network' | 'http' | 'simulated',
-                        serialPort: settings.cashDrawerSerialPort,
-                        serialBaudRate: settings.cashDrawerBaudRate,
-                        networkIp: settings.cashDrawerNetworkIp,
-                        networkPort: settings.cashDrawerNetworkPort,
-                        httpApiUrl: settings.cashDrawerHttpApiUrl,
-                        enabled: settings.cashDrawerEnabled,
-                        password: settings.cashDrawerPassword,
-                        openDelay: settings.cashDrawerOpenDelay,
-                        pulseWidth: settings.cashDrawerPulseWidth,
-                      });
-                    });
-                  }
-                  showSaveMessage('电子秤和钱箱设置已保存');
-                }}
-              >
-                保存设置
-              </Button>
-            </div>
-            
-            {/* 电子秤连接说明 */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
-                  <span className="text-white text-sm">i</span>
-                </div>
-                <div className="text-xs text-blue-700">
-                  <p className="font-medium">电子秤连接说明</p>
-                  <ul className="mt-2 space-y-1.5 list-disc list-inside">
-                    <li><strong>PWA环境</strong>：使用Web Serial API连接串口秤，或通过API代理连接网络秤</li>
-                    <li><strong>APP环境</strong>：通过收银机原生SDK连接电子秤（推荐）</li>
-                    <li><strong>顶尖OS2参数</strong>：波特率9600，机号OS2T325490065，量程15kg</li>
-                  </ul>
-                  <p className="mt-2 text-blue-600">
-                    当前配置：{settings.scalePort} @ {settings.scaleBaudRate}bps | 类型：{
-                      settings.barcodeScaleType === 'none' ? '未启用' :
-                      settings.barcodeScaleType === 'ls2zx' ? '顶尖LS2ZX' :
-                      settings.barcodeScaleType === 'tm-ab' ? '大华TM-AB' :
-                      settings.barcodeScaleType === 'tm-f' ? '大华TM-F' : '未配置'
-                    }
-                  </p>
                 </div>
               </div>
-            </div>
+            </details>
+
+            {/* 保存按钮 */}
+            <Button 
+              className="w-full bg-red-500 hover:bg-red-600"
+              onClick={() => {
+                saveAllSettings();
+                showSaveMessage('电子秤设置已保存');
+              }}
+            >
+              保存设置
+            </Button>
           </div>
         );
 
