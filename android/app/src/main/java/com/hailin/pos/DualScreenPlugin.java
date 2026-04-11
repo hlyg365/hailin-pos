@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.app.Presentation;
 import android.content.Context;
 import android.content.Intent;
+import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Display;
@@ -67,7 +68,8 @@ public class DualScreenPlugin extends Plugin {
     private Display[] getDisplays() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Android 11+ API
-            return getContext().getDisplayManager().getDisplays();
+            android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager) getContext().getSystemService(Context.DISPLAY_SERVICE);
+            return dm.getDisplays();
         } else {
             // Legacy API
             return getActivity().getWindowManager().getDisplays();
@@ -77,7 +79,7 @@ public class DualScreenPlugin extends Plugin {
     @PluginMethod
     public void open(PluginCall call) {
         String url = call.getString("url", "");
-        int displayId = (int) call.getLong("displayId", -1);
+        int displayId = (int) call.getLong("displayId", -1L);
         
         try {
             // 获取目标显示器

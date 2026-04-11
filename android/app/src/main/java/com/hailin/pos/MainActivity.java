@@ -45,7 +45,7 @@ public class MainActivity extends BridgeActivity {
     }
     
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         // 取消注册广播接收器
         if (usbReceiver != null) {
             try {
