@@ -20,6 +20,10 @@ const config: CapacitorConfig = {
     captureInput: true,
     webContentsDebuggingEnabled: true,
     backgroundColor: '#FF6B35',
+    // 自定义UserAgent标识
+    contentBlock: {
+      // 禁用内容拦截
+    },
   },
   plugins: {
     SplashScreen: {

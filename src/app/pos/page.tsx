@@ -812,25 +812,52 @@ export default function PosPage() {
 
   // 检测运行环境（同步检测，组件初始化时执行）
   const runtimeEnvironment = (() => {
-    // 直接使用Capacitor.isNativePlatform()检测
-    if (typeof window !== 'undefined') {
-      const cap = (window as any).Capacitor;
-      if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
-        return {
-          environment: 'app' as RuntimeEnvironment,
-          isNativeApp: true,
-          platform: cap.getPlatform ? cap.getPlatform() : 'android'
-        };
-      }
-      
-      // 检查是否为PWA
-      if ('serviceWorker' in navigator || window.matchMedia('(display-mode: standalone)').matches) {
-        return {
-          environment: 'pwa' as RuntimeEnvironment,
-          isNativeApp: false,
-          platform: 'web'
-        };
-      }
+    if (typeof window === 'undefined') {
+      return { environment: 'web' as RuntimeEnvironment, isNativeApp: false, platform: 'web' };
+    }
+    
+    // 方法1：检查Capacitor.isNativePlatform()
+    const cap = (window as any).Capacitor;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
+      return {
+        environment: 'app' as RuntimeEnvironment,
+        isNativeApp: true,
+        platform: cap.getPlatform ? cap.getPlatform() : 'android'
+      };
+    }
+    
+    // 方法2：检查Android WebView (更可靠的检测)
+    const ua = navigator.userAgent || '';
+    const isAndroidWebView = ua.includes('Android') && (
+      ua.includes('wv') || 
+      ua.includes('WebView') || 
+      ua.includes('Chrome/') && ua.includes('Mobile')
+    );
+    
+    if (isAndroidWebView) {
+      return {
+        environment: 'app' as RuntimeEnvironment,
+        isNativeApp: true,
+        platform: 'android'
+      };
+    }
+    
+    // 方法3：检查Capacitor对象存在
+    if (cap && (cap.Plugins || cap.platform)) {
+      return {
+        environment: 'app' as RuntimeEnvironment,
+        isNativeApp: true,
+        platform: cap.getPlatform ? cap.getPlatform() : 'android'
+      };
+    }
+    
+    // 检查是否为PWA
+    if ('serviceWorker' in navigator || window.matchMedia('(display-mode: standalone)').matches) {
+      return {
+        environment: 'pwa' as RuntimeEnvironment,
+        isNativeApp: false,
+        platform: 'web'
+      };
     }
     
     return {
@@ -848,6 +875,7 @@ export default function PosPage() {
       isNativeApp: runtimeEnvironment.isNativeApp
     }));
     console.log('[POS] Runtime:', runtimeEnvironment.environment, 'Platform:', runtimeEnvironment.platform);
+    console.log('[POS] UA:', navigator.userAgent.substring(0, 100));
   }, []);
   
   // 激活语音播报（需要在用户交互后调用）
