@@ -620,6 +620,9 @@ export default function PosPage() {
     
     // 电子秤设置
     scalePort: 'COM1',
+    scaleConnectionType: 'serial' as 'serial' | 'network',
+    scaleSerialPort: '',
+    scaleSerialPortCustom: '',
     scaleBaudRate: 9600,
     scaleNetworkIp: '192.168.1.100', // 网络秤IP地址
     scaleNetworkPort: 4001, // 网络秤端口
@@ -4460,44 +4463,185 @@ export default function PosPage() {
                 <Scale className="w-5 h-5" />
                 电子秤设置
               </h3>
-              <Badge variant="outline" className="bg-green-50 text-green-700">网络连接</Badge>
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                {settings.scaleConnectionType === 'serial' ? '串口连接' : '网络连接'}
+              </Badge>
             </div>
             
-            {/* 称重一体机网络秤配置 - 最前面 */}
-            <div className="bg-white rounded-lg border-2 border-green-300 p-5">
-              <h4 className="text-base font-bold text-green-800 mb-4 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm">1</span>
-                网络秤配置（必填）
-              </h4>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                    IP地址 <span className="text-red-500">*</span>
-                  </label>
-                  <Input 
-                    value={settings.scaleNetworkIp}
-                    onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
-                    placeholder="192.168.1.100"
-                    className="h-12 text-lg font-mono text-center"
-                  />
-                </div>
+            {/* 连接方式选择 */}
+            <div className="bg-white rounded-lg border p-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">选择连接方式</h4>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => updateSetting('scaleConnectionType', 'serial')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${
+                    settings.scaleConnectionType === 'serial'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-medium">串口连接（推荐）</div>
+                  <div className="text-xs mt-1 opacity-70">USB转串口 / 内置串口</div>
+                </button>
+                <button
+                  onClick={() => updateSetting('scaleConnectionType', 'network')}
+                  className={`flex-1 py-3 px-4 rounded-lg border-2 transition-all ${
+                    settings.scaleConnectionType === 'network'
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-medium">网络连接</div>
+                  <div className="text-xs mt-1 opacity-70">TCP/IP 网络秤</div>
+                </button>
+              </div>
+            </div>
+
+            {/* 串口配置 - 主要选项 */}
+            {settings.scaleConnectionType === 'serial' && (
+              <div className="bg-white rounded-lg border-2 border-blue-300 p-5">
+                <h4 className="text-base font-bold text-blue-800 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm">1</span>
+                  串口配置（称重一体机）
+                </h4>
                 
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2">
-                    端口（默认4001）
-                  </label>
-                  <Input 
-                    type="number"
-                    value={settings.scaleNetworkPort || 4001}
-                    onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value) || 4001)}
-                    placeholder="4001"
-                    className="h-12 text-lg text-center"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2">
+                      串口号 <span className="text-red-500">*</span>
+                    </label>
+                    <select 
+                      className="w-full h-12 px-3 border-2 rounded-lg text-lg bg-white"
+                      value={settings.scaleSerialPort}
+                      onChange={(e) => updateSetting('scaleSerialPort', e.target.value)}
+                    >
+                      <option value="">请选择串口号</option>
+                      <option value="COM1">COM1</option>
+                      <option value="COM2">COM2</option>
+                      <option value="COM3">COM3</option>
+                      <option value="COM4">COM4</option>
+                      <option value="COM5">COM5</option>
+                      <option value="/dev/ttyUSB0">/dev/ttyUSB0 (Linux)</option>
+                      <option value="/dev/ttyS0">/dev/ttyS0 (Linux)</option>
+                      <option value="custom">自定义...</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Windows系统在"设备管理器"中查看COM端口
+                    </p>
+                  </div>
+
+                  {settings.scaleSerialPort === 'custom' && (
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2">自定义串口号</label>
+                      <Input 
+                        value={settings.scaleSerialPortCustom || ''}
+                        onChange={(e) => updateSetting('scaleSerialPortCustom', e.target.value)}
+                        placeholder="例如：COM10"
+                        className="h-12 text-lg"
+                      />
+                    </div>
+                  )}
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2">
+                      波特率
+                    </label>
+                    <select 
+                      className="w-full h-12 px-3 border-2 rounded-lg text-lg bg-white"
+                      value={settings.scaleBaudRate}
+                      onChange={(e) => updateSetting('scaleBaudRate', parseInt(e.target.value))}
+                    >
+                      <option value="9600">9600（顶尖OS2默认）</option>
+                      <option value="4800">4800</option>
+                      <option value="19200">19200</option>
+                      <option value="38400">38400</option>
+                      <option value="115200">115200</option>
+                    </select>
+                  </div>
+                  
+                  <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
+                    <p className="font-medium mb-1">顶尖OS2电子秤参数：</p>
+                    <ul className="space-y-0.5">
+                      <li>• 波特率：9600</li>
+                      <li>• 机号：OS2T325490065</li>
+                      <li>• 量程：15kg</li>
+                      <li>• 协议：顶尖OS2</li>
+                    </ul>
+                  </div>
                 </div>
                 
                 <Button 
-                  className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700"
+                  className="w-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 mt-4"
+                  onClick={async () => {
+                    const port = settings.scaleSerialPort === 'custom' 
+                      ? settings.scaleSerialPortCustom 
+                      : settings.scaleSerialPort;
+                    
+                    if (!port) {
+                      alert('请先选择或输入串口号');
+                      return;
+                    }
+                    
+                    try {
+                      const response = await fetch('/api/scale/serial/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'connect',
+                          port: port,
+                          baudRate: settings.scaleBaudRate || 9600,
+                        }),
+                      });
+                      const result = await response.json();
+                      alert(result.success ? '✅ 连接成功！' : '❌ 连接失败：' + result.error);
+                    } catch (e) {
+                      alert('❌ 连接失败：网络错误');
+                    }
+                  }}
+                >
+                  <Wifi className="w-5 h-5 mr-2" />
+                  串口连接
+                </Button>
+                </div>
+              )}
+
+            {/* 网络配置 - 备选 */}
+            {settings.scaleConnectionType === 'network' && (
+              <div className="bg-white rounded-lg border-2 border-green-300 p-5">
+                <h4 className="text-base font-bold text-green-800 mb-4 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm">1</span>
+                  网络秤配置
+                </h4>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2">
+                      IP地址 <span className="text-red-500">*</span>
+                    </label>
+                    <Input 
+                      value={settings.scaleNetworkIp}
+                      onChange={(e) => updateSetting('scaleNetworkIp', e.target.value)}
+                      placeholder="192.168.1.100"
+                      className="h-12 text-lg font-mono text-center"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2">
+                      端口（默认4001）
+                    </label>
+                    <Input 
+                      type="number"
+                      value={settings.scaleNetworkPort || 4001}
+                      onChange={(e) => updateSetting('scaleNetworkPort', parseInt(e.target.value) || 4001)}
+                      placeholder="4001"
+                      className="h-12 text-lg text-center"
+                    />
+                  </div>
+                </div>
+                
+                <Button 
+                  className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 mt-4"
                   onClick={async () => {
                     if (!settings.scaleNetworkIp) {
                       alert('请先输入电子秤IP地址');
@@ -4524,17 +4668,19 @@ export default function PosPage() {
                   <Wifi className="w-5 h-5 mr-2" />
                   测试连接
                 </Button>
-              </div>
-            </div>
+                </div>
+              )}
             
-            {/* 手动输入重量 */}
-            <div className="bg-blue-50 rounded-lg border border-blue-300 p-4">
-              <h4 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs">2</span>
+            {/* 手动输入重量 - 备用方案 */}
+            <div className="bg-yellow-50 rounded-lg border border-yellow-300 p-4">
+              <h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-yellow-500 text-white flex items-center justify-center text-xs">
+                  {settings.scaleConnectionType === 'serial' ? '2' : '2'}
+                </span>
                 手动输入重量（备用方案）
               </h4>
-              <p className="text-xs text-blue-600">
-                在称重界面点击「手动输入」按钮，直接输入商品重量（单位：千克）
+              <p className="text-xs text-yellow-700">
+                如果自动连接失败，可在称重界面点击「手动输入」按钮，直接输入商品重量（单位：千克）
               </p>
             </div>
             
@@ -4549,94 +4695,15 @@ export default function PosPage() {
               </div>
               {scaleConnected && (
                 <p className="text-xs text-gray-500 mt-2">
-                  当前秤IP：{settings.scaleNetworkIp}:{settings.scaleNetworkPort || 4001}
+                  连接方式：{settings.scaleConnectionType === 'serial' ? '串口' : '网络'}
+                  {settings.scaleConnectionType === 'serial' 
+                    ? ` ${settings.scaleSerialPort} @ ${settings.scaleBaudRate}bps`
+                    : ` ${settings.scaleNetworkIp}:${settings.scaleNetworkPort}`
+                  }
                 </p>
               )}
             </div>
             
-            {/* 其他设置 */}
-            <details className="bg-white rounded-lg border">
-              <summary className="p-4 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
-                其他设置选项
-              </summary>
-              <div className="p-4 pt-0 space-y-4">
-                
-                {/* 条码秤设置 */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">条码秤类型</h4>
-                  <select 
-                    className="w-full h-10 px-3 border rounded-md text-sm"
-                    value={settings.barcodeScaleType}
-                    onChange={(e) => updateSetting('barcodeScaleType', e.target.value)}
-                  >
-                    <option value="none">不使用条码秤</option>
-                    <option value="tm-ab">大华 TM-AB</option>
-                    <option value="tm-f">大华 TM-F</option>
-                    <option value="ls2zx">顶尖 LS2ZX</option>
-                  </select>
-                </div>
-
-                {/* AI秤设置 */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">AI智能识别（可选）</h4>
-                  
-                  {/* AI模型选择 */}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">识别模型</label>
-                    <select 
-                      className="w-full h-10 px-3 border rounded-md text-sm bg-white"
-                      value={settings.aiScaleModel}
-                      onChange={(e) => updateSetting('aiScaleModel', e.target.value)}
-                    >
-                      <option value="doubao-seed-1-6-vision-250815">视觉识别模型（推荐）</option>
-                      <option value="doubao-seed-1-8-251228">多模态增强模型</option>
-                      <option value="kimi-k2-5-260127">Kimi智能模型</option>
-                    </select>
-                  </div>
-
-                  {/* 识别精度设置 */}
-                  <div className="mt-3">
-                    <label className="text-xs text-gray-500 mb-2 block">
-                      识别精度（温度）：{settings.aiScaleTemperature}
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={settings.aiScaleTemperature}
-                      onChange={(e) => updateSetting('aiScaleTemperature', parseFloat(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                      <span>精确（0）</span>
-                      <span>平衡（0.5）</span>
-                      <span>灵活（1）</span>
-                    </div>
-                  </div>
-
-                  {/* 置信度阈值 */}
-                  <div className="mt-3">
-                    <label className="text-xs text-gray-500 mb-2 block">
-                      置信度阈值：{Math.round(settings.aiScaleConfidence * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="1"
-                      step="0.05"
-                      value={settings.aiScaleConfidence}
-                      onChange={(e) => updateSetting('aiScaleConfidence', parseFloat(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      低于此阈值的识别结果将提示用户手动确认
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </details>
-
             {/* 保存按钮 */}
             <Button 
               className="w-full bg-red-500 hover:bg-red-600"
