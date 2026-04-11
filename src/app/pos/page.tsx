@@ -605,6 +605,15 @@ export default function PosPage() {
     adVolume: 30,
     voiceVolume: 100,
     
+    // APP版本信息
+    appVersion: '1.0.0',
+    latestVersion: null as string | null,
+    updateAvailable: false,
+    checkingUpdate: false,
+    downloading: false,
+    downloadProgress: 0,
+    lastChecked: null as Date | null,
+    
     // 运行环境检测
     runtimeEnvironment: 'web' as RuntimeEnvironment,
     isNativeApp: false,
@@ -874,6 +883,30 @@ export default function PosPage() {
     }));
     console.log('[POS] Runtime:', runtimeEnvironment.environment, 'Platform:', runtimeEnvironment.platform);
     console.log('[POS] UA:', navigator.userAgent.substring(0, 100));
+    
+    // 如果是原生APP，自动检查版本更新
+    if (runtimeEnvironment.isNativeApp) {
+      const checkAppUpdate = async () => {
+        try {
+          const { AppUpdate } = await import('@/lib/native/app-update-service');
+          const result = await AppUpdate.checkForUpdate();
+          
+          if (result.hasUpdate) {
+            console.log('[POS] 发现新版本:', result.latestVersion);
+            setSettings(prev => ({
+              ...prev,
+              updateAvailable: true,
+              latestVersion: result.latestVersion || null,
+            }));
+          }
+        } catch (e) {
+          console.error('[POS] 检查更新失败:', e);
+        }
+      };
+      
+      // 延迟3秒后检查，避免影响页面加载
+      setTimeout(checkAppUpdate, 3000);
+    }
   }, []);
   
   // 激活语音播报（需要在用户交互后调用）
@@ -3917,48 +3950,114 @@ export default function PosPage() {
                 </div>
               </div>
               
-              {/* PWA设置 */}
+              {/* 系统环境 */}
               <div className="space-y-1 mb-6">
                 <h4 className="text-sm font-medium text-gray-500 mb-3">系统环境</h4>
-                <div className="flex items-center justify-between py-3 border-b">
-                  <div>
-                    <span className="text-sm">运行环境</span>
-                    <p className="text-xs text-gray-400">
-                      当前：{getEnvironmentDisplayName(settings.runtimeEnvironment)}
-                    </p>
+                
+                {/* 版本信息 */}
+                <div className="py-3 border-b">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm">当前版本</span>
+                      <p className="text-xs text-gray-400">v{settings.appVersion || '1.0.0'}</p>
+                    </div>
+                    <Badge 
+                      variant="outline" 
+                      className={`text-xs ${settings.isNativeApp ? 'bg-green-50 text-green-600 border-green-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}
+                    >
+                      {settings.isNativeApp ? 'APP环境' : settings.runtimeEnvironment.toUpperCase()}
+                    </Badge>
                   </div>
-                  <Badge 
-                    variant="outline" 
-                    className={`text-xs ${settings.isNativeApp ? 'bg-green-50 text-green-600 border-green-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}
-                  >
-                    {settings.isNativeApp ? 'APP' : settings.runtimeEnvironment.toUpperCase()}
-                  </Badge>
                 </div>
+
+                {/* 更新状态 */}
+                {settings.updateAvailable && (
+                  <div className="py-3 border-b bg-blue-50 rounded-lg px-3 -mx-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="text-sm text-blue-700 font-medium">发现新版本</span>
+                        <p className="text-xs text-blue-600">v{settings.latestVersion} 可用</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        className="bg-blue-600 hover:bg-blue-700"
+                        onClick={async () => {
+                          try {
+                            const { AppUpdate } = await import('@/lib/native/app-update-service');
+                            const result = await AppUpdate.downloadAndInstall();
+                            if (!result.success) {
+                              alert(result.message || '更新失败');
+                            }
+                          } catch (e) {
+                            alert('更新失败');
+                          }
+                        }}
+                      >
+                        立即更新
+                      </Button>
+                    </div>
+                    {settings.downloading && (
+                      <Progress value={settings.downloadProgress || 0} className="h-2" />
+                    )}
+                  </div>
+                )}
+                
+                {/* 检查更新按钮 */}
                 <div className="py-3 border-b space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm">
                       {settings.isNativeApp ? '检查APP更新' : '清除缓存并更新'}
                     </span>
+                    {settings.lastChecked && (
+                      <span className="text-xs text-gray-400">
+                        上次检查: {new Date(settings.lastChecked).toLocaleString('zh-CN')}
+                      </span>
+                    )}
                   </div>
                   <Button 
                     variant="outline" 
                     size="sm" 
                     className="w-full"
+                    disabled={settings.checkingUpdate}
                     onClick={async () => {
                       if (settings.isNativeApp) {
                         // 原生APP：调用AppUpdatePlugin检查更新
                         try {
                           const { AppUpdate } = await import('@/lib/native/app-update-service');
+                          
+                          // 显示检查中状态
+                          setSettings(prev => ({ ...prev, checkingUpdate: true }));
+                          
                           const result = await AppUpdate.checkForUpdate();
+                          
                           if (result.hasUpdate) {
+                            setSettings(prev => ({ 
+                              ...prev, 
+                              checkingUpdate: false,
+                              updateAvailable: true,
+                              latestVersion: result.latestVersion,
+                              lastChecked: new Date(),
+                            }));
                             if (confirm(`发现新版本 ${result.latestVersion}，是否立即更新？`)) {
-                              await AppUpdate.downloadAndInstall();
+                              setSettings(prev => ({ ...prev, downloading: true, downloadProgress: 0 }));
+                              const installResult = await AppUpdate.downloadAndInstall();
+                              setSettings(prev => ({ ...prev, downloading: false }));
+                              if (!installResult.success) {
+                                alert(installResult.message || '更新失败');
+                              }
                             }
                           } else {
+                            setSettings(prev => ({ 
+                              ...prev, 
+                              checkingUpdate: false,
+                              updateAvailable: false,
+                              lastChecked: new Date(),
+                            }));
                             alert('当前已是最新版本');
                           }
                         } catch (e) {
                           console.error('[APP] 更新检查失败:', e);
+                          setSettings(prev => ({ ...prev, checkingUpdate: false }));
                           alert('检查更新失败，请稍后重试');
                         }
                       } else {
@@ -3969,7 +4068,6 @@ export default function PosPage() {
                             if ('serviceWorker' in navigator) {
                               const registration = await navigator.serviceWorker.ready;
                               if ('message' in registration) {
-                                // 发送清除缓存消息
                                 navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' });
                                 navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
                               }
@@ -3989,7 +4087,11 @@ export default function PosPage() {
                       }
                     }}
                   >
-                    <RefreshCw className="h-3 w-3 mr-1" />
+                    {settings.checkingUpdate ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                    )}
                     {settings.isNativeApp ? '检查更新' : '清除缓存并重新加载'}
                   </Button>
                 </div>

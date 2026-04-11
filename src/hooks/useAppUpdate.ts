@@ -1,153 +1,183 @@
+'use client';
+
 /**
- * App更新检查Hook
+ * APP版本检查Hook
  * 
- * 在收银台应用启动时自动检查更新
+ * 提供版本检查和自动更新功能
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { appUpdateService, UpdateInfo } from '@/lib/native/app-update-service';
+import { useState, useEffect, useCallback } from 'react';
+import { AppUpdate } from '@/lib/native/index';
 
-interface UseAppUpdateReturn {
-  updateInfo: UpdateInfo | null;
-  isChecking: boolean;
-  isDownloading: boolean;
+export interface VersionInfo {
+  currentVersion: string;
+  latestVersion: string | null;
+  hasUpdate: boolean;
   downloadProgress: number;
-  checkUpdate: () => Promise<void>;
-  downloadUpdate: () => Promise<void>;
-  installUpdate: () => Promise<void>;
-  skipVersion: () => Promise<void>;
-  dismissUpdate: () => void;
-  showUpdateModal: boolean;
-  showUpdateDialog: UpdateInfo | null;
+  isDownloading: boolean;
+  isChecking: boolean;
+  lastChecked: Date | null;
+  error: string | null;
 }
 
-export function useAppUpdate(): UseAppUpdateReturn {
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [showUpdateDialog, setShowUpdateDialog] = useState<UpdateInfo | null>(null);
+export interface UpdateStatus {
+  available: boolean;
+  downloading: boolean;
+  progress: number;
+  error: string | null;
+}
+
+export function useAppUpdate() {
+  const [versionInfo, setVersionInfo] = useState<VersionInfo>({
+    currentVersion: '1.0.0',
+    latestVersion: null,
+    hasUpdate: false,
+    downloadProgress: 0,
+    isDownloading: false,
+    isChecking: false,
+    lastChecked: null,
+    error: null,
+  });
+
+  // 加载保存的版本信息
+  useEffect(() => {
+    const savedVersion = localStorage.getItem('app_version');
+    if (savedVersion) {
+      try {
+        const info = JSON.parse(savedVersion);
+        setVersionInfo(prev => ({
+          ...prev,
+          currentVersion: info.currentVersion || prev.currentVersion,
+        }));
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    // 从原生获取当前版本
+    const getCurrentVersion = async () => {
+      try {
+        const cap = (window as any).Capacitor;
+        if (cap?.Plugins?.App) {
+          const info = await cap.Plugins.App.getInfo();
+          setVersionInfo(prev => ({
+            ...prev,
+            currentVersion: info.version || prev.currentVersion,
+          }));
+          // 保存
+          localStorage.setItem('app_version', JSON.stringify({
+            currentVersion: info.version || '1.0.0',
+          }));
+        }
+      } catch (e) {
+        console.log('[AppUpdate] Could not get current version:', e);
+      }
+    };
+
+    getCurrentVersion();
+  }, []);
 
   // 检查更新
-  const checkUpdate = useCallback(async () => {
-    setIsChecking(true);
+  const checkForUpdate = useCallback(async () => {
+    setVersionInfo(prev => ({ ...prev, isChecking: true, error: null }));
+
     try {
-      const info = await appUpdateService.checkUpdate();
-      setUpdateInfo(info);
-      
-      if (info.hasUpdate && !info.skipped) {
-        setShowUpdateDialog(info);
-        setShowUpdateModal(true);
-      }
-    } catch (error) {
-      console.error('[useAppUpdate] checkUpdate error:', error);
-    } finally {
-      setIsChecking(false);
+      const result = await AppUpdate.checkUpdate();
+
+      setVersionInfo(prev => ({
+        ...prev,
+        latestVersion: result.latestVersion || prev.currentVersion,
+        hasUpdate: result.hasUpdate,
+        isChecking: false,
+        lastChecked: new Date(),
+      }));
+
+      return result;
+    } catch (e: any) {
+      setVersionInfo(prev => ({
+        ...prev,
+        isChecking: false,
+        error: e.message || '检查更新失败',
+      }));
+      return { hasUpdate: false, latestVersion: null };
     }
   }, []);
 
-  // 下载更新
-  const downloadUpdate = useCallback(async () => {
-    if (!updateInfo) return;
-    
-    setIsDownloading(true);
-    setDownloadProgress(0);
-    
+  // 下载并安装
+  const downloadAndInstall = useCallback(async () => {
+    setVersionInfo(prev => ({ ...prev, isDownloading: true, downloadProgress: 0, error: null }));
+
     try {
-      // 订阅下载进度
-      const unsubscribeProgress = appUpdateService.onDownloadProgress((progress) => {
-        setDownloadProgress(progress.progress);
-      });
-      
-      const result = await appUpdateService.downloadUpdate(updateInfo.downloadUrl);
-      
+      // 模拟下载进度
+      const progressInterval = setInterval(() => {
+        setVersionInfo(prev => ({
+          ...prev,
+          downloadProgress: Math.min(prev.downloadProgress + 10, 90),
+        }));
+      }, 500);
+
+      const result = await AppUpdate.downloadAndInstall();
+
+      clearInterval(progressInterval);
+
       if (result.success) {
-        // 下载完成，等待安装
-        setIsDownloading(false);
-        setShowUpdateModal(false);
-        // 显示安装提示
-        setShowUpdateDialog({
-          ...updateInfo,
-          downloadUrl: '', // 清除下载URL，表示已下载
-        });
-        setShowUpdateModal(true);
+        setVersionInfo(prev => ({
+          ...prev,
+          downloadProgress: 100,
+          isDownloading: false,
+        }));
       } else {
-        console.error('[useAppUpdate] download failed:', result.message);
+        setVersionInfo(prev => ({
+          ...prev,
+          isDownloading: false,
+          error: result.message || '下载失败',
+        }));
       }
-      
-      unsubscribeProgress();
-    } catch (error) {
-      console.error('[useAppUpdate] downloadUpdate error:', error);
-      setIsDownloading(false);
-    }
-  }, [updateInfo]);
 
-  // 安装更新
-  const installUpdate = useCallback(async () => {
-    try {
-      await appUpdateService.installUpdate();
-    } catch (error) {
-      console.error('[useAppUpdate] installUpdate error:', error);
+      return result;
+    } catch (e: any) {
+      setVersionInfo(prev => ({
+        ...prev,
+        isDownloading: false,
+        error: e.message || '下载失败',
+      }));
+      return { success: false, message: e.message };
     }
   }, []);
-
-  // 跳过版本
-  const skipVersion = useCallback(async () => {
-    if (!updateInfo) return;
-    
-    await appUpdateService.skipVersion(updateInfo.latestVersion);
-    setShowUpdateModal(false);
-    setShowUpdateDialog(null);
-  }, [updateInfo]);
-
-  // 关闭更新提示
-  const dismissUpdate = useCallback(() => {
-    setShowUpdateModal(false);
-  }, []);
-
-  // 初始化时检查更新
-  useEffect(() => {
-    // 延迟检查，避免影响应用启动
-    const timer = setTimeout(() => {
-      checkUpdate();
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [checkUpdate]);
-
-  // 监听下载完成事件
-  useEffect(() => {
-    const unsubscribe = appUpdateService.onDownloadComplete((filePath) => {
-      setIsDownloading(false);
-      setShowUpdateModal(false);
-      
-      // 显示安装确认
-      if (updateInfo) {
-        setShowUpdateDialog({
-          ...updateInfo,
-          downloadUrl: filePath,
-        });
-        setShowUpdateModal(true);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [updateInfo]);
 
   return {
-    updateInfo,
-    isChecking,
-    isDownloading,
-    downloadProgress,
-    checkUpdate,
-    downloadUpdate,
-    installUpdate,
-    skipVersion,
-    dismissUpdate,
-    showUpdateModal,
-    showUpdateDialog,
+    ...versionInfo,
+    checkForUpdate,
+    downloadAndInstall,
   };
+}
+
+// 独立的版本检查函数
+export async function checkAppUpdate(): Promise<{
+  hasUpdate: boolean;
+  latestVersion?: string;
+  currentVersion?: string;
+}> {
+  try {
+    const cap = (window as any).Capacitor;
+    let currentVersion = '1.0.0';
+
+    // 获取当前版本
+    if (cap?.Plugins?.App) {
+      const info = await cap.Plugins.App.getInfo();
+      currentVersion = info.version || '1.0.0';
+    }
+
+    // 检查更新
+    const result = await AppUpdate.checkUpdate();
+
+    return {
+      hasUpdate: result.hasUpdate,
+      latestVersion: result.latestVersion,
+      currentVersion,
+    };
+  } catch (e) {
+    console.error('[AppUpdate] Check failed:', e);
+    return { hasUpdate: false };
+  }
 }
