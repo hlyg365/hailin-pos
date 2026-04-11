@@ -50,6 +50,12 @@ import {
   getMemberLevelInfo,
   type MemberLevelId
 } from '@/lib/member-service';
+import { 
+  getRuntimeEnvironment, 
+  getEnvironmentDisplayName, 
+  isNativeApp,
+  type RuntimeEnvironment 
+} from '@/lib/runtime-environment';
 import ReportsPage from '@/components/reports-page';
 import { 
   Search, Plus, Minus, User, Gift, Ticket, Store, 
@@ -599,6 +605,10 @@ export default function PosPage() {
     adVolume: 30,
     voiceVolume: 100,
     
+    // 运行环境检测
+    runtimeEnvironment: 'web' as RuntimeEnvironment,
+    isNativeApp: false,
+    
     // 其他功能设置
     shiftModeEnabled: false,
     takeawayEnabled: true,
@@ -799,6 +809,45 @@ export default function PosPage() {
       }
     }
   };
+
+  // 检测运行环境（必须在组件顶部，避免条件调用）
+  useEffect(() => {
+    const detectRuntime = async () => {
+      try {
+        // 同步快速检测
+        const nativeDetected = isNativeApp();
+        
+        if (nativeDetected) {
+          // 确认原生APP环境
+          setSettings(prev => ({
+            ...prev,
+            runtimeEnvironment: 'app',
+            isNativeApp: true
+          }));
+        } else {
+          // 异步检测完整信息
+          const runtime = await getRuntimeEnvironment();
+          setSettings(prev => ({
+            ...prev,
+            runtimeEnvironment: runtime.environment,
+            isNativeApp: runtime.environment === 'app'
+          }));
+        }
+        
+        console.log('[POS] Runtime detection completed');
+      } catch (e) {
+        console.error('[POS] Runtime detection error:', e);
+        // 默认设置为web环境
+        setSettings(prev => ({
+          ...prev,
+          runtimeEnvironment: 'web',
+          isNativeApp: false
+        }));
+      }
+    };
+    
+    detectRuntime();
+  }, []);
   
   // 激活语音播报（需要在用户交互后调用）
   useEffect(() => {
@@ -3843,52 +3892,78 @@ export default function PosPage() {
               
               {/* PWA设置 */}
               <div className="space-y-1 mb-6">
-                <h4 className="text-sm font-medium text-gray-500 mb-3">PWA设置</h4>
+                <h4 className="text-sm font-medium text-gray-500 mb-3">系统环境</h4>
                 <div className="flex items-center justify-between py-3 border-b">
                   <div>
                     <span className="text-sm">运行环境</span>
-                    <p className="text-xs text-gray-400">当前：{typeof window !== 'undefined' && 'ontouchstart' in window ? 'PWA环境' : 'APP环境'}</p>
+                    <p className="text-xs text-gray-400">
+                      当前：{getEnvironmentDisplayName(settings.runtimeEnvironment)}
+                    </p>
                   </div>
-                  <Badge variant="outline" className="text-xs">
-                    {typeof window !== 'undefined' && 'serviceWorker' in navigator ? 'PWA' : 'APP'}
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs ${settings.isNativeApp ? 'bg-green-50 text-green-600 border-green-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}
+                  >
+                    {settings.isNativeApp ? 'APP' : settings.runtimeEnvironment.toUpperCase()}
                   </Badge>
                 </div>
                 <div className="py-3 border-b space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">清除缓存并更新</span>
+                    <span className="text-sm">
+                      {settings.isNativeApp ? '检查APP更新' : '清除缓存并更新'}
+                    </span>
                   </div>
                   <Button 
                     variant="outline" 
                     size="sm" 
                     className="w-full"
                     onClick={async () => {
-                      if (confirm('确定要清除缓存并更新到最新版本吗？')) {
+                      if (settings.isNativeApp) {
+                        // 原生APP：调用AppUpdatePlugin检查更新
                         try {
-                          // 发送清除缓存消息
-                          if ('serviceWorker' in navigator) {
-                            const registration = await navigator.serviceWorker.ready;
-                            if ('message' in registration) {
-                              // 发送清除缓存消息
-                              navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' });
-                              navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+                          const { AppUpdate } = await import('@/lib/native/app-update-service');
+                          const result = await AppUpdate.checkForUpdate();
+                          if (result.hasUpdate) {
+                            if (confirm(`发现新版本 ${result.latestVersion}，是否立即更新？`)) {
+                              await AppUpdate.downloadAndInstall();
                             }
+                          } else {
+                            alert('当前已是最新版本');
                           }
-                          // 清除本地存储
-                          localStorage.removeItem('pos_settings');
-                          localStorage.removeItem('cashbox_config');
-                          localStorage.removeItem('printer_config');
-                          localStorage.removeItem('scale_config');
-                          // 刷新页面
-                          window.location.reload();
                         } catch (e) {
-                          console.error('[PWA] 更新失败:', e);
-                          alert('更新失败，请稍后重试');
+                          console.error('[APP] 更新检查失败:', e);
+                          alert('检查更新失败，请稍后重试');
+                        }
+                      } else {
+                        // PWA/Web：清除缓存并重新加载
+                        if (confirm('确定要清除缓存并更新到最新版本吗？')) {
+                          try {
+                            // 发送清除缓存消息
+                            if ('serviceWorker' in navigator) {
+                              const registration = await navigator.serviceWorker.ready;
+                              if ('message' in registration) {
+                                // 发送清除缓存消息
+                                navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_CACHE' });
+                                navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
+                              }
+                            }
+                            // 清除本地存储
+                            localStorage.removeItem('pos_settings');
+                            localStorage.removeItem('cashbox_config');
+                            localStorage.removeItem('printer_config');
+                            localStorage.removeItem('scale_config');
+                            // 刷新页面
+                            window.location.reload();
+                          } catch (e) {
+                            console.error('[PWA] 更新失败:', e);
+                            alert('更新失败，请稍后重试');
+                          }
                         }
                       }
                     }}
                   >
                     <RefreshCw className="h-3 w-3 mr-1" />
-                    清除缓存并重新加载
+                    {settings.isNativeApp ? '检查更新' : '清除缓存并重新加载'}
                   </Button>
                 </div>
               </div>
