@@ -19,6 +19,25 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   distDir: '.next',
   
+  // Webpack 配置 - 处理 langchain 模块解析问题
+  webpack: (config, { isServer }) => {
+    // 处理 @langchain/core 模块解析问题
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@langchain/core/utils/env': path.resolve(__dirname, 'src/lib/utils/env-shim.ts'),
+    };
+    
+    // 如果是服务端构建，添加 external 处理大型 SDK
+    if (isServer) {
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push('coze-coding-dev-sdk');
+      }
+    }
+    
+    return config;
+  },
+  
   // 安全响应头配置
   async headers() {
     return [
