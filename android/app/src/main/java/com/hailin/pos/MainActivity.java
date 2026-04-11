@@ -26,6 +26,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ScalePlugin.class);
         registerPlugin(PrinterPlugin.class);
         registerPlugin(DualScreenPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
     }
     
     @Override
