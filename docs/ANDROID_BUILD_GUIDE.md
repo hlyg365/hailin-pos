@@ -7,6 +7,133 @@
 - 蓝牙小票打印机
 - 客显屏（双屏显示）
 - 钱箱控制
+- **自动更新（App后台自动更新）**
+
+---
+
+## GitHub Actions 自动构建
+
+项目已配置GitHub Actions，每次推送到main分支或打标签时会自动构建APK。
+
+### 触发条件
+
+| 事件 | 触发条件 | 生成产物 |
+|------|----------|----------|
+| Push到main | 代码推送到main分支 | Debug APK |
+| 打标签 | `git tag v*` | Debug + Release APK |
+| 手动触发 | workflow_dispatch | Debug APK |
+
+### 查看构建结果
+
+1. 进入 GitHub 仓库页面
+2. 点击 **Actions** 标签
+3. 选择对应的 workflow 运行记录
+4. 在 Artifacts 中下载 APK
+
+### 设置 Secrets（可选）
+
+如需自动部署到更新服务器，设置以下 Secrets：
+
+| Secret名称 | 说明 | 示例值 |
+|------------|------|--------|
+| `DEPLOY_URL` | 更新服务器地址 | `https://your-server.com` |
+| `DEPLOY_TOKEN` | 部署认证令牌 | `your-token-here` |
+
+---
+
+## 版本管理
+
+### 版本号规范
+
+遵循语义化版本 `主版本.次版本.修订号`：
+- `3.0.0` - 正式版
+- `3.0.0-beta.1` - 测试版
+
+### 发布新版本
+
+```bash
+# 1. 更新版本号
+# 编辑 android/app/build.gradle
+versionCode 31
+versionName "3.0.1"
+
+# 2. 提交代码
+git add .
+git commit -m "feat: 添加新功能"
+
+# 3. 创建标签
+git tag v3.0.1
+
+# 4. 推送到GitHub
+git push origin main
+git push origin v3.0.1
+```
+
+GitHub Actions 会自动：
+1. 构建APK
+2. 生成Release
+3. 上传到Release
+
+---
+
+## 自动更新功能
+
+### 功能说明
+
+- **后台检查更新**：App启动时自动检查更新
+- **WiFi下载**：默认仅在WiFi环境下下载
+- **断点续传**：支持大文件下载
+- **强制更新**：可配置最低支持版本
+
+### 更新流程
+
+```
+App启动 → 检查更新API → 有新版本?
+                              ↓
+                      显示更新弹窗
+                              ↓
+              ┌───────────────┼───────────────┐
+              ↓               ↓               ↓
+           立即下载        稍后提醒         强制更新
+              ↓               ↓               ↓
+         后台下载      下次检查        无法跳过
+              ↓               
+         下载完成
+              ↓
+         显示安装提示
+              ↓
+         用户点击安装
+              ↓
+         系统安装界面
+```
+
+### API端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/update` | GET | 检查更新 |
+| `/api/update?platform=android` | GET | 获取版本信息 |
+| `/api/update/download` | GET | 下载APK |
+| `/api/update/download?v=3.0.1` | GET | 下载指定版本 |
+| `/api/update` | POST | 上传新版本(管理员) |
+
+### 更新检查响应
+
+```json
+{
+  "success": true,
+  "update": true,
+  "latestVersion": "3.0.1",
+  "versionCode": 31,
+  "releaseNotes": "支持双屏收银机，优化电子秤连接",
+  "forceUpdate": false,
+  "downloadUrl": "/api/update/download?v=3.0.1"
+}
+```
+
+---
+
+## 前端API使用
 
 ## 文件结构
 
@@ -96,16 +223,40 @@ WORKDIR /app/android
 RUN ./gradlew assembleDebug
 ```
 
+---
+
 ## 前端API使用
 
-### 导入硬件服务
+### 导入更新服务
 
 ```typescript
-import { hardwareService } from '@/lib/native/hardware-service';
+import { appUpdateService } from '@/lib/native/app-update-service';
+import { useAppUpdate } from '@/hooks/useAppUpdate';
 
-// 获取硬件状态
-const status = await hardwareService.getStatus();
-console.log(status);
+// 检查更新
+const result = await appUpdateService.checkUpdate();
+if (result.hasUpdate) {
+  console.log('有新版本:', result.latestVersion);
+}
+
+// 下载更新
+await appUpdateService.downloadUpdate();
+
+// 安装更新
+await appUpdateService.installUpdate();
+
+// 使用Hook（推荐）
+function MyApp() {
+  const {
+    updateInfo,
+    isDownloading,
+    downloadProgress,
+    downloadUpdate,
+    installUpdate,
+  } = useAppUpdate();
+  
+  // ...
+}
 ```
 
 ### 电子秤使用

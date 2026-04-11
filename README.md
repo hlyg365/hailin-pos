@@ -1,358 +1,153 @@
-# projects
+# 海邻到家社区便利店智能收银系统
 
-这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
+## 项目简介
+
+海邻到家是一个面向社区便利店的智能收银与营销管理系统，采用原生Android + Capacitor跨平台架构，支持收银台独立APP + 后台管理系统 + 店长助手移动端三端分离设计。
+
+## 核心功能
+
+- **收银台独立APP**：支持离线收银、PWA安装、扫码枪/打印机/钱箱集成
+- **双屏收银机支持**：主屏收银 + 客显屏显示
+- **电子秤集成**：串口秤/网络秤自动识别
+- **蓝牙打印**：小票打印、钱箱控制
+- **会员体系**：四级会员等级、积分规则、会员权益
+- **优惠券系统**：满减券、折扣券、代金券
+- **供应链协同**：要货申请、集中采购、配送签收
+- **自动更新**：App后台自动更新、静默下载
+
+## 技术架构
+
+- **框架**: Next.js 16 (App Router)
+- **移动端**: Capacitor 7
+- **原生插件**: 
+  - ScalePlugin (电子秤)
+  - PrinterPlugin (蓝牙打印)
+  - DualScreenPlugin (双屏客显)
+  - AppUpdatePlugin (自动更新)
+- **状态管理**: React Context + useState
+- **UI组件**: shadcn/ui (基于 Radix UI)
 
 ## 快速开始
 
-### 启动开发服务器
+### 安装依赖
 
 ```bash
-coze dev
-```
-
-启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
-
-开发服务器支持热更新，修改代码后页面会自动刷新。
-
-### 构建生产版本
-
-```bash
-coze build
-```
-
-### 启动生产服务器
-
-```bash
-coze start
-```
-
-## 项目结构
-
-```
-src/
-├── app/                      # Next.js App Router 目录
-│   ├── layout.tsx           # 根布局组件
-│   ├── page.tsx             # 首页
-│   ├── globals.css          # 全局样式（包含 shadcn 主题变量）
-│   └── [route]/             # 其他路由页面
-├── components/              # React 组件目录
-│   └── ui/                  # shadcn/ui 基础组件（优先使用）
-│       ├── button.tsx
-│       ├── card.tsx
-│       └── ...
-├── lib/                     # 工具函数库
-│   └── utils.ts            # cn() 等工具函数
-└── hooks/                   # 自定义 React Hooks（可选）
-```
-
-## 核心开发规范
-
-### 1. 组件开发
-
-**优先使用 shadcn/ui 基础组件**
-
-本项目已预装完整的 shadcn/ui 组件库，位于 `src/components/ui/` 目录。开发时应优先使用这些组件作为基础：
-
-```tsx
-// ✅ 推荐：使用 shadcn 基础组件
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-
-export default function MyComponent() {
-  return (
-    <Card>
-      <CardHeader>标题</CardHeader>
-      <CardContent>
-        <Input placeholder="输入内容" />
-        <Button>提交</Button>
-      </CardContent>
-    </Card>
-  );
-}
-```
-
-**可用的 shadcn 组件清单**
-
-- 表单：`button`, `input`, `textarea`, `select`, `checkbox`, `radio-group`, `switch`, `slider`
-- 布局：`card`, `separator`, `tabs`, `accordion`, `collapsible`, `scroll-area`
-- 反馈：`alert`, `alert-dialog`, `dialog`, `toast`, `sonner`, `progress`
-- 导航：`dropdown-menu`, `menubar`, `navigation-menu`, `context-menu`
-- 数据展示：`table`, `avatar`, `badge`, `hover-card`, `tooltip`, `popover`
-- 其他：`calendar`, `command`, `carousel`, `resizable`, `sidebar`
-
-详见 `src/components/ui/` 目录下的具体组件实现。
-
-### 2. 路由开发
-
-Next.js 使用文件系统路由，在 `src/app/` 目录下创建文件夹即可添加路由：
-
-```bash
-# 创建新路由 /about
-src/app/about/page.tsx
-
-# 创建动态路由 /posts/[id]
-src/app/posts/[id]/page.tsx
-
-# 创建路由组（不影响 URL）
-src/app/(marketing)/about/page.tsx
-
-# 创建 API 路由
-src/app/api/users/route.ts
-```
-
-**页面组件示例**
-
-```tsx
-// src/app/about/page.tsx
-import { Button } from '@/components/ui/button';
-
-export const metadata = {
-  title: '关于我们',
-  description: '关于页面描述',
-};
-
-export default function AboutPage() {
-  return (
-    <div>
-      <h1>关于我们</h1>
-      <Button>了解更多</Button>
-    </div>
-  );
-}
-```
-
-**动态路由示例**
-
-```tsx
-// src/app/posts/[id]/page.tsx
-export default async function PostPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
-  return <div>文章 ID: {id}</div>;
-}
-```
-
-**API 路由示例**
-
-```tsx
-// src/app/api/users/route.ts
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  return NextResponse.json({ users: [] });
-}
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  return NextResponse.json({ success: true });
-}
-```
-
-### 3. 依赖管理
-
-**必须使用 pnpm 管理依赖**
-
-```bash
-# ✅ 安装依赖
 pnpm install
-
-# ✅ 添加新依赖
-pnpm add package-name
-
-# ✅ 添加开发依赖
-pnpm add -D package-name
-
-# ❌ 禁止使用 npm 或 yarn
-# npm install  # 错误！
-# yarn add     # 错误！
 ```
 
-项目已配置 `preinstall` 脚本，使用其他包管理器会报错。
+### 开发预览
 
-### 4. 样式开发
-
-**使用 Tailwind CSS v4**
-
-本项目使用 Tailwind CSS v4 进行样式开发，并已配置 shadcn 主题变量。
-
-```tsx
-// 使用 Tailwind 类名
-<div className="flex items-center gap-4 p-4 rounded-lg bg-background">
-  <Button className="bg-primary text-primary-foreground">
-    主要按钮
-  </Button>
-</div>
-
-// 使用 cn() 工具函数合并类名
-import { cn } from '@/lib/utils';
-
-<div className={cn(
-  "base-class",
-  condition && "conditional-class",
-  className
-)}>
-  内容
-</div>
+```bash
+pnpm dev
 ```
 
-**主题变量**
+访问 http://localhost:5000/pos
 
-主题变量定义在 `src/app/globals.css` 中，支持亮色/暗色模式：
+### 构建Web应用
 
-- `--background`, `--foreground`
-- `--primary`, `--primary-foreground`
-- `--secondary`, `--secondary-foreground`
-- `--muted`, `--muted-foreground`
-- `--accent`, `--accent-foreground`
-- `--destructive`, `--destructive-foreground`
-- `--border`, `--input`, `--ring`
-
-### 5. 表单开发
-
-推荐使用 `react-hook-form` + `zod` 进行表单开发：
-
-```tsx
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-
-const formSchema = z.object({
-  username: z.string().min(2, '用户名至少 2 个字符'),
-  email: z.string().email('请输入有效的邮箱'),
-});
-
-export default function MyForm() {
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: { username: '', email: '' },
-  });
-
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    console.log(data);
-  };
-
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      <Input {...form.register('username')} />
-      <Input {...form.register('email')} />
-      <Button type="submit">提交</Button>
-    </form>
-  );
-}
+```bash
+pnpm build
 ```
 
-### 6. 数据获取
+### 同步到Android
 
-**服务端组件（推荐）**
-
-```tsx
-// src/app/posts/page.tsx
-async function getPosts() {
-  const res = await fetch('https://api.example.com/posts', {
-    cache: 'no-store', // 或 'force-cache'
-  });
-  return res.json();
-}
-
-export default async function PostsPage() {
-  const posts = await getPosts();
-
-  return (
-    <div>
-      {posts.map(post => (
-        <div key={post.id}>{post.title}</div>
-      ))}
-    </div>
-  );
-}
+```bash
+npx cap sync android
 ```
 
-**客户端组件**
+### 打开Android Studio
 
-```tsx
-'use client';
-
-import { useEffect, useState } from 'react';
-
-export default function ClientComponent() {
-  const [data, setData] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(setData);
-  }, []);
-
-  return <div>{JSON.stringify(data)}</div>;
-}
+```bash
+npx cap open android
 ```
 
-## 常见开发场景
+## 构建APK
 
-### 添加新页面
+### 方式1：Android Studio
 
-1. 在 `src/app/` 下创建文件夹和 `page.tsx`
-2. 使用 shadcn 组件构建 UI
-3. 根据需要添加 `layout.tsx` 和 `loading.tsx`
+1. 打开Android Studio
+2. 打开 `android` 目录
+3. 点击 **Build > Build Bundle(s) / APK(s) > Build APK**
+4. APK输出位置：`android/app/build/outputs/apk/debug/app-debug.apk`
 
-### 创建业务组件
+### 方式2：命令行
 
-1. 在 `src/components/` 下创建组件文件（非 UI 组件）
-2. 优先组合使用 `src/components/ui/` 中的基础组件
-3. 使用 TypeScript 定义 Props 类型
-
-### 添加全局状态
-
-推荐使用 React Context 或 Zustand：
-
-```tsx
-// src/lib/store.ts
-import { create } from 'zustand';
-
-interface Store {
-  count: number;
-  increment: () => void;
-}
-
-export const useStore = create<Store>((set) => ({
-  count: 0,
-  increment: () => set((state) => ({ count: state.count + 1 })),
-}));
+```bash
+cd android
+./gradlew assembleDebug
 ```
 
-### 集成数据库
+### 方式3：GitHub Actions（推荐）
 
-推荐使用 Prisma 或 Drizzle ORM，在 `src/lib/db.ts` 中配置。
+1. 推送代码到 main 分支
+2. 或创建标签 `git tag v3.0.0`
+3. 在 GitHub Actions 查看构建进度
+4. 下载构建产物
 
-## 技术栈
+## 目录结构
 
-- **框架**: Next.js 16.1.1 (App Router)
-- **UI 组件**: shadcn/ui (基于 Radix UI)
-- **样式**: Tailwind CSS v4
-- **表单**: React Hook Form + Zod
-- **图标**: Lucide React
-- **字体**: Geist Sans & Geist Mono
-- **包管理器**: pnpm 9+
-- **TypeScript**: 5.x
+```
+.
+├── src/
+│   ├── app/                    # Next.js App Router
+│   │   ├── pos/                # 收银台APP
+│   │   ├── (dashboard)/        # 后台管理系统
+│   │   └── api/                # API路由
+│   │       ├── update/         # 更新API
+│   │       └── scale/          # 电子秤API
+│   ├── components/             # React组件
+│   ├── hooks/                  # 自定义Hooks
+│   │   └── useAppUpdate.ts     # 更新检查Hook
+│   └── lib/                    # 工具库
+│       └── native/             # 原生插件服务
+│           ├── app-update-service.ts
+│           ├── scale-service.ts
+│           ├── printer-service.ts
+│           └── dual-screen-service.ts
+├── android/                    # Android原生项目
+│   └── app/src/main/java/com/hailin/pos/
+│       ├── MainActivity.java
+│       ├── ScalePlugin.java
+│       ├── PrinterPlugin.java
+│       ├── DualScreenPlugin.java
+│       └── AppUpdatePlugin.java
+├── .github/workflows/          # GitHub Actions
+│   └── android-build.yml
+└── docs/                       # 文档
+    └── ANDROID_BUILD_GUIDE.md
+```
 
-## 参考文档
+## 配置说明
 
-- [Next.js 官方文档](https://nextjs.org/docs)
-- [shadcn/ui 组件文档](https://ui.shadcn.com)
-- [Tailwind CSS 文档](https://tailwindcss.com/docs)
-- [React Hook Form](https://react-hook-form.com)
+### 更新服务器
 
-## 重要提示
+编辑 `src/app/api/update/route.ts` 中的 `LATEST_VERSION`：
 
-1. **必须使用 pnpm** 作为包管理器
-2. **优先使用 shadcn/ui 组件** 而不是从零开发基础组件
-3. **遵循 Next.js App Router 规范**，正确区分服务端/客户端组件
-4. **使用 TypeScript** 进行类型安全开发
-5. **使用 `@/` 路径别名** 导入模块（已配置）
+```typescript
+const LATEST_VERSION = {
+  version: '3.0.0',
+  versionCode: 30,
+  downloadUrl: 'https://your-server.com/api/update/download',
+  releaseNotes: '更新说明',
+  minVersion: '2.0.0',
+  forceUpdate: false,
+};
+```
+
+### API服务器地址
+
+编辑 `src/lib/native/app-update-service.ts`：
+
+```typescript
+private static final String UPDATE_SERVER = "https://your-server.com";
+```
+
+## 自动更新流程
+
+1. **检查更新**：App启动时调用 `/api/update` 检查版本
+2. **下载APK**：用户确认后下载到本地
+3. **安装更新**：调用系统安装器完成安装
+
+## License
+
+MIT License
