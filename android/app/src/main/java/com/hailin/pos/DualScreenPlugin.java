@@ -66,20 +66,15 @@ public class DualScreenPlugin extends Plugin {
     }
     
     private Display[] getDisplays() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+ API
-            android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager) getContext().getSystemService(Context.DISPLAY_SERVICE);
-            return dm.getDisplays();
-        } else {
-            // Legacy API
-            return getActivity().getWindowManager().getDisplays();
-        }
+        // 使用 DisplayManager API（兼容所有版本）
+        android.hardware.display.DisplayManager dm = (android.hardware.display.DisplayManager) getContext().getSystemService(Context.DISPLAY_SERVICE);
+        return dm.getDisplays();
     }
     
     @PluginMethod
     public void open(PluginCall call) {
         String url = call.getString("url", "");
-        int displayId = (int) call.getLong("displayId", -1L);
+        int displayId = call.getInt("displayId", -1);
         
         try {
             // 获取目标显示器
