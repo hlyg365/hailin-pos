@@ -1,201 +1,220 @@
-# 海邻收银台 Android APP 构建指南
+# Android原生APP构建指南
 
 ## 概述
 
-海邻收银台是一个独立的 Android 应用，用于便利店的日常收银工作。本文档说明如何将收银台打包成 Android APP。
+本项目已配置为支持原生Android应用，可直接在Android双屏收银机上运行，支持：
+- 串口电子秤（USB转串口）
+- 蓝牙小票打印机
+- 客显屏（双屏显示）
+- 钱箱控制
 
-## 技术架构
+## 文件结构
 
-- **前端框架**: Next.js 16 + React 19
-- **移动端封装**: Capacitor 8.2.0
-- **APP ID**: com.hailin.pos.cashier
-- **应用名称**: 海邻收银台
-
-## 环境要求
-
-### 必需环境
-- Node.js 18+
-- pnpm 9.0+
-- Java JDK 11+ (推荐 JDK 17)
-- Android Studio (推荐最新版)
-- Android SDK (API 22+)
-
-### 环境变量配置
-
-```bash
-# ~/.bashrc 或 ~/.zshrc
-export ANDROID_HOME=$HOME/Android/Sdk
-export PATH=$PATH:$ANDROID_HOME/emulator
-export PATH=$PATH:$ANDROID_HOME/platform-tools
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+```
+android/
+├── app/src/main/java/com/hailin/pos/
+│   ├── MainActivity.java           # 主入口，注册插件
+│   ├── ScalePlugin.java            # 电子秤插件（USB串口）
+│   ├── PrinterPlugin.java          # 打印机插件（蓝牙）
+│   ├── DualScreenPlugin.java       # 双屏插件（客显屏）
+│   ├── CustomerDisplayActivity.java # 客显屏Activity
+│   ├── UsbPermissionReceiver.java  # USB权限接收器
+│   └── UsbDeviceService.java       # USB设备服务
 ```
 
-## 快速构建
+## 硬件支持
 
-### 方法一：使用构建脚本
+### 1. 电子秤（串口秤）
+- **协议**：顶尖OS2协议
+- **连接方式**：USB转串口（CH340/CP2102/FT232）
+- **参数**：9600bps, 8N1
+
+### 2. 蓝牙打印机
+- **协议**：蓝牙串口（SPP）
+- **UUID**：00001101-0000-1000-8000-00805F9B34FB
+- **支持品牌**：佳博、芯烨、商祺等
+
+### 3. 客显屏
+- **方式**：Android Presentation API
+- **要求**：支持多屏幕显示的Android设备
+
+## 构建APK
+
+### 方式1：在本地构建（推荐）
 
 ```bash
-# 执行完整构建流程
-chmod +x scripts/pos-app-build.sh
-./scripts/pos-app-build.sh
+# 1. 克隆项目
+git clone <项目地址>
+cd hailin-pos
 
-# 打开 Android Studio
-pnpm run android:open
-
-# 在 Android Studio 中构建 APK
-```
-
-### 方法二：手动构建
-
-```bash
-# 1. 安装依赖
+# 2. 安装依赖
 pnpm install
 
-# 2. 构建 Next.js 项目
-pnpm run build
-
-# 3. 同步到 Android
+# 3. 同步到Android
 npx cap sync android
 
-# 4. 构建 Debug APK
-cd android && ./gradlew assembleDebug && cd ..
+# 4. 打开Android Studio
+npx cap open android
 
-# APK 输出位置: android/app/build/outputs/apk/debug/app-debug.apk
+# 5. 在Android Studio中点击 Build > Build Bundle(s) / APK(s) > Build APK
 ```
 
-## 构建选项
-
-### Debug 版本（开发测试用）
+### 方式2：命令行构建
 
 ```bash
+# 确保已安装JDK 17
+export JAVA_HOME=/path/to/jdk17
+
+# 构建Debug APK
 cd android
 ./gradlew assembleDebug
+
+# 构建Release APK
+./gradlew assembleRelease
 ```
 
-- APK 路径: `android/app/build/outputs/apk/debug/app-debug.apk`
-- 特点: 未签名，可调试，体积较大
+### 方式3：使用Docker构建
 
-### Release 版本（正式发布）
+```dockerfile
+FROM node:20-bullseye AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm install -g pnpm
+RUN pnpm install
+COPY . .
+RUN pnpm build
+RUN npx cap sync android
 
-```bash
-# 首次需要生成签名密钥
-keytool -genkey -v -keystore android/release.keystore \
-  -alias hailin-pos \
-  -keyalg RSA \
-  -keysize 2048 \
-  -validity 10000
-
-# 配置签名 (android/app/build.gradle)
-# android {
-#   signingConfigs {
-#     release {
-#       storeFile file('../release.keystore')
-#       storePassword 'your_password'
-#       keyAlias 'hailin-pos'
-#       keyPassword 'your_password'
-#     }
-#   }
-#   buildTypes {
-#     release {
-#       signingConfig signingConfigs.release
-#     }
-#   }
-# }
-
-# 构建 Release APK
-cd android && ./gradlew assembleRelease && cd ..
+FROM adoptopenjdk:17-jdk
+WORKDIR /app
+COPY --from=builder /app/android ./android
+RUN apt-get update && apt-get install -y wget unzip
+RUN wget -q https://services.gradle.org/distributions/gradle-8.6-bin.zip -O /tmp/gradle.zip
+RUN unzip -q /tmp/gradle.zip -d /opt && rm /tmp/gradle.zip
+ENV PATH="/opt/gradle-8.6/bin:$PATH"
+WORKDIR /app/android
+RUN ./gradlew assembleDebug
 ```
 
-## APP 功能说明
+## 前端API使用
 
-### 登录认证
-- 员工使用手机号 + 密码登录
-- 支持"店长"和"营业员"两种角色
-- 登录状态本地持久化
+### 导入硬件服务
 
-### 核心功能
-1. **商品管理**: 商品分类、搜索、扫码
-2. **购物车**: 添加商品、修改数量、抹分
-3. **结算支付**: 现金、微信、支付宝、银行卡、混合支付
-4. **AI识别**: 拍照识别商品
-5. **订单管理**: 查看历史订单
-6. **会员管理**: 会员识别、积分
+```typescript
+import { hardwareService } from '@/lib/native/hardware-service';
 
-### 移动端优化
-- 自适应屏幕尺寸
-- 触摸友好的按钮尺寸
-- 快捷操作手势
-
-## 常用命令
-
-```bash
-# 开发模式（带热更新）
-pnpm run dev
-
-# 构建 Web 项目
-pnpm run build
-
-# 同步到 Android
-pnpm run android:sync
-
-# 打开 Android Studio
-pnpm run android:open
-
-# 类型检查
-pnpm run ts-check
+// 获取硬件状态
+const status = await hardwareService.getStatus();
+console.log(status);
 ```
 
-## 目录结构
+### 电子秤使用
 
-```
-.
-├── src/
-│   ├── app/
-│   │   ├── pos/              # 收银台页面（APP核心）
-│   │   │   ├── page.tsx      # 主收银页面
-│   │   │   ├── login/        # 登录页
-│   │   │   ├── orders/       # 订单管理
-│   │   │   ├── members/      # 会员管理
-│   │   │   ├── products/     # 商品管理
-│   │   │   └── ...
-│   │   └── ...               # 后台管理页面
-│   └── contexts/
-│       └── PosAuthContext.tsx # 认证上下文
-├── android/                   # Android 项目
-│   └── app/
-│       └── build/outputs/apk/ # APK 输出目录
-├── capacitor.config.ts        # Capacitor 配置
-└── scripts/
-    └── pos-app-build.sh       # 构建脚本
+```typescript
+import { scaleService } from '@/lib/native/scale-service';
+
+// 连接电子秤
+await scaleService.connect({
+  port: 'COM1',
+  baudRate: 9600,
+  protocol: 'OS2'
+});
+
+// 监听重量变化
+scaleService.onWeightChange((data) => {
+  console.log(`重量: ${data.weight} ${data.unit}`);
+});
+
+// 获取当前重量
+const weight = await scaleService.getWeight();
 ```
 
-## 注意事项
+### 蓝牙打印机使用
 
-1. **首次构建**: 确保已安装 Android SDK 并配置好环境变量
-2. **签名密钥**: Release 版本必须签名，请妥善保管密钥文件
-3. **网络配置**: APP 默认连接 `http://localhost:5000`，部署时需修改
-4. **权限**: APP 需要相机权限（用于扫码和AI识别）
+```typescript
+import { printerService } from '@/lib/native/printer-service';
 
-## 故障排除
+// 列出已配对的设备
+const devices = await printerService.listDevices();
 
-### 构建失败
-```bash
-# 清理并重新构建
-cd android
-./gradlew clean
-cd ..
-pnpm run build
-npx cap sync android
+// 连接打印机
+await printerService.connect('XX:XX:XX:XX:XX:XX', '打印机名称');
+
+// 打印小票
+await printerService.printReceipt({
+  shopName: '海邻到家便利店',
+  orderNo: '202401010001',
+  items: [
+    { name: '农夫山泉', quantity: '2', price: '4.00' },
+    { name: '方便面', quantity: '1', price: '5.00' }
+  ],
+  total: 13.00,
+  discount: 0,
+  payment: 20.00,
+  change: 7.00
+});
+
+// 打开钱箱
+await printerService.openCashbox();
 ```
 
-### 模拟器无法访问网络
-- 确保模拟器使用正确的网络配置
-- 检查防火墙设置
+### 客显屏使用
 
-### 扫码功能不工作
-- 确保已授予相机权限
-- 在真机上测试（模拟器可能不支持相机）
+```typescript
+import { dualScreenService } from '@/lib/native/dual-screen-service';
 
-## 联系支持
+// 获取显示器列表
+const displays = await dualScreenService.getDisplays();
+console.log(displays);
 
-如有问题，请联系技术支持团队。
+// 打开客显屏
+await dualScreenService.open({
+  url: '/pos/customer-display',
+  displayId: 1
+});
+
+// 发送数据到客显屏
+await dualScreenService.sendData({
+  cart: [...],
+  total: 100,
+  payment: 100,
+  change: 0
+});
+
+// 关闭客显屏
+await dualScreenService.close();
+```
+
+## Android权限说明
+
+以下权限已在AndroidManifest.xml中配置：
+
+```xml
+<!-- 蓝牙权限 -->
+<uses-permission android:name="android.permission.BLUETOOTH" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+<!-- USB权限 -->
+<uses-permission android:name="android.permission.USB_HOST" />
+
+<!-- 相机权限（扫码枪） -->
+<uses-permission android:name="android.permission.CAMERA" />
+```
+
+## 常见问题
+
+### Q: 打印连接失败？
+A: 请确保打印机已配对，并在手机蓝牙设置中允许配对。
+
+### Q: 电子秤无法连接？
+A: 请确保使用USB转串口线，并检查串口号和波特率设置。
+
+### Q: 客显屏不显示？
+A: 确保设备支持多屏幕显示，副屏需要在系统设置中启用。
+
+### Q: 钱箱不弹开？
+A: 钱箱通过打印机接口控制，确保打印机连接正常。
+
+## 技术支持
+
+如有问题，请联系开发团队。
