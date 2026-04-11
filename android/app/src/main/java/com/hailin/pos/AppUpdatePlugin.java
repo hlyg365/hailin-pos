@@ -28,19 +28,15 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.MessageDigest;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -186,17 +182,21 @@ public class AppUpdatePlugin extends Plugin {
     @PluginMethod
     public void setUpdateSettings(PluginCall call) {
         try {
-            if (call.has("autoUpdate")) {
-                prefs.edit().putBoolean(KEY_AUTO_UPDATE, call.getBoolean("autoUpdate")).apply();
+            String autoUpdateStr = call.getString("autoUpdate");
+            if (autoUpdateStr != null) {
+                prefs.edit().putBoolean(KEY_AUTO_UPDATE, Boolean.parseBoolean(autoUpdateStr)).apply();
             }
-            if (call.has("wifiOnly")) {
-                prefs.edit().putBoolean(KEY_WIFI_ONLY, call.getBoolean("wifiOnly")).apply();
+            String wifiOnlyStr = call.getString("wifiOnly");
+            if (wifiOnlyStr != null) {
+                prefs.edit().putBoolean(KEY_WIFI_ONLY, Boolean.parseBoolean(wifiOnlyStr)).apply();
             }
-            if (call.has("skipVersion")) {
-                prefs.edit().putString(KEY_SKIP_VERSION, call.getString("skipVersion")).apply();
+            String skipVersion = call.getString("skipVersion");
+            if (skipVersion != null) {
+                prefs.edit().putString(KEY_SKIP_VERSION, skipVersion).apply();
             }
-            if (call.has("checkInterval")) {
-                prefs.edit().putLong(KEY_CHECK_INTERVAL, call.getLong("checkInterval")).apply();
+            String checkIntervalStr = call.getString("checkInterval");
+            if (checkIntervalStr != null) {
+                prefs.edit().putLong(KEY_CHECK_INTERVAL, Long.parseLong(checkIntervalStr)).apply();
             }
             
             JSObject result = new JSObject();
@@ -283,7 +283,7 @@ public class AppUpdatePlugin extends Plugin {
             int responseCode = conn.getResponseCode();
             
             if (responseCode == 200) {
-                InputStream in = new BufferedInputStream(conn.getInputStream());
+                BufferedInputStream in = new BufferedInputStream(conn.getInputStream());
                 String response = readStream(in);
                 conn.disconnect();
                 
@@ -354,7 +354,8 @@ public class AppUpdatePlugin extends Plugin {
             
             // 开始下载
             currentDownloadTask = new DownloadTask(call);
-            currentDownloadTask.execute(downloadUrl, apkFile.getAbsolutePath());
+            currentDownloadTask.filePath = apkFile.getAbsolutePath();
+            currentDownloadTask.execute(downloadUrl);
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to start download", e);
@@ -433,7 +434,7 @@ public class AppUpdatePlugin extends Plugin {
         return info != null && info.getType() == ConnectivityManager.TYPE_WIFI;
     }
     
-    private String readStream(InputStream in) throws IOException {
+    private String readStream(java.io.InputStream in) throws java.io.IOException {
         java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(in));
         StringBuilder sb = new StringBuilder();
         String line;
@@ -463,6 +464,7 @@ public class AppUpdatePlugin extends Plugin {
     // 下载任务内部类
     private class DownloadTask extends AsyncTask<String, Integer, String> {
         private PluginCall call;
+        public String filePath = "";
         
         public DownloadTask(PluginCall call) {
             this.call = call;
@@ -471,10 +473,9 @@ public class AppUpdatePlugin extends Plugin {
         @Override
         protected String doInBackground(String... params) {
             String downloadUrl = params[0];
-            String filePath = params[1];
             
             HttpURLConnection conn = null;
-            InputStream in = null;
+            java.io.BufferedInputStream in = null;
             FileOutputStream out = null;
             
             try {
@@ -487,7 +488,7 @@ public class AppUpdatePlugin extends Plugin {
                 int totalSize = conn.getContentLength();
                 int downloadedSize = 0;
                 
-                in = new BufferedInputStream(conn.getInputStream());
+                in = new java.io.BufferedInputStream(conn.getInputStream());
                 out = new FileOutputStream(filePath);
                 
                 byte[] buffer = new byte[8192];
@@ -543,7 +544,7 @@ public class AppUpdatePlugin extends Plugin {
             hideDownloadNotification();
             
             if ("success".equals(result)) {
-                showCompleteNotification("3.0.0"); // 实际应该从下载URL获取版本
+                showCompleteNotification("3.0.0");
                 
                 JSObject jsResult = new JSObject();
                 jsResult.put("success", true);
@@ -562,8 +563,6 @@ public class AppUpdatePlugin extends Plugin {
                 call.reject("下载失败: " + result);
             }
         }
-        
-        private String filePath = "";
         
         @Override
         protected void onCancelled(String s) {
