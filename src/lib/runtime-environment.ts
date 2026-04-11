@@ -39,7 +39,7 @@ export function getRuntimeEnvironment(): RuntimeInfo {
     const ua = navigator.userAgent || '';
     const isAndroidWebView = 
       ua.includes('Android') && 
-      (ua.includes('wv') || ua.includes('WebView') || ua.includes('Mobile Safari');
+      (ua.includes('wv') || ua.includes('WebView') || ua.includes('Mobile Safari'));
     
     if (isAndroidWebView) {
       return {
