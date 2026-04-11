@@ -47,6 +47,33 @@ export interface HardwareState {
   };
 }
 
+/**
+ * 检测是否支持硬件功能
+ */
+export function isHardwareSupported(): boolean {
+  return checkNativeApp();
+}
+
+/**
+ * 获取支持的硬件特性列表
+ */
+export function getSupportedHardwareFeatures(): string[] {
+  const features: string[] = [];
+  
+  if (checkNativeApp()) {
+    features.push('native_app');
+    features.push('usb_scale');
+    features.push('bluetooth_printer');
+    features.push('dual_screen');
+    features.push('cashbox');
+  }
+  
+  features.push('web_api');
+  features.push('simulation');
+  
+  return features;
+}
+
 export function useHardware() {
   const [state, setState] = useState<HardwareState>({
     isNativeApp: false,
