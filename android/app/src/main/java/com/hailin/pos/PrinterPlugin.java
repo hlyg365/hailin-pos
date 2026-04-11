@@ -150,20 +150,14 @@ public class PrinterPlugin extends Plugin {
     
     private String getDeviceTypeName(BluetoothClass btClass) {
         if (btClass == null) return "未知";
-        switch (btClass.getMajorDeviceClass()) {
-            case BluetoothClass.Device.Major.PHONE:
-                return "手机";
-            case BluetoothClass.Device.Major.COMPUTER:
-                return "电脑";
-            case BluetoothClass.Device.Major.AUDIO_VIDEO:
-                return "音频/视频";
-            case BluetoothClass.Device.Major.PERIPHERAL:
-                return "打印机";
-            case BluetoothClass.Device.Major.IMAGING:
-                return "成像设备";
-            default:
-                return "其他";
-        }
+        int majorClass = btClass.getMajorDeviceClass();
+        // BluetoothClass.Device.Major constants
+        if (majorClass == 0x0200) return "手机";       // PHONE
+        if (majorClass == 0x0100) return "电脑";      // COMPUTER
+        if (majorClass == 0x0400) return "音频/视频"; // AUDIO_VIDEO
+        if (majorClass == 0x0500) return "打印机";    // PERIPHERAL
+        if (majorClass == 0x0600) return "成像设备";  // IMAGING
+        return "其他";
     }
     
     @PluginMethod

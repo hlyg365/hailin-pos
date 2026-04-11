@@ -324,7 +324,7 @@ public class ScalePlugin extends Plugin {
     
     @PluginMethod
     public void setWeight(PluginCall call) {
-        double weight = call.getDouble("weight", 0);
+        double weight = call.getDouble("weight", 0.0);
         String unit = call.getString("unit", "kg");
         boolean stable = call.getBoolean("stable", true);
         
