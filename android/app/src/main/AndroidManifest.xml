@@ -53,6 +53,11 @@
                 <action android:name="com.hailin.pos.USB_PERMISSION" />
             </intent-filter>
         </receiver>
+
+        <!-- USB设备服务 -->
+        <service
+            android:name=".UsbDeviceService"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
