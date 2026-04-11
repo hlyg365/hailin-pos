@@ -428,7 +428,7 @@ export const AppUpdate = {
   /**
    * 下载并安装
    */
-  async downloadAndInstall(): Promise<{ success: boolean; message: string }> {
+  async downloadAndInstall(): Promise<{ success: boolean; message?: string }> {
     const plugin = getAppUpdatePlugin();
     if (plugin) {
       return await plugin.downloadAndInstall();

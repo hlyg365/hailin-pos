@@ -40,13 +40,16 @@ export async function GET(request: NextRequest) {
   }
   
   try {
-    const images = await ProductImageService.getProductImages(productId);
+    const config = await ProductImageService.getProductImageConfig(productId);
     
     // 如果指定了渠道，过滤该渠道的图片
-    let filteredImages = images;
+    let filteredImages = [...(config.detailImages || [])];
+    if (config.mainImage) {
+      filteredImages.unshift(config.mainImage);
+    }
     if (channel) {
-      filteredImages = images.filter(img => 
-        img.channels.includes(channel) || img.channels.includes('all')
+      filteredImages = filteredImages.filter(img => 
+        img.channels.includes(channel as ImageChannel) || img.channels.includes('all')
       );
     }
     
@@ -117,10 +120,7 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
     
-    const result = await ProductImageService.updateImage(imageId, {
-      channels,
-      sortOrder,
-    });
+    const result = await ProductImageService.updateImageSort(imageId, sortOrder || 0);
     
     return NextResponse.json({
       success: true,
