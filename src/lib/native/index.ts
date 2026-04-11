@@ -21,6 +21,8 @@ export interface SerialPort {
   name: string;
   type: string;
   description: string;
+  readable?: boolean;
+  writable?: boolean;
 }
 
 export interface UsbDevice {
@@ -30,6 +32,13 @@ export interface UsbDevice {
   deviceId: number;
   productName: string;
   path: string;
+  deviceType?: string;
+}
+
+export interface ScaleProtocol {
+  code: string;
+  name: string;
+  description: string;
 }
 
 export interface WeightData {
@@ -37,7 +46,25 @@ export interface WeightData {
   unit: string;
   stable: boolean;
   timestamp: number;
+  protocol?: string;
 }
+
+// 常用波特率
+export const BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+
+// 支持的电子秤协议
+export const SCALE_PROTOCOLS: ScaleProtocol[] = [
+  { code: 'AUTO', name: '自动检测', description: '自动检测电子秤协议' },
+  { code: 'OS2', name: '顶尖OS2', description: '顶尖OS2协议，最常用' },
+  { code: 'OS3', name: '顶尖OS3', description: '顶尖OS3协议' },
+  { code: 'TAILING', name: '顶尖通用', description: '顶尖通用协议' },
+  { code: 'DAHUA', name: '大华', description: '大华电子秤协议' },
+  { code: 'DIBO', name: '迪宝', description: '迪宝电子秤协议' },
+  { code: 'METTLER', name: '托利多', description: '梅特勒-托利多电子秤协议' },
+  { code: 'ZHIGANG', name: '志功', description: '志功电子秤协议' },
+  { code: 'YAZHI', name: '雅斯科', description: '雅斯科电子秤协议' },
+  { code: 'LAND', name: '兰德', description: '兰德电子秤协议' },
+];
 
 export interface PrinterDevice {
   name: string;
@@ -61,10 +88,55 @@ export interface ReceiptData {
 // 原生插件接口
 interface ScalePlugin {
   listDevices(): Promise<{ success: boolean; devices?: any }>;
-  connect(config: { port?: string; baudRate?: number }): Promise<{ success: boolean; mode?: string }>;
+  listSerialPorts(): Promise<{
+    success: boolean;
+    serialPorts?: SerialPort[];
+    usbDevices?: UsbDevice[];
+    baudRates?: number[];
+    scannedPorts?: string[];
+  }>;
+  getProtocols(): Promise<{
+    success: boolean;
+    protocols?: string[];
+    descriptions?: string[];
+    default?: string;
+  }>;
+  getBaudRates(): Promise<{ success: boolean; baudRates?: number[]; commonConfigs?: any }>;
+  connect(config: {
+    port?: string;
+    baudRate?: number;
+    protocol?: string;
+    dataBits?: number;
+    stopBits?: number;
+    parity?: string;
+  }): Promise<{
+    success: boolean;
+    mode?: string;
+    port?: string;
+    baudRate?: number;
+    protocol?: string;
+    detectedBaudRate?: number;
+    message?: string;
+    tip?: string;
+  }>;
   disconnect(): Promise<void>;
-  getWeight(): Promise<{ success: boolean; weight?: number; unit?: string; stable?: boolean }>;
-  getStatus(): Promise<{ connected: boolean }>;
+  getWeight(): Promise<{
+    success: boolean;
+    weight?: number;
+    unit?: string;
+    stable?: boolean;
+    protocol?: string;
+  }>;
+  getStatus(): Promise<{
+    connected: boolean;
+    polling?: boolean;
+    mode?: string;
+    protocol?: string;
+    available?: boolean;
+    baudRate?: number;
+  }>;
+  openCashbox(): Promise<{ success: boolean; message?: string }>;
+  getCashboxStatus(): Promise<{ success: boolean; open?: boolean; connected?: boolean; hasCashDrawer?: boolean }>;
 }
 
 interface PrinterPlugin {
@@ -219,6 +291,29 @@ export const Scale = {
   },
 
   /**
+   * 获取支持的电子秤协议列表
+   */
+  async getProtocols(): Promise<ScaleProtocol[]> {
+    const plugin = getScalePlugin();
+    if (plugin && (plugin as any).getProtocols) {
+      try {
+        const result = await (plugin as any).getProtocols();
+        if (result.success && result.protocols) {
+          return result.protocols.map((code: string, index: number) => ({
+            code,
+            name: result.descriptions?.[index] || code,
+            description: result.descriptions?.[index] || '',
+          }));
+        }
+      } catch (e) {
+        console.error('[Scale] getProtocols error:', e);
+      }
+    }
+    // Fallback: 返回默认协议列表
+    return SCALE_PROTOCOLS;
+  },
+
+  /**
    * 获取支持的波特率
    */
   async getBaudRates(): Promise<number[]> {
@@ -233,28 +328,73 @@ export const Scale = {
         console.error('[Scale] getBaudRates error:', e);
       }
     }
-    return [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+    return BAUD_RATES;
   },
 
   /**
    * 连接电子秤
+   * @param config.port 串口路径，如 '/dev/ttyUSB0'
+   * @param config.baudRate 波特率，默认 9600
+   * @param config.protocol 电子秤协议，如 'OS2', 'DAHUA', 'DIBO', 'AUTO' 等
+   * @param config.dataBits 数据位，默认 8
+   * @param config.stopBits 停止位，默认 1
+   * @param config.parity 校验位，默认 'none'
    */
-  async connect(config?: { port?: string; baudRate?: number }): Promise<{ success: boolean; message: string; mode?: string }> {
+  async connect(config?: {
+    port?: string;
+    baudRate?: number;
+    protocol?: string;
+    dataBits?: number;
+    stopBits?: number;
+    parity?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    mode?: string;
+    port?: string;
+    baudRate?: number;
+    protocol?: string;
+    detectedBaudRate?: number;
+    tip?: string;
+  }> {
     const plugin = getScalePlugin();
     if (plugin) {
       try {
-        const result = await plugin.connect(config || { baudRate: 9600 });
+        const result = await plugin.connect({
+          port: config?.port,
+          baudRate: config?.baudRate || 9600,
+          protocol: config?.protocol || 'AUTO',
+          dataBits: config?.dataBits || 8,
+          stopBits: config?.stopBits || 1,
+          parity: config?.parity || 'none',
+        });
+        
         if (result.success) {
-          return { success: true, message: '连接成功', mode: result.mode || 'usb' };
+          return {
+            success: true,
+            message: result.message || '连接成功',
+            mode: result.mode,
+            port: result.port,
+            baudRate: result.baudRate || result.detectedBaudRate,
+            protocol: result.protocol,
+            tip: result.tip,
+          };
         }
-        return { success: false, message: result.success ? '连接成功' : '连接失败' };
+        return {
+          success: false,
+          message: result.message || '连接失败',
+        };
       } catch (e: any) {
         console.error('[Scale] connect error:', e);
         return { success: false, message: e.message || '连接失败' };
       }
     }
     // 非原生环境
-    return { success: false, message: '原生插件不可用，请在APP中使用此功能' };
+    return {
+      success: false,
+      message: '原生插件不可用，请在APP中使用此功能',
+      tip: '请在Android APP中测试',
+    };
   },
 
   /**
@@ -293,12 +433,32 @@ export const Scale = {
   /**
    * 获取连接状态
    */
-  async getStatus(): Promise<{ connected: boolean; available: boolean }> {
+  async getStatus(): Promise<{
+    connected: boolean;
+    available: boolean;
+    mode?: string;
+    protocol?: string;
+    baudRate?: number;
+    polling?: boolean;
+  }> {
     const plugin = getScalePlugin();
-    return {
-      connected: plugin ? (await plugin.getStatus()).connected : false,
-      available: plugin !== null,
-    };
+    if (plugin) {
+      try {
+        const result = await plugin.getStatus();
+        return {
+          connected: result.connected,
+          available: result.available !== false,
+          mode: result.mode,
+          protocol: result.protocol,
+          baudRate: result.baudRate,
+          polling: result.polling,
+        };
+      } catch (e) {
+        console.error('[Scale] getStatus error:', e);
+        return { connected: false, available: true };
+      }
+    }
+    return { connected: false, available: false };
   },
 };
 

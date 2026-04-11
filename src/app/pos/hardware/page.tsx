@@ -17,6 +17,9 @@ import {
   getDebugInfo,
   type ScaleDevice,
   type PrinterDevice,
+  type UsbDevice,
+  BAUD_RATES,
+  SCALE_PROTOCOLS,
 } from '@/lib/native/index';
 import {
   Scale as ScaleIcon,
@@ -34,6 +37,7 @@ import {
   Plug,
   Unplug,
   Settings2,
+  Zap,
 } from 'lucide-react';
 
 // 串口设备类型
@@ -42,6 +46,8 @@ interface SerialPort {
   name: string;
   type: string;
   description: string;
+  readable?: boolean;
+  writable?: boolean;
 }
 
 // 钱箱设备类型
@@ -62,13 +68,21 @@ interface DeviceInfo {
   address?: string;
   portType?: 'usb' | 'serial' | 'bluetooth';
   baudRate?: number;
+  protocol?: string;
   lastConnected?: Date;
   error?: string;
 }
 
 // 保存的设备配置
 interface SavedDeviceConfig {
-  scales: Array<{ address: string; name: string; portType: string; baudRate: number; lastUsed: Date }>;
+  scales: Array<{
+    address: string;
+    name: string;
+    portType: string;
+    baudRate: number;
+    protocol: string;
+    lastUsed: Date;
+  }>;
   printers: Array<{ address: string; name: string; lastUsed: Date }>;
   cashboxes: Array<{ address: string; name: string; interface: string; lastUsed: Date }>;
   autoConnect: boolean;
@@ -77,7 +91,7 @@ interface SavedDeviceConfig {
 const STORAGE_KEY = 'hardware_device_config';
 
 // 常用波特率
-const BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+const DEFAULT_BAUD_RATES = BAUD_RATES;
 
 export default function HardwarePage() {
   const router = useRouter();
@@ -104,10 +118,14 @@ export default function HardwarePage() {
   const [availableScales, setAvailableScales] = useState<ScaleDevice[]>([]);
   const [availablePrinters, setAvailablePrinters] = useState<PrinterDevice[]>([]);
   const [availableSerialPorts, setAvailableSerialPorts] = useState<SerialPort[]>([]);
+  const [availableUsbDevices, setAvailableUsbDevices] = useState<UsbDevice[]>([]);
   const [availableCashboxes, setAvailableCashboxes] = useState<CashboxDevice[]>([]);
   
   // 波特率选择
   const [selectedBaudRate, setSelectedBaudRate] = useState(9600);
+  
+  // 协议选择
+  const [selectedProtocol, setSelectedProtocol] = useState('OS2');
   
   // 连接中状态
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
@@ -121,6 +139,13 @@ export default function HardwarePage() {
   
   // 自动重连状态
   const [autoReconnect, setAutoReconnect] = useState(true);
+  
+  // 当前连接信息
+  const [connectionInfo, setConnectionInfo] = useState<{
+    mode?: string;
+    protocol?: string;
+    baudRate?: number;
+  }>({});
   
   // 保存的配置
   const [savedConfig, setSavedConfig] = useState<SavedDeviceConfig>({
@@ -297,28 +322,31 @@ export default function HardwarePage() {
   // 检测电子秤设备
   const detectScales = async () => {
     try {
-      // 获取串口列表
+      // 获取串口列表和USB设备
       const serialInfo = await Scale.listSerialPorts();
-      setAvailableSerialPorts(serialInfo.serialPorts);
-      console.log('[Hardware] Found serial ports:', serialInfo.serialPorts.length);
+      setAvailableSerialPorts(serialInfo.serialPorts || []);
+      setAvailableUsbDevices(serialInfo.usbDevices || []);
+      console.log('[Hardware] Found serial ports:', serialInfo.serialPorts);
+      console.log('[Hardware] Found USB devices:', serialInfo.usbDevices);
       
-      // 获取USB设备
+      // 获取USB电子秤设备
       const scales = await Scale.listDevices();
       setAvailableScales(scales);
       console.log('[Hardware] Found scales:', scales.length);
       
       // 合并设备列表
       const allDevices = [
-        ...serialInfo.serialPorts.map(sp => ({
+        ...(serialInfo.serialPorts || []).map(sp => ({
           name: `${sp.name} (${sp.type})`,
           address: sp.path,
           portType: 'serial' as const,
+          description: sp.description,
         })),
-        ...scales.map(s => ({
+        ...(scales.map(s => ({
           name: s.name,
           address: s.address,
           portType: 'usb' as const,
-        })),
+        }))),
       ];
       
       // 检查是否已连接
@@ -335,10 +363,17 @@ export default function HardwarePage() {
             type: 'scale',
             status: 'connected',
             address: connectedDevice?.address,
-            portType: connectedDevice?.portType || 'usb',
+            portType: connectedDevice?.portType || 'serial',
+            baudRate: status.baudRate || selectedBaudRate,
+            protocol: status.protocol || selectedProtocol,
             lastConnected: new Date(),
           },
         }));
+        setConnectionInfo({
+          mode: status.mode,
+          protocol: status.protocol,
+          baudRate: status.baudRate,
+        });
       } else {
         // 尝试从保存的配置自动连接
         if (savedConfig.autoConnect && savedConfig.scales.length > 0) {
@@ -346,6 +381,8 @@ export default function HardwarePage() {
           const scale = allDevices.find(d => d.address === lastUsed.address);
           if (scale) {
             console.log('[Hardware] Auto-connecting to saved scale:', scale.name);
+            setSelectedBaudRate(lastUsed.baudRate);
+            setSelectedProtocol(lastUsed.protocol);
             await handleConnectScaleWithConfig(scale as any);
           }
         }
@@ -466,8 +503,16 @@ export default function HardwarePage() {
       name: availableScales[0].name,
       address: availableScales[0].address,
       portType: 'usb' as string,
+    } : availableSerialPorts.length > 0 ? {
+      name: availableSerialPorts[0].name,
+      address: availableSerialPorts[0].path,
+      portType: 'serial' as string,
     } : null);
-    if (!targetScale) return;
+    
+    if (!targetScale) {
+      setTestResult({ success: false, message: '未检测到电子秤设备，请先刷新设备列表' });
+      return;
+    }
 
     setIsConnecting('scale');
     setTestResult(null);
@@ -476,6 +521,7 @@ export default function HardwarePage() {
       const result = await Scale.connect({ 
         port: targetScale.address,
         baudRate: selectedBaudRate,
+        protocol: selectedProtocol,
       });
       
       if (result.success) {
@@ -483,11 +529,21 @@ export default function HardwarePage() {
         const newConfig = {
           ...savedConfig,
           scales: [
-            { address: targetScale.address, name: targetScale.name, portType: targetScale.portType || 'usb', baudRate: selectedBaudRate, lastUsed: new Date() },
+            { 
+              address: targetScale.address, 
+              name: targetScale.name, 
+              portType: targetScale.portType || 'serial', 
+              baudRate: result.baudRate || selectedBaudRate,
+              protocol: result.protocol || selectedProtocol,
+              lastUsed: new Date() 
+            },
             ...savedConfig.scales.filter(s => s.address !== targetScale.address).slice(0, 4),
           ],
         };
         saveConfig(newConfig);
+        
+        // 获取最新状态
+        const status = await Scale.getStatus();
         
         setDevices(prev => ({
           ...prev,
@@ -497,12 +553,26 @@ export default function HardwarePage() {
             type: 'scale',
             status: 'connected',
             address: targetScale.address,
-            portType: targetScale.portType as any || 'usb',
-            baudRate: selectedBaudRate,
+            portType: targetScale.portType as any || 'serial',
+            baudRate: result.baudRate || selectedBaudRate,
+            protocol: result.protocol || selectedProtocol,
             lastConnected: new Date(),
           },
         }));
-        setTestResult({ success: true, message: `已连接: ${targetScale.name}` });
+        
+        setConnectionInfo({
+          mode: result.mode,
+          protocol: result.protocol || selectedProtocol,
+          baudRate: result.baudRate || selectedBaudRate,
+        });
+        
+        let message = `已连接: ${targetScale.name}`;
+        if (result.detectedBaudRate) {
+          message += ` (自动检测波特率: ${result.detectedBaudRate})`;
+        }
+        message += ` [${result.protocol || selectedProtocol}]`;
+        
+        setTestResult({ success: true, message });
       } else {
         setTestResult({ success: false, message: result.message });
       }
@@ -824,7 +894,7 @@ export default function HardwarePage() {
                     电子秤
                     {devices.scale && <Wifi className="h-4 w-4 text-green-500" />}
                   </CardTitle>
-                  <CardDescription>USB串口电子秤（顶尖OS2协议）</CardDescription>
+                  <CardDescription>支持 RS232 串口和多种协议</CardDescription>
                 </div>
               </div>
               {renderStatusBadge(devices.scale?.status || 'disconnected')}
@@ -857,23 +927,49 @@ export default function HardwarePage() {
                 </div>
               ) : null}
               
-              {/* 可用设备列表 */}
-              {/* 波特率选择 */}
-              <div className="space-y-1">
-                <label className="text-sm text-gray-500 font-medium flex items-center gap-1">
-                  <Settings2 className="h-3 w-3" />
-                  波特率
-                </label>
-                <select
-                  className="w-full p-2 border rounded-lg text-sm"
-                  value={selectedBaudRate}
-                  onChange={(e) => setSelectedBaudRate(Number(e.target.value))}
-                >
-                  {BAUD_RATES.map(rate => (
-                    <option key={rate} value={rate}>{rate} bps</option>
-                  ))}
-                </select>
+              {/* 连接参数设置 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                    <Settings2 className="h-3 w-3" />
+                    波特率
+                  </label>
+                  <select
+                    className="w-full p-2 border rounded-lg text-sm"
+                    value={selectedBaudRate}
+                    onChange={(e) => setSelectedBaudRate(Number(e.target.value))}
+                    disabled={devices.scale?.status === 'connected'}
+                  >
+                    {DEFAULT_BAUD_RATES.map(rate => (
+                      <option key={rate} value={rate}>{rate} bps</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                    <Zap className="h-3 w-3" />
+                    协议
+                  </label>
+                  <select
+                    className="w-full p-2 border rounded-lg text-sm"
+                    value={selectedProtocol}
+                    onChange={(e) => setSelectedProtocol(e.target.value)}
+                    disabled={devices.scale?.status === 'connected'}
+                  >
+                    {SCALE_PROTOCOLS.map(p => (
+                      <option key={p.code} value={p.code}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+              
+              {/* 协议说明 */}
+              {selectedProtocol !== 'AUTO' && (
+                <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                  {SCALE_PROTOCOLS.find(p => p.code === selectedProtocol)?.description || ''}
+                </div>
+              )}
               
               {/* 可用设备列表 */}
               {availableSerialPorts.length > 0 && (
