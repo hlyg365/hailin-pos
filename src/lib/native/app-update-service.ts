@@ -361,3 +361,51 @@ class AppUpdateService {
 
 export const appUpdateService = AppUpdateService.getInstance();
 export default AppUpdateService;
+
+// 简化的命名导出，供组件直接使用
+export const AppUpdate = {
+  /**
+   * 检查更新
+   */
+  checkForUpdate: async (): Promise<UpdateInfo> => {
+    const service = AppUpdateService.getInstance();
+    return service.checkUpdate();
+  },
+
+  /**
+   * 下载并安装更新
+   */
+  downloadAndInstall: async (): Promise<{ success: boolean; message: string }> => {
+    const service = AppUpdateService.getInstance();
+    const updateInfo = await service.checkUpdate();
+    
+    if (!updateInfo.hasUpdate) {
+      return { success: false, message: '当前已是最新版本' };
+    }
+
+    // 下载更新
+    const downloadResult = await service.downloadUpdate(updateInfo.downloadUrl);
+    if (!downloadResult.success) {
+      return downloadResult;
+    }
+
+    // 安装更新
+    return service.installUpdate();
+  },
+
+  /**
+   * 获取当前更新设置
+   */
+  getSettings: async (): Promise<UpdateSettings> => {
+    const service = AppUpdateService.getInstance();
+    return service.getSettings();
+  },
+
+  /**
+   * 保存更新设置
+   */
+  setSettings: async (settings: Partial<UpdateSettings>): Promise<void> => {
+    const service = AppUpdateService.getInstance();
+    return service.setSettings(settings);
+  },
+};
