@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.os.Handler;
@@ -20,6 +21,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -318,7 +320,7 @@ public class ScalePlugin extends Plugin {
             return "Prolific USB转串口";
         } else if (vendorId == 0x1A86) {
             return "CH340 USB转串口";
-        } else if (vendorId == 0xFTDI) {
+        } else if (vendorId == 0x0403) {
             return "FTDI USB转串口";
         }
         return "USB设备 (VID:" + String.format("%04X", vendorId) + " PID:" + String.format("%04X", productId) + ")";
@@ -376,18 +378,22 @@ public class ScalePlugin extends Plugin {
     @PluginMethod
     public void getBaudRates(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("success", true);
-        result.put("baudRates", new JSONArray(BAUD_RATES));
-        result.put("default", 9600);
-        
-        // 常用波特率组合
-        JSONObject commonConfigs = new JSONObject();
-        commonConfigs.put("topchoice", new JSONArray(new int[]{9600, 19200, 38400}));
-        commonConfigs.put("lowspeed", new JSONArray(new int[]{1200, 2400, 4800}));
-        commonConfigs.put("highspeed", new JSONArray(new int[]{57600, 115200}));
-        result.put("commonConfigs", commonConfigs);
-        
-        call.resolve(result);
+        try {
+            result.put("success", true);
+            result.put("baudRates", new JSONArray(BAUD_RATES));
+            result.put("default", 9600);
+            
+            // 常用波特率组合
+            JSONObject commonConfigs = new JSONObject();
+            commonConfigs.put("topchoice", new JSONArray(new int[]{9600, 19200, 38400}));
+            commonConfigs.put("lowspeed", new JSONArray(new int[]{1200, 2400, 4800}));
+            commonConfigs.put("highspeed", new JSONArray(new int[]{57600, 115200}));
+            result.put("commonConfigs", commonConfigs);
+            
+            call.resolve(result);
+        } catch (JSONException e) {
+            call.reject("获取波特率列表失败: " + e.getMessage());
+        }
     }
     
     /**
@@ -1117,7 +1123,7 @@ public class ScalePlugin extends Plugin {
         
         public void sendCommand(byte[] data) {
             if (connection != null && usbInterface != null) {
-                int endpoint = usbInterface.getEndpoint(0).getAddress();
+                UsbEndpoint endpoint = usbInterface.getEndpoint(0);
                 connection.bulkTransfer(endpoint, data, data.length, 100);
             }
         }
@@ -1126,7 +1132,7 @@ public class ScalePlugin extends Plugin {
             // USB读取实现
             if (connection != null && usbInterface != null) {
                 byte[] buffer = new byte[64];
-                int endpoint = usbInterface.getEndpoint(1).getAddress();
+                UsbEndpoint endpoint = usbInterface.getEndpoint(1);
                 int transferred = connection.bulkTransfer(endpoint, buffer, buffer.length, 100);
                 if (transferred > 0) {
                     byte[] result = new byte[transferred];

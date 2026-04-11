@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
 import android.os.Handler;
@@ -23,6 +24,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.util.HashMap;
 
 /**
  * 钱箱控制插件
@@ -386,7 +388,7 @@ public class CashboxPlugin extends Plugin {
             
             if (currentConnection != null && currentInterface != null) {
                 // 通过USB发送命令
-                int endpoint = currentInterface.getEndpoint(0).getAddress();
+                UsbEndpoint endpoint = currentInterface.getEndpoint(0);
                 currentConnection.bulkTransfer(endpoint, cmd, cmd.length, 1000);
             }
             
@@ -574,10 +576,14 @@ public class CashboxPlugin extends Plugin {
     @PluginMethod
     public void getBaudRates(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("success", true);
-        result.put("baudRates", new JSONArray(BAUD_RATES));
-        result.put("default", DEFAULT_BAUD_RATE);
-        call.resolve(result);
+        try {
+            result.put("success", true);
+            result.put("baudRates", new JSONArray(BAUD_RATES));
+            result.put("default", DEFAULT_BAUD_RATE);
+            call.resolve(result);
+        } catch (org.json.JSONException e) {
+            call.reject("获取波特率列表失败: " + e.getMessage());
+        }
     }
     
     private JSObject createResult(boolean success, String message) {
