@@ -7,6 +7,7 @@
  */
 
 import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 // 运行环境类型
 export type RuntimeEnvironment = 'app' | 'pwa' | 'web';
@@ -30,7 +31,7 @@ export async function getRuntimeEnvironment(): Promise<RuntimeInfo> {
     return {
       environment: 'app',
       isNative: true,
-      platform: info.platform,
+      platform: Capacitor.getPlatform(), // 使用Capacitor.getPlatform()获取平台
       version: info.version,
     };
   } catch {
