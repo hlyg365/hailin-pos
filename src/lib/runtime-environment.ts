@@ -21,9 +21,16 @@ export interface RuntimeInfo {
 
 /**
  * 检测当前运行环境
- * 使用多种方法综合判断
+ * 使用多种方法综合判断，确保在Android WebView中能正确识别
  */
 export function getRuntimeEnvironment(): RuntimeInfo {
+  if (typeof window === 'undefined') {
+    return { environment: 'web', isNative: false, platform: 'web', version: '1.0.0' };
+  }
+
+  // 获取userAgent
+  const ua = navigator.userAgent || '';
+  
   // 方法1：检查Capacitor.isNativePlatform()
   if (Capacitor.isNativePlatform()) {
     return {
@@ -34,25 +41,27 @@ export function getRuntimeEnvironment(): RuntimeInfo {
     };
   }
   
-  // 方法2：检查Android WebView (包含 "wv" 或 "Android")
-  if (typeof navigator !== 'undefined' && typeof window !== 'undefined') {
-    const ua = navigator.userAgent || '';
-    const isAndroidWebView = 
-      ua.includes('Android') && 
-      (ua.includes('wv') || ua.includes('WebView') || ua.includes('Mobile Safari'));
-    
-    if (isAndroidWebView) {
-      return {
-        environment: 'app',
-        isNative: true,
-        platform: 'android',
-        version: '1.0.0',
-      };
-    }
-    
-    // 方法3：检查Capacitor对象
-    const cap = (window as any).Capacitor;
-    if (cap && (cap.isNativePlatform || cap.Plugins || cap.platform)) {
+  // 方法2：检查Android WebView特征
+  // Android WebView的UA通常包含 "Android" 和 "wv" 或 "WebView"
+  const isAndroidWebView = 
+    ua.includes('Android') && 
+    (ua.includes('wv') || ua.includes('WebView'));
+  
+  if (isAndroidWebView) {
+    return {
+      environment: 'app',
+      isNative: true,
+      platform: 'android',
+      version: '1.0.0',
+    };
+  }
+  
+  // 方法3：检查Capacitor对象存在且有插件
+  const cap = (window as any).Capacitor;
+  if (cap && (cap.Plugins || cap.platform)) {
+    // 检查是否有原生插件
+    const hasPlugins = cap.Plugins && Object.keys(cap.Plugins).length > 0;
+    if (hasPlugins || cap.isNative) {
       return {
         environment: 'app',
         isNative: true,
@@ -60,18 +69,20 @@ export function getRuntimeEnvironment(): RuntimeInfo {
         version: '1.0.0',
       };
     }
-    
-    // 方法4：检查是否为PWA
-    if ('serviceWorker' in navigator || window.matchMedia('(display-mode: standalone)').matches) {
-      return {
-        environment: 'pwa',
-        isNative: false,
-        platform: 'web',
-        version: '1.0.0',
-      };
-    }
   }
   
+  // 方法4：检查是否为PWA（已安装到主屏幕或有ServiceWorker）
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  if (isStandalone || 'serviceWorker' in navigator) {
+    return {
+      environment: 'pwa',
+      isNative: false,
+      platform: 'web',
+      version: '1.0.0',
+    };
+  }
+  
+  // 默认Web环境
   return {
     environment: 'web',
     isNative: false,
@@ -88,25 +99,24 @@ export async function getRuntimeEnvironmentAsync(): Promise<RuntimeInfo> {
 }
 
 /**
- * 同步检测是否在原生APP中
+ * 同步检测是否在原生APP中（快速判断）
+ * 这是最常用的方法
  */
 export function isNativeApp(): boolean {
-  // 方法1：Capacitor
+  // 方法1：Capacitor.isNativePlatform()
   if (Capacitor.isNativePlatform()) {
     return true;
   }
   
   // 方法2：Android WebView
-  if (typeof navigator !== 'undefined') {
-    const ua = navigator.userAgent || '';
-    if (ua.includes('Android') && (ua.includes('wv') || ua.includes('WebView'))) {
-      return true;
-    }
+  const ua = navigator.userAgent || '';
+  if (ua.includes('Android') && (ua.includes('wv') || ua.includes('WebView'))) {
+    return true;
   }
   
-  // 方法3：Capacitor对象
+  // 方法3：Capacitor对象有插件
   const cap = (window as any).Capacitor;
-  if (cap && (cap.isNativePlatform || cap.Plugins)) {
+  if (cap && cap.Plugins && Object.keys(cap.Plugins).length > 0) {
     return true;
   }
   

@@ -40,9 +40,19 @@ class PrinterService {
   private plugin: any = null;
   private isConnected: boolean = false;
   private currentDevice: PrinterDevice | null = null;
+  private initialized: boolean = false;
 
   private constructor() {
-    this.initPlugin();
+    // 延迟初始化，等待Capacitor完全准备好
+    if (typeof window !== 'undefined') {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(() => this.initPlugin(), 0);
+      } else {
+        window.addEventListener('DOMContentLoaded', () => {
+          setTimeout(() => this.initPlugin(), 0);
+        });
+      }
+    }
   }
 
   public static getInstance(): PrinterService {
@@ -53,14 +63,24 @@ class PrinterService {
   }
 
   private initPlugin() {
-    if (Capacitor.isNativePlatform()) {
-      // @ts-ignore
+    if (this.initialized) return;
+    this.initialized = true;
+    
+    // 直接从window获取Capacitor和插件
+    const cap = (window as any).Capacitor;
+    if (cap) {
       this.plugin = (window as any).Printer;
+      
+      if (this.plugin) {
+        console.log('[PrinterService] Plugin initialized successfully');
+      } else {
+        console.log('[PrinterService] Plugin not found, running in fallback mode');
+      }
     }
   }
 
   private isNativePlatform(): boolean {
-    return Capacitor.isNativePlatform() && this.plugin != null;
+    return this.plugin != null;
   }
 
   /**
@@ -82,218 +102,130 @@ class PrinterService {
             });
           }
           return devices;
-        } else {
-          console.warn('[PrinterService] listDevices failed:', result.error);
         }
+        throw new Error(result.error || '获取设备列表失败');
       } catch (e) {
         console.error('[PrinterService] listDevices error:', e);
+        return [];
       }
-    } else {
-      console.warn('[PrinterService] Not running on native platform');
     }
     return [];
   }
 
   /**
-   * 连接到蓝牙打印机
+   * 连接蓝牙打印机
    */
-  async connect(address: string, name?: string): Promise<{ success: boolean; message: string }> {
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.connect({ address, name: name || '' });
-        
-        if (result.success) {
-          this.isConnected = true;
-          this.currentDevice = { name: name || '', address, type: 'bluetooth', paired: true };
-        }
-        
-        return {
-          success: result.success,
-          message: result.message || (result.success ? '连接成功' : '连接失败'),
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '连接失败' };
-      }
+  async connect(address: string): Promise<boolean> {
+    if (!this.isNativePlatform()) {
+      console.warn('[PrinterService] Not in native platform, using simulation');
+      this.isConnected = true;
+      return true;
     }
 
-    // 非原生平台
-    console.warn('[PrinterService] Running in browser, cannot connect to real printer');
-    return { success: false, message: '非原生环境，无法连接打印机' };
+    try {
+      const result = await this.plugin.connect({ address });
+      if (result.success) {
+        this.isConnected = true;
+        this.currentDevice = { name: '蓝牙打印机', address, type: 'bluetooth', paired: true };
+        return true;
+      }
+      throw new Error(result.error || '连接失败');
+    } catch (e) {
+      console.error('[PrinterService] Connect error:', e);
+      return false;
+    }
   }
 
   /**
    * 断开连接
    */
   async disconnect(): Promise<void> {
-    this.isConnected = false;
-    this.currentDevice = null;
-
     if (this.isNativePlatform()) {
       try {
         await this.plugin.disconnect();
       } catch (e) {
-        console.error('[PrinterService] disconnect error:', e);
+        console.error('[PrinterService] Disconnect error:', e);
       }
     }
-  }
-
-  /**
-   * 获取连接状态
-   */
-  async getStatus(): Promise<{
-    connected: boolean;
-    deviceName?: string;
-    deviceAddress?: string;
-  }> {
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.getStatus();
-        this.isConnected = result.connected || false;
-        return {
-          connected: this.isConnected,
-          deviceName: result.deviceName,
-          deviceAddress: result.deviceAddress,
-        };
-      } catch (e) {
-        console.error('[PrinterService] getStatus error:', e);
-      }
-    }
-
-    return { connected: this.isConnected };
+    this.isConnected = false;
+    this.currentDevice = null;
   }
 
   /**
    * 打印小票
    */
-  async printReceipt(receipt: ReceiptData): Promise<{ success: boolean; message: string }> {
-    if (!this.isConnected) {
-      return { success: false, message: '打印机未连接' };
+  async printReceipt(data: ReceiptData): Promise<boolean> {
+    if (!this.isNativePlatform()) {
+      console.warn('[PrinterService] Not in native platform, simulating print');
+      console.log('[PrinterService] Receipt:', data);
+      return true;
     }
 
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.printReceipt(receipt);
-        return {
-          success: result.success,
-          message: result.message || '打印完成',
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '打印失败' };
-      }
+    try {
+      const result = await this.plugin.printReceipt(data);
+      return result.success;
+    } catch (e) {
+      console.error('[PrinterService] Print error:', e);
+      return false;
     }
-
-    // 非原生平台，模拟打印
-    console.log('[PrinterService] Simulating receipt print:', receipt);
-    return { success: true, message: '模拟打印成功' };
   }
 
   /**
    * 打印文本
    */
-  async printText(
-    text: string,
-    options?: {
-      align?: 'left' | 'center' | 'right';
-      bold?: boolean;
-      doubleHeight?: boolean;
-    }
-  ): Promise<{ success: boolean; message: string }> {
-    if (!this.isConnected) {
-      return { success: false, message: '打印机未连接' };
+  async printText(text: string): Promise<boolean> {
+    if (!this.isNativePlatform()) {
+      console.log('[PrinterService] Print text:', text);
+      return true;
     }
 
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.printText({
-          text,
-          align: options?.align || 'left',
-          bold: options?.bold || false,
-          doubleHeight: options?.doubleHeight || false,
-        });
-        return {
-          success: result.success,
-          message: result.message || '打印完成',
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '打印失败' };
-      }
+    try {
+      const result = await this.plugin.printText({ text });
+      return result.success;
+    } catch (e) {
+      console.error('[PrinterService] PrintText error:', e);
+      return false;
     }
-
-    console.log('[PrinterService] Simulating text print:', text);
-    return { success: true, message: '模拟打印成功' };
   }
 
   /**
    * 打开钱箱
    */
-  async openCashbox(): Promise<{ success: boolean; message: string }> {
-    if (!this.isConnected) {
-      return { success: false, message: '钱箱未连接' };
+  async openCashbox(): Promise<boolean> {
+    if (!this.isNativePlatform()) {
+      console.warn('[PrinterService] Not in native platform');
+      return false;
     }
 
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.openCashbox();
-        return {
-          success: result.success,
-          message: result.message || '钱箱已打开',
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '打开钱箱失败' };
-      }
+    try {
+      const result = await this.plugin.openCashbox();
+      return result.success;
+    } catch (e) {
+      console.error('[PrinterService] OpenCashbox error:', e);
+      return false;
     }
-
-    console.log('[PrinterService] Simulating cashbox open');
-    return { success: true, message: '模拟打开钱箱' };
   }
 
   /**
-   * 切纸
+   * 获取状态
    */
-  async cutPaper(): Promise<{ success: boolean; message: string }> {
-    if (!this.isConnected) {
-      return { success: false, message: '打印机未连接' };
-    }
-
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.cutPaper();
-        return {
-          success: result.success,
-          message: result.message || '切纸完成',
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '切纸失败' };
-      }
-    }
-
-    return { success: true, message: '模拟切纸' };
+  async getStatus(): Promise<{ connected: boolean; available: boolean; device: PrinterDevice | null }> {
+    const hasPlugin = this.isNativePlatform();
+    
+    return {
+      connected: this.isConnected,
+      available: hasPlugin || false,
+      device: this.currentDevice,
+    };
   }
 
   /**
-   * 发送原始数据（十六进制）
+   * 获取当前连接的设备
    */
-  async sendRawData(hexString: string): Promise<{ success: boolean; message: string }> {
-    if (!this.isConnected) {
-      return { success: false, message: '打印机未连接' };
-    }
-
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.print({ data: hexString });
-        return {
-          success: result.success,
-          message: result.message || '发送完成',
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '发送失败' };
-      }
-    }
-
-    return { success: true, message: '模拟发送' };
+  getCurrentDevice(): PrinterDevice | null {
+    return this.currentDevice;
   }
 }
 
 export const printerService = PrinterService.getInstance();
 export { PrinterService };
-export default PrinterService;
