@@ -16,6 +16,22 @@ export interface ScaleDevice {
   productId?: number;
 }
 
+export interface SerialPort {
+  path: string;
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface UsbDevice {
+  name: string;
+  vendorId: number;
+  productId: number;
+  deviceId: number;
+  productName: string;
+  path: string;
+}
+
 export interface WeightData {
   weight: number;
   unit: string;
@@ -73,6 +89,15 @@ interface AppUpdatePlugin {
   downloadAndInstall(): Promise<{ success: boolean; message?: string }>;
 }
 
+interface CashboxPlugin {
+  getStatus(): Promise<{ connected: boolean; drawerOpen: boolean; hasDevice: boolean }>;
+  listDevices(): Promise<{ success: boolean; devices?: any[] }>;
+  connect(config: { port?: string; baudRate?: number }): Promise<{ success: boolean; mode?: string; message?: string }>;
+  open(config: { drawer?: number }): Promise<{ success: boolean; drawerOpen?: boolean; mode?: string; message?: string }>;
+  disconnect(): Promise<{ success: boolean }>;
+  getBaudRates(): Promise<{ success: boolean; baudRates?: number[] }>;
+}
+
 // 获取原生插件（如果存在）
 function getScalePlugin(): ScalePlugin | null {
   const cap = (window as any).Capacitor;
@@ -102,6 +127,14 @@ function getAppUpdatePlugin(): AppUpdatePlugin | null {
   const cap = (window as any).Capacitor;
   if (cap && cap.Plugins && cap.Plugins.AppUpdate) {
     return cap.Plugins.AppUpdate;
+  }
+  return null;
+}
+
+function getCashboxPlugin(): CashboxPlugin | null {
+  const cap = (window as any).Capacitor;
+  if (cap && cap.Plugins && cap.Plugins.Cashbox) {
+    return cap.Plugins.Cashbox;
   }
   return null;
 }
@@ -159,6 +192,48 @@ export const Scale = {
     }
     // Fallback: 返回空列表
     return [];
+  },
+
+  /**
+   * 列出所有串口设备（RS232和USB）
+   * 返回格式：{ serialPorts: SerialPort[], usbDevices: UsbDevice[], baudRates: number[] }
+   */
+  async listSerialPorts(): Promise<{ serialPorts: SerialPort[]; usbDevices: UsbDevice[]; baudRates: number[] }> {
+    const plugin = getScalePlugin();
+    if (plugin && (plugin as any).listSerialPorts) {
+      try {
+        const result = await (plugin as any).listSerialPorts();
+        if (result.success) {
+          return {
+            serialPorts: result.serialPorts || [],
+            usbDevices: result.usbDevices || [],
+            baudRates: result.baudRates || [9600],
+          };
+        }
+      } catch (e) {
+        console.error('[Scale] listSerialPorts error:', e);
+      }
+    }
+    // Fallback
+    return { serialPorts: [], usbDevices: [], baudRates: [9600] };
+  },
+
+  /**
+   * 获取支持的波特率
+   */
+  async getBaudRates(): Promise<number[]> {
+    const plugin = getScalePlugin();
+    if (plugin && (plugin as any).getBaudRates) {
+      try {
+        const result = await (plugin as any).getBaudRates();
+        if (result.success) {
+          return result.baudRates || [9600];
+        }
+      } catch (e) {
+        console.error('[Scale] getBaudRates error:', e);
+      }
+    }
+    return [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
   },
 
   /**
@@ -434,6 +509,122 @@ export const AppUpdate = {
       return await plugin.downloadAndInstall();
     }
     return { success: false, message: '原生插件不可用' };
+  },
+};
+
+// ==================== 钱箱 ====================
+
+export const Cashbox = {
+  /**
+   * 获取钱箱状态
+   */
+  async getStatus(): Promise<{ connected: boolean; drawerOpen: boolean; hasDevice: boolean }> {
+    const plugin = getCashboxPlugin();
+    if (plugin) {
+      try {
+        const result = await plugin.getStatus();
+        return {
+          connected: result.connected || false,
+          drawerOpen: result.drawerOpen || false,
+          hasDevice: result.hasDevice || false,
+        };
+      } catch (e) {
+        console.error('[Cashbox] getStatus error:', e);
+      }
+    }
+    return { connected: false, drawerOpen: false, hasDevice: false };
+  },
+
+  /**
+   * 列出可用的钱箱设备
+   */
+  async listDevices(): Promise<Array<{ name: string; path: string; type: string; interface: string; description: string }>> {
+    const plugin = getCashboxPlugin();
+    if (plugin) {
+      try {
+        const result = await plugin.listDevices();
+        if (result.success) {
+          return result.devices || [];
+        }
+      } catch (e) {
+        console.error('[Cashbox] listDevices error:', e);
+      }
+    }
+    // 默认返回打印机钱箱接口
+    return [{
+      name: '打印机钱箱接口',
+      path: 'printer',
+      type: 'printer',
+      interface: 'ESC/POS',
+      description: '通过连接的打印机控制钱箱',
+    }];
+  },
+
+  /**
+   * 连接钱箱
+   * @param port 设备路径 ('printer', '/dev/ttyUSB0', 'usb://vid:pid')
+   * @param baudRate 波特率（串口模式）
+   */
+  async connect(port: string = 'printer', baudRate: number = 9600): Promise<{ success: boolean; mode?: string; message?: string }> {
+    const plugin = getCashboxPlugin();
+    if (plugin) {
+      try {
+        const result = await plugin.connect({ port, baudRate });
+        return result;
+      } catch (e: any) {
+        console.error('[Cashbox] connect error:', e);
+        return { success: false, message: e.message };
+      }
+    }
+    // 非原生环境
+    return { success: false, message: '原生插件不可用' };
+  },
+
+  /**
+   * 打开钱箱
+   * @param drawer 钱箱编号 (0=引脚2, 1=引脚5, 2=钱箱1, 3=钱箱2)
+   */
+  async open(drawer: number = 0): Promise<{ success: boolean; drawerOpen?: boolean; mode?: string; message?: string }> {
+    const plugin = getCashboxPlugin();
+    if (plugin) {
+      try {
+        const result = await plugin.open({ drawer });
+        return result;
+      } catch (e: any) {
+        console.error('[Cashbox] open error:', e);
+        return { success: false, message: e.message };
+      }
+    }
+    // 非原生环境
+    return { success: false, message: '原生插件不可用' };
+  },
+
+  /**
+   * 断开连接
+   */
+  async disconnect(): Promise<void> {
+    const plugin = getCashboxPlugin();
+    if (plugin) {
+      await plugin.disconnect();
+    }
+  },
+
+  /**
+   * 获取支持的波特率
+   */
+  async getBaudRates(): Promise<number[]> {
+    const plugin = getCashboxPlugin();
+    if (plugin) {
+      try {
+        const result = await plugin.getBaudRates();
+        if (result.success) {
+          return result.baudRates || [9600];
+        }
+      } catch (e) {
+        console.error('[Cashbox] getBaudRates error:', e);
+      }
+    }
+    return [1200, 2400, 4800, 9600, 19200, 38400];
   },
 };
 
