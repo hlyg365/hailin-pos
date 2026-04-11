@@ -1,69 +1,22 @@
 /**
- * 电子秤串口API
+ * API适配器 - 将API调用重定向到原生插件
  * 
- * 功能：通过后端串口模块连接电子秤
- * 注意：PWA环境下前端无法直接访问串口，需要后端代理
+ * 在原生APP环境中，这些API调用会被拦截并转发到原生插件
+ * 在非原生环境中，保持原有API调用逻辑
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isNativeApp, Scale, Printer, CustomerDisplay } from '@/lib/native/index';
 
-// 存储秤连接状态的全局变量
-let scaleConnection: {
-  connected: boolean;
-  port: string;
-  baudRate: number;
-  lastWeight: {
-    weight: number;
-    unit: string;
-    stable: boolean;
-    timestamp: number;
-  };
-} = {
-  connected: false,
-  port: '',
-  baudRate: 9600,
-  lastWeight: {
-    weight: 0,
-    unit: 'kg',
-    stable: false,
-    timestamp: 0,
-  },
-};
-
-// 获取秤状态
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const action = searchParams.get('action') || 'status';
-  
-  switch (action) {
-    case 'status':
-      return NextResponse.json({
-        success: true,
-        connected: scaleConnection.connected,
-        port: scaleConnection.port,
-        baudRate: scaleConnection.baudRate,
-        timestamp: new Date().toISOString(),
-      });
-      
-    case 'weight':
-      return NextResponse.json({
-        success: true,
-        connected: scaleConnection.connected,
-        weight: scaleConnection.lastWeight.weight,
-        unit: scaleConnection.lastWeight.unit,
-        stable: scaleConnection.lastWeight.stable,
-        timestamp: scaleConnection.lastWeight.timestamp,
-      });
-      
-    default:
-      return NextResponse.json({
-        success: false,
-        error: 'Unknown action',
-      }, { status: 400 });
-  }
+// 检查是否为原生APP环境
+function checkNative(): boolean {
+  // 由于这是服务端代码，我们需要从请求头中检测
+  // Capacitor会在请求头中添加特定标识
+  return false; // 默认返回false，让客户端处理
 }
 
-// 连接/断开/配置串口
+// ==================== 电子秤API适配 ====================
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -73,77 +26,70 @@ export async function POST(request: NextRequest) {
       case 'connect':
         const { port, baudRate } = body;
         
-        if (!port) {
+        // 尝试调用原生插件
+        const scaleResult = await Scale.connect({ port, baudRate });
+        if (scaleResult.success) {
           return NextResponse.json({
-            success: false,
-            error: '串口号不能为空',
-          }, { status: 400 });
+            success: true,
+            message: scaleResult.message,
+            mode: scaleResult.mode,
+          });
         }
         
-        scaleConnection.port = port;
-        scaleConnection.baudRate = baudRate || 9600;
-        
-        // 注意：这里需要实际的串口连接实现
-        // 实际部署时需要使用 serialport 等 npm 包
-        // 由于环境限制，这里使用模拟数据
-        
-        // 模拟连接成功
-        scaleConnection.connected = true;
-        scaleConnection.lastWeight = {
-          weight: 0,
-          unit: 'kg',
-          stable: false,
-          timestamp: Date.now(),
-        };
-        
+        // 原生插件不可用，返回友好提示
         return NextResponse.json({
-          success: true,
-          message: `已连接到 ${port} @ ${baudRate || 9600}bps`,
-          connected: true,
-        });
-        
-      case 'disconnect':
-        scaleConnection.connected = false;
-        scaleConnection.port = '';
-        scaleConnection.lastWeight = {
-          weight: 0,
-          unit: 'kg',
-          stable: false,
-          timestamp: Date.now(),
-        };
-        
-        return NextResponse.json({
-          success: true,
-          message: '已断开串口连接',
-          connected: false,
-        });
-        
-      case 'setWeight':
-        // 手动设置重量
-        scaleConnection.lastWeight = {
-          weight: body.weight || 0,
-          unit: body.unit || 'kg',
-          stable: body.stable !== false,
-          timestamp: Date.now(),
-        };
-        
-        return NextResponse.json({
-          success: true,
-          weight: scaleConnection.lastWeight,
+          success: false,
+          error: scaleResult.message,
+          hint: '请在APP中使用电子秤功能',
         });
         
       default:
         return NextResponse.json({
           success: false,
-          error: 'Unknown action',
+          error: '未知操作',
         }, { status: 400 });
     }
   } catch (error: any) {
     return NextResponse.json({
       success: false,
-      error: error.message || '请求处理失败',
+      error: error.message || '服务器错误',
     }, { status: 500 });
   }
 }
 
-export const dynamic = 'force-dynamic';
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const action = searchParams.get('action') || 'status';
+  
+  switch (action) {
+    case 'status':
+      const status = await Scale.getStatus();
+      return NextResponse.json({
+        success: true,
+        connected: status.connected,
+        available: status.available,
+      });
+      
+    case 'weight':
+      const weight = await Scale.getWeight();
+      if (weight) {
+        return NextResponse.json({
+          success: true,
+          weight: weight.weight,
+          unit: weight.unit,
+          stable: weight.stable,
+          timestamp: weight.timestamp,
+        });
+      }
+      return NextResponse.json({
+        success: false,
+        error: '无法获取重量',
+      });
+      
+    default:
+      return NextResponse.json({
+        success: false,
+        error: '未知操作',
+      }, { status: 400 });
+  }
+}
