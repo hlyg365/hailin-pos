@@ -23,6 +23,14 @@ export interface HardwareState {
   isNativeApp: boolean;
   debugInfo: any;
   
+  // 扫码器
+  scanner: {
+    enabled: boolean;
+    connected: boolean;
+    available: boolean;
+    devices: Array<{ id: string; name: string; type: string }>;
+  };
+  
   // 电子秤
   scale: {
     connected: boolean;
@@ -40,11 +48,21 @@ export interface HardwareState {
     deviceName: string | null;
   };
   
+  // 钱箱
+  cashbox: {
+    connected: boolean;
+    available: boolean;
+  };
+  
   // 客显屏
   display: {
     open: boolean;
     available: boolean;
   };
+  
+  // 连接状态
+  isConnecting: boolean;
+  error: string | null;
 }
 
 /**
@@ -79,6 +97,15 @@ export function useHardware() {
     isNativeApp: false,
     debugInfo: null,
     
+    // 扫码器
+    scanner: {
+      enabled: false,
+      connected: false,
+      available: false,
+      devices: [],
+    },
+    
+    // 电子秤
     scale: {
       connected: false,
       available: false,
@@ -86,6 +113,7 @@ export function useHardware() {
       devices: [],
     },
     
+    // 打印机
     printer: {
       connected: false,
       available: false,
@@ -94,10 +122,21 @@ export function useHardware() {
       deviceName: null,
     },
     
+    // 钱箱
+    cashbox: {
+      connected: false,
+      available: false,
+    },
+    
+    // 客显屏
     display: {
       open: false,
       available: false,
     },
+    
+    // 连接状态
+    isConnecting: false,
+    error: null as string | null,
   });
 
   // 初始化检测
@@ -122,6 +161,8 @@ export function useHardware() {
         scale: { ...prev.scale, available: scaleStatus.available },
         printer: { ...prev.printer, available: printerStatus.available },
         display: { ...prev.display, available: displayStatus.available },
+        scanner: { ...prev.scanner, available: info.isNativeApp },
+        cashbox: { ...prev.cashbox, available: printerStatus.available },
       }));
     };
     
@@ -241,9 +282,62 @@ export function useHardware() {
     }, []),
   };
 
+  // 扫码器操作（基于原生键盘扫描）
+  const scannerActions = {
+    enable: useCallback(() => {
+      setState(prev => ({
+        ...prev,
+        scanner: { ...prev.scanner, enabled: true },
+      }));
+    }, []),
+
+    disable: useCallback(() => {
+      setState(prev => ({
+        ...prev,
+        scanner: { ...prev.scanner, enabled: false },
+      }));
+    }, []),
+  };
+
+  // 打印机兼容方法
+  const connectPrinter = useCallback(async (address: string, name?: string) => {
+    return await printerActions.connect(address, name);
+  }, []);
+
+  const disconnectPrinter = useCallback(async () => {
+    await printerActions.disconnect();
+  }, []);
+
+  const testPrint = useCallback(async () => {
+    // 测试打印
+    const testData = {
+      shopName: '海邻到家',
+      orderNo: 'TEST' + Date.now(),
+      date: new Date().toLocaleString(),
+      cashier: '系统测试',
+      items: [
+        { name: '测试商品', quantity: '1', price: '99.00' },
+      ],
+      total: 99,
+      payment: 100,
+      change: 1,
+    };
+    return await Printer.printReceipt(testData);
+  }, []);
+
+  const openCashbox = useCallback(async () => {
+    return await Printer.openCashbox();
+  }, []);
+
   return {
     // 状态
     ...state,
+    
+    // 扫码器
+    scanner: {
+      ...state.scanner,
+      ...scannerActions,
+    },
     
     // 电子秤
     scale: {
@@ -251,11 +345,24 @@ export function useHardware() {
       ...scaleActions,
     },
     
+    // 打印机状态别名
+    printerStatus: state.printer,
+    
+    // 钱箱状态别名
+    cashboxStatus: state.cashbox,
+    
     // 打印机
     printer: {
       ...state.printer,
       ...printerActions,
     },
+    
+    // 打印机兼容方法
+    connectPrinter,
+    disconnectPrinter,
+    printReceipt: printerActions.printReceipt,
+    testPrint,
+    openCashbox,
     
     // 客显屏
     display: {
