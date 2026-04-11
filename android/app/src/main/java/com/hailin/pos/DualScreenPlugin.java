@@ -30,6 +30,7 @@ public class DualScreenPlugin extends Plugin {
     }
     
     @PluginMethod
+    @TargetApi(Build.VERSION_CODES.R)
     public void getDisplays(PluginCall call) {
         JSObject result = new JSObject();
         
