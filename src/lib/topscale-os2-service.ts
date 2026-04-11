@@ -12,6 +12,8 @@
  * 需要通过后端API代理或原生应用（Capacitor）访问
  */
 
+import { Capacitor } from '@capacitor/core';
+
 export interface ScaleConfig {
   ip: string;
   port: number;
@@ -36,6 +38,22 @@ export interface WeightData {
 }
 
 export type WeightCallback = (data: WeightData) => void;
+
+// 检测是否在原生APP中
+function isNativePlatform(): boolean {
+  if (Capacitor.isNativePlatform()) {
+    return true;
+  }
+  const cap = (window as any).Capacitor;
+  if (cap && cap.Plugins && Object.keys(cap.Plugins).length > 0) {
+    return true;
+  }
+  const ua = navigator.userAgent || '';
+  if (ua.includes('Android') && (ua.includes('wv') || ua.includes('WebView'))) {
+    return true;
+  }
+  return false;
+}
 
 class TopScaleOS2Service {
   private static instance: TopScaleOS2Service;
@@ -164,6 +182,12 @@ class TopScaleOS2Service {
     try {
       console.log(`[TopScale] Connecting via ${type}...`);
       
+      // 优先检查原生插件
+      if (isNativePlatform()) {
+        console.log('[TopScale] Native platform detected, using Capacitor plugin');
+        return await this.connectNative();
+      }
+      
       if (type === 'serial') {
         return await this.connectSerial();
       } else {
@@ -173,6 +197,69 @@ class TopScaleOS2Service {
       console.error('[TopScale] Connection error:', error);
       return { success: false, message: `连接失败: ${error}` };
     }
+  }
+
+  // 原生插件连接（Android USB串口）
+  private async connectNative(): Promise<{ success: boolean; message: string }> {
+    try {
+      const cap = (window as any).Capacitor;
+      const plugin = cap?.Plugins?.Scale;
+      
+      if (!plugin) {
+        console.warn('[TopScale] Native Scale plugin not found');
+        return { success: false, message: '原生插件不可用' };
+      }
+      
+      console.log('[TopScale] Connecting via native plugin...');
+      
+      const result = await plugin.connect({
+        baudRate: this.serialConfig.baudRate,
+        protocol: 'OS2',
+      });
+      
+      if (result.success) {
+        this.isConnected = true;
+        console.log('[TopScale] Native connection successful');
+        
+        // 启动轮询获取重量
+        this.startNativePolling(plugin);
+        
+        return { success: true, message: '原生USB连接成功' };
+      }
+      
+      return { success: false, message: result.error || '原生连接失败' };
+    } catch (error: any) {
+      console.error('[TopScale] Native connection error:', error);
+      return { success: false, message: error.message || '原生连接失败' };
+    }
+  }
+
+  // 原生插件重量轮询
+  private startNativePolling(plugin: any) {
+    this.stopPolling();
+    
+    this.pollInterval = setInterval(async () => {
+      try {
+        const result = await plugin.getWeight();
+        if (result.success && result.data) {
+          this.lastWeight = {
+            weight: result.data.weight || 0,
+            unit: result.data.unit || 'kg',
+            stable: result.data.stable || false,
+            tare: 0,
+            netWeight: result.data.weight || 0,
+            timestamp: Date.now(),
+          };
+          
+          this.syncToStorage();
+          if (this.callback) {
+            this.callback(this.lastWeight);
+          }
+        }
+      } catch (e) {
+        // 忽略轮询错误
+      }
+    }, 500);
   }
 
   // 串口连接
@@ -337,6 +424,19 @@ class TopScaleOS2Service {
 
   // 断开连接
   disconnect() {
+    // 如果是原生插件连接，先断开原生插件
+    if (isNativePlatform()) {
+      try {
+        const cap = (window as any).Capacitor;
+        const plugin = cap?.Plugins?.Scale;
+        if (plugin) {
+          plugin.disconnect();
+        }
+      } catch (e) {
+        // 忽略断开错误
+      }
+    }
+    
     this.stopPolling();
     this.isConnected = false;
     this.lastWeight = {
