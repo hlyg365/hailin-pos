@@ -7,12 +7,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    // 开发环境：指向本地服务器
-    // url: 'http://192.168.1.100:5000',
-    // 生产环境：指向已部署的服务器
+    // 收银台APP专用域名 - 应用启动时页面会自动跳转
     url: 'https://hldj365.coze.site',
-    // 允许导航到所有URL
-    allowNavigation: ['*'],
+    // 允许导航到收银台相关页面
+    allowNavigation: [
+      'https://hldj365.coze.site/*',
+      'https://*.coze.site/*',
+    ],
   },
   android: {
     allowMixedContent: true,
