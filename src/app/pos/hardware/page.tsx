@@ -13,6 +13,7 @@ import {
   Scale,
   Printer,
   CustomerDisplay,
+  Cashbox,
   getDebugInfo,
   type ScaleDevice,
   type PrinterDevice,
@@ -32,7 +33,25 @@ import {
   Wifi,
   Plug,
   Unplug,
+  Settings2,
 } from 'lucide-react';
+
+// 串口设备类型
+interface SerialPort {
+  path: string;
+  name: string;
+  type: string;
+  description: string;
+}
+
+// 钱箱设备类型
+interface CashboxDevice {
+  name: string;
+  path: string;
+  type: 'usb' | 'serial' | 'printer';
+  interface: string;
+  description: string;
+}
 
 // 设备类型定义
 interface DeviceInfo {
@@ -41,18 +60,24 @@ interface DeviceInfo {
   type: 'scale' | 'printer' | 'cashbox' | 'display';
   status: 'connected' | 'disconnected' | 'connecting' | 'error';
   address?: string;
+  portType?: 'usb' | 'serial' | 'bluetooth';
+  baudRate?: number;
   lastConnected?: Date;
   error?: string;
 }
 
 // 保存的设备配置
 interface SavedDeviceConfig {
-  scales: Array<{ address: string; name: string; lastUsed: Date }>;
+  scales: Array<{ address: string; name: string; portType: string; baudRate: number; lastUsed: Date }>;
   printers: Array<{ address: string; name: string; lastUsed: Date }>;
+  cashboxes: Array<{ address: string; name: string; interface: string; lastUsed: Date }>;
   autoConnect: boolean;
 }
 
 const STORAGE_KEY = 'hardware_device_config';
+
+// 常用波特率
+const BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
 
 export default function HardwarePage() {
   const router = useRouter();
@@ -78,6 +103,11 @@ export default function HardwarePage() {
   // 可用设备列表
   const [availableScales, setAvailableScales] = useState<ScaleDevice[]>([]);
   const [availablePrinters, setAvailablePrinters] = useState<PrinterDevice[]>([]);
+  const [availableSerialPorts, setAvailableSerialPorts] = useState<SerialPort[]>([]);
+  const [availableCashboxes, setAvailableCashboxes] = useState<CashboxDevice[]>([]);
+  
+  // 波特率选择
+  const [selectedBaudRate, setSelectedBaudRate] = useState(9600);
   
   // 连接中状态
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
@@ -96,6 +126,7 @@ export default function HardwarePage() {
   const [savedConfig, setSavedConfig] = useState<SavedDeviceConfig>({
     scales: [],
     printers: [],
+    cashboxes: [],
     autoConnect: true,
   });
   
@@ -241,11 +272,14 @@ export default function HardwarePage() {
     refreshLock.current = true;
     
     try {
-      // 检测电子秤
+      // 检测电子秤（包括串口和USB）
       await detectScales();
       
       // 检测打印机
       await detectPrinters();
+      
+      // 检测钱箱
+      await detectCashboxes();
       
       // 检测客显屏
       await detectDisplay();
@@ -263,21 +297,45 @@ export default function HardwarePage() {
   // 检测电子秤设备
   const detectScales = async () => {
     try {
+      // 获取串口列表
+      const serialInfo = await Scale.listSerialPorts();
+      setAvailableSerialPorts(serialInfo.serialPorts);
+      console.log('[Hardware] Found serial ports:', serialInfo.serialPorts.length);
+      
+      // 获取USB设备
       const scales = await Scale.listDevices();
       setAvailableScales(scales);
       console.log('[Hardware] Found scales:', scales.length);
       
+      // 合并设备列表
+      const allDevices = [
+        ...serialInfo.serialPorts.map(sp => ({
+          name: `${sp.name} (${sp.type})`,
+          address: sp.path,
+          portType: 'serial' as const,
+        })),
+        ...scales.map(s => ({
+          name: s.name,
+          address: s.address,
+          portType: 'usb' as const,
+        })),
+      ];
+      
       // 检查是否已连接
       const status = await Scale.getStatus();
       if (status.connected) {
+        const connectedDevice = allDevices.find(d => 
+          d.address === devices.scale?.address
+        );
         setDevices(prev => ({
           ...prev,
           scale: {
-            id: scales[0]?.address || 'scale-usb-1',
-            name: scales[0]?.name || 'USB电子秤',
+            id: connectedDevice?.address || 'scale-1',
+            name: connectedDevice?.name || '电子秤',
             type: 'scale',
             status: 'connected',
-            address: scales[0]?.address,
+            address: connectedDevice?.address,
+            portType: connectedDevice?.portType || 'usb',
             lastConnected: new Date(),
           },
         }));
@@ -285,10 +343,10 @@ export default function HardwarePage() {
         // 尝试从保存的配置自动连接
         if (savedConfig.autoConnect && savedConfig.scales.length > 0) {
           const lastUsed = savedConfig.scales[0];
-          const scale = scales.find(s => s.address === lastUsed.address);
+          const scale = allDevices.find(d => d.address === lastUsed.address);
           if (scale) {
             console.log('[Hardware] Auto-connecting to saved scale:', scale.name);
-            await handleConnectScaleWithConfig(scale);
+            await handleConnectScaleWithConfig(scale as any);
           }
         }
       }
@@ -366,23 +424,66 @@ export default function HardwarePage() {
     }
   };
 
+  // 检测钱箱设备
+  const detectCashboxes = async () => {
+    try {
+      const cashboxes = await Cashbox.listDevices();
+      // 规范化类型
+      const normalizedBoxes: CashboxDevice[] = cashboxes.map(c => ({
+        name: c.name,
+        path: c.path,
+        type: (c.type || 'printer') as 'usb' | 'serial' | 'printer',
+        interface: c.interface || 'ESC/POS',
+        description: c.description || '',
+      }));
+      setAvailableCashboxes(normalizedBoxes);
+      console.log('[Hardware] Found cashboxes:', normalizedBoxes.length);
+      
+      // 检查钱箱状态
+      const status = await Cashbox.getStatus();
+      if (status.connected) {
+        const savedCashbox = savedConfig.cashboxes[0];
+        const box = normalizedBoxes.find(c => c.path === savedCashbox?.address);
+        setDevices(prev => ({
+          ...prev,
+          cashbox: {
+            id: savedCashbox?.address || 'cashbox-1',
+            name: box?.name || '钱箱',
+            type: 'cashbox',
+            status: 'connected',
+            address: savedCashbox?.address || box?.path,
+          },
+        }));
+      }
+    } catch (e) {
+      console.error('[Hardware] Detect cashboxes error:', e);
+    }
+  };
+
   // 连接电子秤（带配置保存）
-  const handleConnectScaleWithConfig = async (scale?: ScaleDevice) => {
-    const targetScale = scale || availableScales[0];
+  const handleConnectScaleWithConfig = async (scale?: { name: string; address: string; portType?: string }) => {
+    const targetScale = scale || (availableScales.length > 0 ? {
+      name: availableScales[0].name,
+      address: availableScales[0].address,
+      portType: 'usb' as string,
+    } : null);
     if (!targetScale) return;
 
     setIsConnecting('scale');
     setTestResult(null);
     
     try {
-      const result = await Scale.connect({ port: targetScale.address });
+      const result = await Scale.connect({ 
+        port: targetScale.address,
+        baudRate: selectedBaudRate,
+      });
       
       if (result.success) {
         // 保存到配置
         const newConfig = {
           ...savedConfig,
           scales: [
-            { address: targetScale.address, name: targetScale.name, lastUsed: new Date() },
+            { address: targetScale.address, name: targetScale.name, portType: targetScale.portType || 'usb', baudRate: selectedBaudRate, lastUsed: new Date() },
             ...savedConfig.scales.filter(s => s.address !== targetScale.address).slice(0, 4),
           ],
         };
@@ -396,6 +497,8 @@ export default function HardwarePage() {
             type: 'scale',
             status: 'connected',
             address: targetScale.address,
+            portType: targetScale.portType as any || 'usb',
+            baudRate: selectedBaudRate,
             lastConnected: new Date(),
           },
         }));
@@ -471,22 +574,90 @@ export default function HardwarePage() {
     setTestResult({ success: true, message: '打印机已断开' });
   };
 
-  // 打开钱箱
+  // 打开钱箱（支持打印机模式和钱箱模式）
   const handleOpenCashbox = async () => {
     setTestLoading(true);
     setTestResult(null);
     
     try {
-      const result = await Printer.openCashbox();
-      setTestResult({
-        success: result.success,
-        message: result.success ? '钱箱已打开' : result.message,
-      });
+      // 优先使用独立钱箱接口
+      if (devices.cashbox?.status === 'connected' && devices.cashbox) {
+        const result = await Cashbox.open(0);
+        setTestResult({
+          success: result.success,
+          message: result.success ? '钱箱已打开' : (result.message || '打开失败'),
+        });
+      } else if (devices.printer) {
+        // 通过打印机控制钱箱
+        const result = await Printer.openCashbox();
+        setTestResult({
+          success: result.success,
+          message: result.success ? '钱箱已打开（打印机模式）' : (result.message || '打开失败'),
+        });
+      } else {
+        // 尝试直接打开
+        const result = await Cashbox.open(0);
+        setTestResult({
+          success: result.success,
+          message: result.success ? '钱箱已打开' : (result.message || '打开失败'),
+        });
+      }
     } catch (e: any) {
       setTestResult({ success: false, message: e.message || '打开失败' });
     } finally {
       setTestLoading(false);
     }
+  };
+
+  // 连接钱箱
+  const handleConnectCashbox = async (cashbox?: CashboxDevice) => {
+    const targetBox = cashbox || availableCashboxes[0];
+    if (!targetBox) return;
+
+    setIsConnecting('cashbox');
+    setTestResult(null);
+    
+    try {
+      const result = await Cashbox.connect(targetBox.path);
+      
+      if (result.success) {
+        // 保存到配置
+        const newConfig = {
+          ...savedConfig,
+          cashboxes: [
+            { address: targetBox.path, name: targetBox.name, interface: targetBox.interface, lastUsed: new Date() },
+            ...savedConfig.cashboxes.filter(c => c.address !== targetBox.path).slice(0, 4),
+          ],
+        };
+        saveConfig(newConfig);
+        
+        setDevices(prev => ({
+          ...prev,
+          cashbox: {
+            id: targetBox.path,
+            name: targetBox.name,
+            type: 'cashbox',
+            status: 'connected',
+            address: targetBox.path,
+            lastConnected: new Date(),
+          },
+        }));
+        setTestResult({ success: true, message: `钱箱已连接: ${targetBox.name}` });
+      } else {
+        setTestResult({ success: false, message: result.message || '连接失败' });
+      }
+    } catch (e: any) {
+      setTestResult({ success: false, message: e.message || '连接失败' });
+    } finally {
+      setIsConnecting(null);
+    }
+  };
+
+  // 断开钱箱
+  const handleDisconnectCashbox = async () => {
+    await Cashbox.disconnect();
+    setDevices(prev => ({ ...prev, cashbox: null }));
+    setTestResult({ success: true, message: '钱箱已断开' });
   };
 
   // 测试打印
@@ -687,14 +858,70 @@ export default function HardwarePage() {
               ) : null}
               
               {/* 可用设备列表 */}
+              {/* 波特率选择 */}
+              <div className="space-y-1">
+                <label className="text-sm text-gray-500 font-medium flex items-center gap-1">
+                  <Settings2 className="h-3 w-3" />
+                  波特率
+                </label>
+                <select
+                  className="w-full p-2 border rounded-lg text-sm"
+                  value={selectedBaudRate}
+                  onChange={(e) => setSelectedBaudRate(Number(e.target.value))}
+                >
+                  {BAUD_RATES.map(rate => (
+                    <option key={rate} value={rate}>{rate} bps</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 可用设备列表 */}
+              {availableSerialPorts.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-500 font-medium">
+                    RS232 串口 ({availableSerialPorts.length})
+                  </div>
+                  {availableSerialPorts.map((port, index) => (
+                    <div
+                      key={`serial-${index}`}
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        devices.scale?.address === port.path
+                          ? 'bg-green-50 border border-green-200'
+                          : 'bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium flex items-center gap-2">
+                          <Plug className="h-4 w-4 text-gray-400" />
+                          {port.name}
+                        </span>
+                        <span className="text-xs text-gray-500">{port.description}</span>
+                      </div>
+                      {devices.scale?.address === port.path ? (
+                        <Badge variant="outline" className="bg-green-50">已连接</Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => handleConnectScaleWithConfig({
+                          name: port.name,
+                          address: port.path,
+                          portType: 'serial',
+                        })}>
+                          连接
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* USB设备列表 */}
               {availableScales.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-sm text-gray-500 font-medium">
-                    可用设备 ({availableScales.length})
+                    USB 设备 ({availableScales.length})
                   </div>
                   {availableScales.map((scale, index) => (
                     <div
-                      key={index}
+                      key={`usb-${index}`}
                       className={`flex items-center justify-between p-3 rounded-lg ${
                         devices.scale?.address === scale.address
                           ? 'bg-green-50 border border-green-200'
@@ -708,13 +935,23 @@ export default function HardwarePage() {
                       {devices.scale?.address === scale.address ? (
                         <Badge variant="outline" className="bg-green-50">已连接</Badge>
                       ) : (
-                        <Button size="sm" onClick={() => handleConnectScaleWithConfig(scale)}>
+                        <Button size="sm" onClick={() => handleConnectScaleWithConfig({
+                          name: scale.name,
+                          address: scale.address,
+                          portType: 'usb',
+                        })}>
                           连接
                         </Button>
                       )}
                     </div>
                   ))}
                 </div>
+              )}
+              
+              {availableSerialPorts.length === 0 && availableScales.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-2">
+                  未检测到电子秤设备
+                </p>
               )}
               
               <Button
@@ -902,30 +1139,89 @@ export default function HardwarePage() {
                 </div>
                 <div>
                   <CardTitle className="text-lg">钱箱</CardTitle>
-                  <CardDescription>通过打印机端口控制</CardDescription>
+                  <CardDescription>RJ11/RJ12 接口或打印机端口</CardDescription>
                 </div>
               </div>
               {renderStatusBadge(devices.cashbox?.status || 'disconnected')}
             </div>
           </CardHeader>
           <CardContent>
-            <Button
-              className="w-full"
-              onClick={handleOpenCashbox}
-              disabled={!devices.printer || testLoading}
-            >
-              {testLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Power className="h-4 w-4 mr-2" />
+            <div className="space-y-3">
+              {devices.cashbox ? (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        {devices.cashbox.name}
+                        {devices.cashbox.lastConnected && (
+                          <span className="text-xs text-gray-500">
+                            连接于 {formatTime(devices.cashbox.lastConnected)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500 flex items-center gap-2">
+                        <Plug className="h-3 w-3" />
+                        {devices.cashbox.address}
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={handleDisconnectCashbox}>
+                      断开
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              
+              {/* 可用钱箱设备列表 */}
+              {availableCashboxes.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-500 font-medium">
+                    可用接口 ({availableCashboxes.length})
+                  </div>
+                  {availableCashboxes.map((box, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        devices.cashbox?.address === box.path
+                          ? 'bg-green-50 border border-green-200'
+                          : 'bg-gray-50 border border-gray-200'
+                      }`}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">{box.name}</span>
+                        <span className="text-xs text-gray-500">
+                          {box.interface} - {box.description}
+                        </span>
+                      </div>
+                      {devices.cashbox?.address === box.path ? (
+                        <Badge variant="outline" className="bg-green-50">已连接</Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => handleConnectCashbox(box)}>
+                          连接
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
-              打开钱箱
-            </Button>
-            {!devices.printer && (
-              <p className="text-sm text-gray-500 mt-2 text-center">
-                请先连接打印机以控制钱箱
-              </p>
-            )}
+              
+              <Button
+                className="w-full"
+                onClick={handleOpenCashbox}
+                disabled={(!devices.cashbox && !devices.printer) || testLoading}
+              >
+                {testLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Power className="h-4 w-4 mr-2" />
+                )}
+                打开钱箱
+              </Button>
+              {!devices.cashbox && !devices.printer && (
+                <p className="text-sm text-gray-500 mt-2 text-center">
+                  请先连接钱箱或打印机以控制钱箱
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
