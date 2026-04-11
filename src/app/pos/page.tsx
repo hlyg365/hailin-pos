@@ -41,6 +41,7 @@ import { usePosAuth } from '@/contexts/PosAuthContext';
 import { useOfflineStatus } from '@/hooks/useOffline';
 import { useHardware } from '@/hooks/useHardware';
 import { usePosSpeech } from '@/hooks/usePosSpeech';
+import { Progress } from '@/components/ui/progress';
 import { 
   ProductsStore, OrdersStore, OfflineProduct, OfflineOrder 
 } from '@/lib/offline-db';
@@ -753,9 +754,9 @@ export default function PosPage() {
     scanner,
     printer,
     printerStatus,
-    enableScanner,
+    refreshDevices,
     printReceipt,
-    updateDeviceStatus,
+    enableScanner,
   } = useHardware();
   
   // 语音播报
@@ -1001,7 +1002,7 @@ export default function PosPage() {
   // 初始化扫码枪
   useEffect(() => {
     // 启用 USB 扫码枪监听
-    const cleanup = enableScanner('usb', async (barcode) => {
+    const cleanup = enableScanner('usb', async (barcode: string) => {
       console.log('[POS] Barcode scanned:', barcode);
       
       // 1. 优先搜索本地商品库
