@@ -810,43 +810,44 @@ export default function PosPage() {
     }
   };
 
-  // 检测运行环境（必须在组件顶部，避免条件调用）
-  useEffect(() => {
-    const detectRuntime = async () => {
-      try {
-        // 同步快速检测
-        const nativeDetected = isNativeApp();
-        
-        if (nativeDetected) {
-          // 确认原生APP环境
-          setSettings(prev => ({
-            ...prev,
-            runtimeEnvironment: 'app',
-            isNativeApp: true
-          }));
-        } else {
-          // 异步检测完整信息
-          const runtime = await getRuntimeEnvironment();
-          setSettings(prev => ({
-            ...prev,
-            runtimeEnvironment: runtime.environment,
-            isNativeApp: runtime.environment === 'app'
-          }));
-        }
-        
-        console.log('[POS] Runtime detection completed');
-      } catch (e) {
-        console.error('[POS] Runtime detection error:', e);
-        // 默认设置为web环境
-        setSettings(prev => ({
-          ...prev,
-          runtimeEnvironment: 'web',
-          isNativeApp: false
-        }));
+  // 检测运行环境（同步检测，组件初始化时执行）
+  const runtimeEnvironment = (() => {
+    // 直接使用Capacitor.isNativePlatform()检测
+    if (typeof window !== 'undefined') {
+      const cap = (window as any).Capacitor;
+      if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
+        return {
+          environment: 'app' as RuntimeEnvironment,
+          isNativeApp: true,
+          platform: cap.getPlatform ? cap.getPlatform() : 'android'
+        };
       }
-    };
+      
+      // 检查是否为PWA
+      if ('serviceWorker' in navigator || window.matchMedia('(display-mode: standalone)').matches) {
+        return {
+          environment: 'pwa' as RuntimeEnvironment,
+          isNativeApp: false,
+          platform: 'web'
+        };
+      }
+    }
     
-    detectRuntime();
+    return {
+      environment: 'web' as RuntimeEnvironment,
+      isNativeApp: false,
+      platform: 'web'
+    };
+  })();
+  
+  // 初始化settings中的运行环境
+  useEffect(() => {
+    setSettings(prev => ({
+      ...prev,
+      runtimeEnvironment: runtimeEnvironment.environment,
+      isNativeApp: runtimeEnvironment.isNativeApp
+    }));
+    console.log('[POS] Runtime:', runtimeEnvironment.environment, 'Platform:', runtimeEnvironment.platform);
   }, []);
   
   // 激活语音播报（需要在用户交互后调用）
