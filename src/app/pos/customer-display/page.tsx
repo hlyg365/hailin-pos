@@ -246,15 +246,15 @@ function AdCarousel({ advertisements }: { advertisements: Advertisement[] }) {
   if (!currentAd) return null;
 
   return (
-    <div className={`relative min-h-screen bg-gradient-to-br ${currentAd.backgroundColor || 'from-blue-500 to-purple-600'} flex items-center justify-center p-8`}>
+    <div className={`relative min-h-screen bg-gradient-to-br ${currentAd.backgroundColor || 'from-blue-500 to-purple-600'} flex flex-col items-center justify-center p-8`} suppressHydrationWarning>
       {/* 进度条 */}
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20">
         <div className="h-full bg-white/80 transition-all duration-100" style={{ width: `${progress}%` }} />
       </div>
       
       {/* 内容区域 */}
-      <div className={`text-center text-white max-w-4xl ${currentAd.qrCodePosition === 'right' ? 'flex items-center justify-center gap-16' : ''}`}>
-        <div className={currentAd.qrCodePosition === 'right' ? 'text-left' : ''}>
+      <div className={`flex-1 flex items-center justify-center text-center text-white max-w-4xl ${currentAd.qrCodePosition === 'right' ? 'flex items-center justify-center gap-16' : ''}`} suppressHydrationWarning>
+        <div className={currentAd.qrCodePosition === 'right' ? 'flex-1 text-left' : ''}>
           <div className="text-6xl mb-6">{currentAd.title}</div>
           <div className="text-3xl mb-8 opacity-90">{currentAd.subtitle}</div>
           
@@ -532,28 +532,22 @@ export default function CustomerDisplayPage() {
   const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
   const earnedPoints = Math.floor(finalAmount);
 
-  // 屏幕信息
-  const screenInfo = {
-    width: typeof window !== 'undefined' ? window.screen.width : 1920,
-    height: typeof window !== 'undefined' ? window.screen.height : 1080,
-  };
-
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-900 flex flex-col" suppressHydrationWarning>
       {/* 顶部状态栏 - 双屏收银机副屏专用 */}
-      <div className="bg-black/80 text-white px-4 py-2 flex items-center justify-between text-sm">
+      <div className="bg-black/80 text-white px-4 py-2 flex items-center justify-between text-sm" suppressHydrationWarning>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" suppressHydrationWarning>
             <Monitor className="w-5 h-5 text-green-400" />
             <span className="font-bold text-lg">客显屏</span>
           </div>
-          <span className={`px-2 py-0.5 rounded text-xs ${isOnline ? 'bg-green-600' : 'bg-red-600'}`}>
+          <span className={`px-2 py-0.5 rounded text-xs ${isOnline ? 'bg-green-600' : 'bg-red-600'}`} suppressHydrationWarning>
             {isOnline ? '在线' : '离线'}
           </span>
-          <span className="text-gray-400 text-xs">
-            {screenInfo.width}x{screenInfo.height}
+          <span className="text-gray-400 text-xs" suppressHydrationWarning>
+            {typeof window !== 'undefined' ? `${window.screen.width}x${window.screen.height}` : '1920x1080'}
           </span>
-          <span className="text-gray-500">
+          <span className="text-gray-500" suppressHydrationWarning>
             {currentTime?.toLocaleTimeString('zh-CN')}
           </span>
         </div>
