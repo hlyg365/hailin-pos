@@ -6,7 +6,6 @@
  * - Web环境（普通浏览器）
  */
 
-import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 
 // 运行环境类型
@@ -22,22 +21,39 @@ export interface RuntimeInfo {
 
 /**
  * 检测当前运行环境
- * 使用Capacitor App插件判断（最准确）
+ * 使用Capacitor.isNativePlatform()判断（最可靠）
  */
-export async function getRuntimeEnvironment(): Promise<RuntimeInfo> {
-  try {
-    // 尝试使用Capacitor App获取信息
-    const info = await App.getInfo();
+export function getRuntimeEnvironment(): RuntimeInfo {
+  // 优先使用Capacitor.isNativePlatform()判断
+  if (Capacitor.isNativePlatform()) {
     return {
       environment: 'app',
       isNative: true,
-      platform: Capacitor.getPlatform(), // 使用Capacitor.getPlatform()获取平台
-      version: info.version,
+      platform: Capacitor.getPlatform(),
+      version: '1.0.0',
     };
-  } catch {
-    // Capacitor不可用，检测PWA或Web
-    return detectWebEnvironment();
   }
+  
+  // 非原生环境，检测PWA或Web
+  return detectWebEnvironment();
+}
+
+/**
+ * 异步检测当前运行环境
+ */
+export async function getRuntimeEnvironmentAsync(): Promise<RuntimeInfo> {
+  // 同步判断优先
+  if (Capacitor.isNativePlatform()) {
+    return {
+      environment: 'app',
+      isNative: true,
+      platform: Capacitor.getPlatform(),
+      version: '1.0.0',
+    };
+  }
+  
+  // 非原生，检测PWA
+  return detectWebEnvironment();
 }
 
 /**
@@ -68,29 +84,9 @@ function detectWebEnvironment(): RuntimeInfo {
 
 /**
  * 同步检测是否在原生APP中（快速判断）
- * 使用Platform API
  */
 export function isNativeApp(): boolean {
-  try {
-    // Capacitor core会抛出错误如果在非原生环境
-    const Capacitor = (window as any).Capacitor;
-    if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.App) {
-      return true;
-    }
-  } catch {
-    // ignore
-  }
-  
-  // 备选方案：检查userAgent
-  if (typeof navigator !== 'undefined') {
-    const ua = navigator.userAgent.toLowerCase();
-    // Capacitor Android APP的UA通常包含特定标识
-    if (ua.includes('hailin-pos') || ua.includes('capacitor')) {
-      return true;
-    }
-  }
-  
-  return false;
+  return Capacitor.isNativePlatform();
 }
 
 /**
