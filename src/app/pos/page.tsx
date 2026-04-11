@@ -828,11 +828,9 @@ export default function PosPage() {
     
     // 方法2：检查Android WebView (更可靠的检测)
     const ua = navigator.userAgent || '';
-    const isAndroidWebView = ua.includes('Android') && (
-      ua.includes('wv') || 
-      ua.includes('WebView') || 
-      ua.includes('Chrome/') && ua.includes('Mobile')
-    );
+    const isAndroidWebView = 
+      ua.includes('Android') && 
+      (ua.includes('wv') || ua.includes('WebView'));
     
     if (isAndroidWebView) {
       return {
@@ -842,8 +840,8 @@ export default function PosPage() {
       };
     }
     
-    // 方法3：检查Capacitor对象存在
-    if (cap && (cap.Plugins || cap.platform)) {
+    // 方法3：检查Capacitor对象存在且有插件
+    if (cap && cap.Plugins && Object.keys(cap.Plugins).length > 0) {
       return {
         environment: 'app' as RuntimeEnvironment,
         isNativeApp: true,

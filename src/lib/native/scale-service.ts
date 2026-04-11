@@ -40,9 +40,19 @@ class ScaleService {
   private isConnected: boolean = false;
   private callbacks: Set<WeightCallback> = new Set();
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private initialized: boolean = false;
 
   private constructor() {
-    this.initPlugin();
+    // 延迟初始化，等待Capacitor完全准备好
+    if (typeof window !== 'undefined') {
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(() => this.initPlugin(), 0);
+      } else {
+        window.addEventListener('DOMContentLoaded', () => {
+          setTimeout(() => this.initPlugin(), 0);
+        });
+      }
+    }
   }
 
   public static getInstance(): ScaleService {
@@ -53,14 +63,25 @@ class ScaleService {
   }
 
   private initPlugin() {
-    if (Capacitor.isNativePlatform()) {
-      // @ts-ignore
+    if (this.initialized) return;
+    this.initialized = true;
+    
+    // 直接从window获取Capacitor和插件
+    const cap = (window as any).Capacitor;
+    if (cap) {
+      // 尝试获取插件
       this.plugin = (window as any).Scale;
+      
+      if (this.plugin) {
+        console.log('[ScaleService] Plugin initialized successfully');
+      } else {
+        console.log('[ScaleService] Plugin not found, running in fallback mode');
+      }
     }
   }
 
   private isNativePlatform(): boolean {
-    return Capacitor.isNativePlatform() && this.plugin != null;
+    return this.plugin != null;
   }
 
   /**
@@ -78,163 +99,88 @@ class ScaleService {
           }
           return devices;
         }
+        throw new Error(result.error || '获取设备列表失败');
       } catch (e) {
         console.error('[ScaleService] listDevices error:', e);
+        return [];
       }
     }
     return [];
   }
 
   /**
-   * 连接到电子秤
+   * 连接电子秤
    */
-  async connect(config?: Partial<ScaleConfig>): Promise<{ success: boolean; message: string; mode?: string }> {
-    const baudRate = config?.baudRate || 9600;
-    const protocol = config?.protocol || 'OS2';
-    const port = config?.port || '';
-
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.connect({
-          port,
-          baudRate,
-          protocol,
-        });
-        
-        if (result.success) {
-          this.isConnected = true;
-          this.startPolling();
-        }
-        
-        return {
-          success: result.success,
-          message: result.message || (result.success ? '连接成功' : '连接失败'),
-          mode: result.mode,
-        };
-      } catch (e: any) {
-        return { success: false, message: e.message || '连接失败' };
-      }
+  async connect(config?: Partial<ScaleConfig>): Promise<boolean> {
+    if (!this.isNativePlatform()) {
+      console.warn('[ScaleService] Not in native platform, using simulation');
+      this.isConnected = true;
+      return true;
     }
 
-    // 非原生平台，使用模拟模式
-    console.warn('[ScaleService] Running in browser, using simulation mode');
-    this.isConnected = true;
-    this.startSimulationMode();
-    
-    return {
-      success: true,
-      message: '模拟模式（仅用于测试）',
-      mode: 'simulation',
-    };
+    try {
+      const result = await this.plugin.connect(config || {});
+      if (result.success) {
+        this.isConnected = true;
+        return true;
+      }
+      throw new Error(result.error || '连接失败');
+    } catch (e) {
+      console.error('[ScaleService] Connect error:', e);
+      return false;
+    }
   }
 
   /**
    * 断开连接
    */
   async disconnect(): Promise<void> {
-    this.stopPolling();
-    this.isConnected = false;
-
     if (this.isNativePlatform()) {
       try {
         await this.plugin.disconnect();
       } catch (e) {
-        console.error('[ScaleService] disconnect error:', e);
+        console.error('[ScaleService] Disconnect error:', e);
       }
     }
+    this.isConnected = false;
+    this.stopWeightPolling();
   }
 
   /**
    * 获取当前重量
    */
-  async getWeight(): Promise<WeightData> {
+  async getWeight(): Promise<WeightData | null> {
     if (this.isNativePlatform()) {
       try {
         const result = await this.plugin.getWeight();
-        return {
-          weight: result.weight || 0,
-          unit: (result.unit as 'kg' | 'g') || 'kg',
-          stable: result.stable || false,
-          timestamp: result.timestamp || Date.now(),
-        };
+        if (result.success) {
+          return result.data;
+        }
       } catch (e) {
         console.error('[ScaleService] getWeight error:', e);
       }
     }
-
-    return {
-      weight: 0,
-      unit: 'kg',
-      stable: false,
-      timestamp: Date.now(),
-    };
+    return null;
   }
 
   /**
-   * 获取连接状态
+   * 开启重量轮询
    */
-  async getStatus(): Promise<{ connected: boolean; polling: boolean; mode: string }> {
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.getStatus();
-        return {
-          connected: result.connected || false,
-          polling: result.polling || false,
-          mode: result.mode || 'unknown',
-        };
-      } catch (e) {
-        console.error('[ScaleService] getStatus error:', e);
-      }
-    }
-
-    return {
-      connected: this.isConnected,
-      polling: this.pollInterval !== null,
-      mode: this.isNativePlatform() ? 'native' : 'simulation',
-    };
-  }
-
-  /**
-   * 设置手动重量（用于测试）
-   */
-  async setWeight(weight: number, unit: 'kg' | 'g' = 'kg', stable: boolean = true): Promise<void> {
-    if (this.isNativePlatform()) {
-      try {
-        await this.plugin.setWeight({ weight, unit, stable });
-      } catch (e) {
-        console.error('[ScaleService] setWeight error:', e);
-      }
-    }
-  }
-
-  /**
-   * 订阅重量变化
-   */
-  onWeightChange(callback: WeightCallback): () => void {
-    this.callbacks.add(callback);
-    return () => {
-      this.callbacks.delete(callback);
-    };
-  }
-
-  /**
-   * 开始轮询重量
-   */
-  private startPolling() {
+  startWeightPolling(interval: number = 500): void {
     if (this.pollInterval) return;
-
+    
     this.pollInterval = setInterval(async () => {
-      if (!this.isConnected) return;
-
-      const weight = await this.getWeight();
-      this.callbacks.forEach(cb => cb(weight));
-    }, 200);
+      const data = await this.getWeight();
+      if (data) {
+        this.callbacks.forEach(cb => cb(data));
+      }
+    }, interval);
   }
 
   /**
-   * 停止轮询
+   * 停止重量轮询
    */
-  private stopPolling() {
+  stopWeightPolling(): void {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
@@ -242,45 +188,41 @@ class ScaleService {
   }
 
   /**
-   * 模拟模式 - 生成随机重量
+   * 监听重量变化
    */
-  private startSimulationMode() {
-    this.startPolling();
+  onWeightChange(callback: WeightCallback): () => void {
+    this.callbacks.add(callback);
+    return () => this.callbacks.delete(callback);
+  }
+
+  /**
+   * 获取状态
+   */
+  async getStatus(): Promise<{ connected: boolean; available: boolean }> {
+    const cap = (window as any).Capacitor;
+    const hasPlugin = cap && this.isNativePlatform();
     
-    // 模拟重量变化
-    setInterval(async () => {
-      if (!this.isConnected) return;
-
-      const base = 1.5 + Math.sin(Date.now() / 2000) * 0.5;
-      const noise = (Math.random() - 0.5) * 0.02;
-      const weight = Math.round((base + noise) * 1000) / 1000;
-      
-      const data: WeightData = {
-        weight,
-        unit: 'kg',
-        stable: Math.random() > 0.1,
-        timestamp: Date.now(),
-      };
-
-      this.callbacks.forEach(cb => cb(data));
-    }, 500);
+    return {
+      connected: this.isConnected,
+      available: hasPlugin || true, // 始终可用
+    };
   }
 
   /**
-   * 清除手动重量
+   * 清零
    */
-  clearManualWeight(): void {
-    this.setWeight(0, 'kg', false);
-  }
-
-  /**
-   * 设置手动重量
-   */
-  setManualWeight(weight: number): void {
-    this.setWeight(weight, 'kg', true);
+  async tare(): Promise<boolean> {
+    if (this.isNativePlatform()) {
+      try {
+        const result = await this.plugin.tare();
+        return result.success;
+      } catch (e) {
+        console.error('[ScaleService] Tare error:', e);
+      }
+    }
+    return false;
   }
 }
 
 export const scaleService = ScaleService.getInstance();
 export { ScaleService };
-export default ScaleService;
