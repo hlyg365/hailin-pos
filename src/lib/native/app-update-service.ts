@@ -1,5 +1,10 @@
 /**
- * App更新服务 - 原生Android自动更新
+ * APP 更新服务
+ * 
+ * 功能：
+ * 1. 检查更新 - 从服务器获取最新版本信息
+ * 2. 下载更新 - 下载新版本APK
+ * 3. 安装更新 - 安装下载的APK
  * 
  * 使用方法:
  * import { AppUpdateService } from '@/lib/native/app-update-service';
@@ -8,77 +13,48 @@
  * 
  * // 检查更新
  * const result = await update.checkUpdate();
- * 
- * // 下载更新
  * if (result.hasUpdate) {
- *   await update.downloadUpdate(result.downloadUrl);
+ *   console.log('有新版本:', result.latestVersion);
+ *   // 显示更新弹窗
  * }
  * 
- * // 安装更新
- * await update.installUpdate();
+ * // 下载并安装
+ * await update.downloadAndInstall();
  */
 
-// 延迟加载 Capacitor
-let Capacitor: any = null;
-let CapacitorApp: any = null;
-let Network: any = null;
+// 当前APP版本
+const CURRENT_VERSION = {
+  version: '3.0.0',
+  buildNumber: 20260412,
+};
 
-function getCapacitor() {
-  if (Capacitor === null && typeof window !== 'undefined') {
-    Capacitor = (window as any).Capacitor;
-    // 延迟加载插件
-    if (Capacitor) {
-      CapacitorApp = Capacitor.Plugins?.App;
-      Network = Capacitor.Plugins?.Network;
-    }
-  }
-  return Capacitor;
-}
-
-export interface UpdateInfo {
-  hasUpdate: boolean;
-  latestVersion: string;
-  versionCode: number;
-  releaseNotes: string;
-  forceUpdate: boolean;
+// 版本信息接口
+export interface VersionInfo {
+  version: string;
+  buildNumber: number;
+  releaseDate: string;
+  releaseNotes: string[];
   downloadUrl: string;
-  skipped?: boolean;
+  minVersion: string;
 }
 
-export interface UpdateSettings {
-  autoUpdate: boolean;
-  wifiOnly: boolean;
-  skipVersion: string;
-  checkInterval: number;
+// 更新检查结果
+export interface UpdateCheckResult {
+  hasUpdate: boolean;
+  isForced: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  versionInfo?: VersionInfo;
 }
 
-export interface DownloadProgress {
-  progress: number;
-  downloading: boolean;
-}
-
-type UpdateCheckCallback = (info: UpdateInfo) => void;
-type DownloadProgressCallback = (progress: DownloadProgress) => void;
-type DownloadCompleteCallback = (filePath: string) => void;
-type ErrorCallback = (error: string) => void;
+// 下载进度回调
+export type ProgressCallback = (progress: number, downloaded: number, total: number) => void;
 
 class AppUpdateService {
   private static instance: AppUpdateService;
-  private plugin: any = null;
-  private isListening: boolean = false;
-  
-  // 回调
-  private onUpdateCheckCallbacks: Set<UpdateCheckCallback> = new Set();
-  private onDownloadProgressCallbacks: Set<DownloadProgressCallback> = new Set();
-  private onDownloadCompleteCallbacks: Set<DownloadCompleteCallback> = new Set();
-  private onErrorCallbacks: Set<ErrorCallback> = new Set();
-  
-  // 网络监听
-  private networkListener: any = null;
+  private progressCallback: ProgressCallback | null = null;
 
-  private constructor() {
-    this.initPlugin();
-  }
+  private constructor() {}
 
   public static getInstance(): AppUpdateService {
     if (!AppUpdateService.instance) {
@@ -87,338 +63,153 @@ class AppUpdateService {
     return AppUpdateService.instance;
   }
 
-  private initPlugin() {
-    if (Capacitor.isNativePlatform()) {
-      // @ts-ignore
-      this.plugin = (window as any).AppUpdate;
-    }
-  }
-
-  private isNativePlatform(): boolean {
-    return Capacitor.isNativePlatform() && this.plugin != null;
+  /**
+   * 获取当前版本信息
+   */
+  getCurrentVersion(): { version: string; buildNumber: number } {
+    return { ...CURRENT_VERSION };
   }
 
   /**
-   * 初始化更新服务
+   * 设置下载进度回调
    */
-  async initialize(): Promise<void> {
-    if (!this.isListening && this.isNativePlatform()) {
-      this.isListening = true;
-      
-      // 监听来自原生插件的事件
-      // Capacitor会自动将这些事件转发到这里
-      // 我们需要在UI层面订阅这些事件
+  onProgress(callback: ProgressCallback | null) {
+    this.progressCallback = callback;
+  }
+
+  /**
+   * 比较版本号
+   * 返回: 1 新版本, 0 相同, -1 旧版本
+   */
+  compareVersion(current: string, latest: string): number {
+    const currentParts = current.split('.').map(Number);
+    const latestParts = latest.split('.').map(Number);
+    
+    for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
+      const a = currentParts[i] || 0;
+      const b = latestParts[i] || 0;
+      if (a > b) return -1;
+      if (a < b) return 1;
     }
+    return 0;
   }
 
   /**
    * 检查更新
    */
-  async checkUpdate(): Promise<UpdateInfo> {
-    // 首先检查网络
-    const networkStatus = await Network.getStatus();
-    if (!networkStatus.connected) {
+  async checkUpdate(): Promise<UpdateCheckResult> {
+    try {
+      // 调用版本检查API
+      const response = await fetch('/api/app-info');
+      if (!response.ok) {
+        throw new Error('获取版本信息失败');
+      }
+      
+      const serverInfo = await response.json();
+      
+      const hasUpdate = this.compareVersion(
+        CURRENT_VERSION.version, 
+        serverInfo.version
+      ) === 1;
+      
+      // 是否强制更新（当前版本低于最低版本）
+      const isForced = this.compareVersion(
+        CURRENT_VERSION.version,
+        serverInfo.minVersion
+      ) === -1;
+      
+      return {
+        hasUpdate,
+        isForced,
+        currentVersion: CURRENT_VERSION.version,
+        latestVersion: serverInfo.version,
+        versionInfo: {
+          version: serverInfo.version,
+          buildNumber: serverInfo.buildNumber,
+          releaseDate: serverInfo.releaseDate,
+          releaseNotes: serverInfo.releaseNotes || [],
+          downloadUrl: serverInfo.downloadUrl,
+          minVersion: serverInfo.minVersion,
+        },
+      };
+    } catch (error) {
+      console.error('[AppUpdate] checkUpdate error:', error);
       return {
         hasUpdate: false,
-        latestVersion: '',
-        versionCode: 0,
-        releaseNotes: '',
-        forceUpdate: false,
-        downloadUrl: '',
+        isForced: false,
+        currentVersion: CURRENT_VERSION.version,
+        latestVersion: CURRENT_VERSION.version,
       };
     }
+  }
 
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.checkUpdate();
-        return {
-          hasUpdate: result.hasUpdate || false,
-          latestVersion: result.latestVersion || '',
-          versionCode: result.versionCode || 0,
-          releaseNotes: result.releaseNotes || '',
-          forceUpdate: result.forceUpdate || false,
-          downloadUrl: result.downloadUrl || '',
-          skipped: result.skipped || false,
-        };
-      } catch (e: any) {
-        console.error('[AppUpdate] checkUpdate error:', e);
-        // 返回无更新，避免阻塞应用
-        return {
-          hasUpdate: false,
-          latestVersion: '',
-          versionCode: 0,
-          releaseNotes: '',
-          forceUpdate: false,
-          downloadUrl: '',
+  /**
+   * 检查更新（别名）
+   */
+  async checkForUpdate(): Promise<UpdateCheckResult> {
+    return this.checkUpdate();
+  }
+
+  /**
+   * 下载并安装更新（原生APP）
+   */
+  async downloadAndInstall(): Promise<{ success: boolean; message: string }> {
+    try {
+      const updateInfo = await this.checkUpdate();
+      
+      if (!updateInfo.hasUpdate || !updateInfo.versionInfo?.downloadUrl) {
+        return { success: false, message: '没有可用更新' };
+      }
+
+      const downloadUrl = updateInfo.versionInfo.downloadUrl;
+      
+      // 在原生APP中，打开下载链接
+      // Capacitor会处理下载和安装
+      if (typeof window !== 'undefined') {
+        // 方式1: 打开外部浏览器下载
+        window.open(downloadUrl, '_blank');
+        
+        return { 
+          success: true, 
+          message: `已在浏览器中打开下载页面，请下载后手动安装` 
         };
       }
-    }
-
-    // 非原生平台，调用API检查
-    try {
-      const response = await fetch('/api/update?platform=android');
-      const data = await response.json();
       
-      return {
-        hasUpdate: data.update || false,
-        latestVersion: data.latestVersion || '',
-        versionCode: data.versionCode || 0,
-        releaseNotes: data.releaseNotes || '',
-        forceUpdate: data.forceUpdate || false,
-        downloadUrl: data.downloadUrl || '',
-      };
-    } catch (e) {
-      console.error('[AppUpdate] API check failed:', e);
-      return {
-        hasUpdate: false,
-        latestVersion: '',
-        versionCode: 0,
-        releaseNotes: '',
-        forceUpdate: false,
-        downloadUrl: '',
-      };
-    }
-  }
-
-  /**
-   * 下载更新
-   */
-  async downloadUpdate(url?: string): Promise<{ success: boolean; message: string; filePath?: string }> {
-    if (!this.isNativePlatform()) {
-      return { success: false, message: '非原生环境无法下载更新' };
-    }
-
-    try {
-      const result = await this.plugin.downloadUpdate({
-        url: url || '/api/update/download',
-      });
-      
-      return {
-        success: result.success,
-        message: result.message || (result.success ? '下载成功' : '下载失败'),
-        filePath: result.filePath,
-      };
-    } catch (e: any) {
-      return { success: false, message: e.message || '下载失败' };
-    }
-  }
-
-  /**
-   * 安装更新
-   */
-  async installUpdate(): Promise<{ success: boolean; message: string }> {
-    if (!this.isNativePlatform()) {
-      return { success: false, message: '非原生环境无法安装更新' };
-    }
-
-    try {
-      await this.plugin.installUpdate();
-      return { success: true, message: '开始安装' };
-    } catch (e: any) {
-      return { success: false, message: e.message || '安装失败' };
+      return { success: false, message: '非原生环境' };
+    } catch (error: any) {
+      console.error('[AppUpdate] downloadAndInstall error:', error);
+      return { success: false, message: error.message || '下载失败' };
     }
   }
 
   /**
    * 获取更新设置
    */
-  async getSettings(): Promise<UpdateSettings> {
-    if (!this.isNativePlatform()) {
-      return {
-        autoUpdate: true,
-        wifiOnly: true,
-        skipVersion: '',
-        checkInterval: 4 * 60 * 60 * 1000,
-      };
+  getSettings(): { autoUpdate: boolean; wifiOnly: boolean; skipVersion?: string } {
+    if (typeof window === 'undefined') {
+      return { autoUpdate: true, wifiOnly: true };
     }
-
-    try {
-      const result = await this.plugin.getUpdateSettings();
-      return {
-        autoUpdate: result.autoUpdate ?? true,
-        wifiOnly: result.wifiOnly ?? true,
-        skipVersion: result.skipVersion || '',
-        checkInterval: result.checkInterval || 4 * 60 * 60 * 1000,
-      };
-    } catch (e) {
-      return {
-        autoUpdate: true,
-        wifiOnly: true,
-        skipVersion: '',
-        checkInterval: 4 * 60 * 60 * 1000,
-      };
+    
+    const settings = localStorage.getItem('app-update-settings');
+    if (settings) {
+      return JSON.parse(settings);
     }
+    
+    return { autoUpdate: true, wifiOnly: true };
   }
 
   /**
    * 保存更新设置
    */
-  async setSettings(settings: Partial<UpdateSettings>): Promise<void> {
-    if (!this.isNativePlatform()) {
-      // 保存到本地存储
-      const current = await this.getSettings();
-      localStorage.setItem('app_update_settings', JSON.stringify({ ...current, ...settings }));
-      return;
+  saveSettings(settings: { autoUpdate: boolean; wifiOnly: boolean; skipVersion?: string }) {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('app-update-settings', JSON.stringify(settings));
     }
-
-    try {
-      await this.plugin.setUpdateSettings(settings);
-    } catch (e) {
-      console.error('[AppUpdate] setSettings error:', e);
-    }
-  }
-
-  /**
-   * 获取本地版本
-   */
-  async getLocalVersion(): Promise<{ versionCode: number; versionName: string }> {
-    if (this.isNativePlatform()) {
-      try {
-        const result = await this.plugin.getLocalVersion();
-        return {
-          versionCode: result.versionCode || 0,
-          versionName: result.versionName || '0.0.0',
-        };
-      } catch (e) {
-        console.error('[AppUpdate] getLocalVersion error:', e);
-      }
-    }
-
-    return {
-      versionCode: 0,
-      versionName: 'Web Preview',
-    };
-  }
-
-  /**
-   * 取消下载
-   */
-  async cancelDownload(): Promise<void> {
-    if (!this.isNativePlatform()) return;
-
-    try {
-      await this.plugin.cancelDownload();
-    } catch (e) {
-      console.error('[AppUpdate] cancelDownload error:', e);
-    }
-  }
-
-  /**
-   * 跳过此版本
-   */
-  async skipVersion(version: string): Promise<void> {
-    await this.setSettings({ skipVersion: version });
-  }
-
-  /**
-   * 订阅更新检查结果
-   */
-  onUpdateCheck(callback: UpdateCheckCallback): () => void {
-    this.onUpdateCheckCallbacks.add(callback);
-    return () => {
-      this.onUpdateCheckCallbacks.delete(callback);
-    };
-  }
-
-  /**
-   * 订阅下载进度
-   */
-  onDownloadProgress(callback: DownloadProgressCallback): () => void {
-    this.onDownloadProgressCallbacks.add(callback);
-    return () => {
-      this.onDownloadProgressCallbacks.delete(callback);
-    };
-  }
-
-  /**
-   * 订阅下载完成
-   */
-  onDownloadComplete(callback: DownloadCompleteCallback): () => void {
-    this.onDownloadCompleteCallbacks.add(callback);
-    return () => {
-      this.onDownloadCompleteCallbacks.delete(callback);
-    };
-  }
-
-  /**
-   * 订阅错误
-   */
-  onError(callback: ErrorCallback): () => void {
-    this.onErrorCallbacks.add(callback);
-    return () => {
-      this.onErrorCallbacks.delete(callback);
-    };
-  }
-
-  /**
-   * 自动检查更新（定时）
-   */
-  startAutoCheck(intervalMs: number = 4 * 60 * 60 * 1000): () => void {
-    const settings = this.getSettings();
-    
-    const timer = setInterval(async () => {
-      const currentSettings = await this.getSettings();
-      if (currentSettings.autoUpdate) {
-        await this.checkUpdate();
-      }
-    }, intervalMs);
-
-    // 立即检查一次
-    this.checkUpdate();
-
-    return () => {
-      clearInterval(timer);
-    };
   }
 }
 
-export const appUpdateService = AppUpdateService.getInstance();
-export default AppUpdateService;
+// 导出单例
+export const AppUpdate = AppUpdateService.getInstance();
 
-// 简化的命名导出，供组件直接使用
-export const AppUpdate = {
-  /**
-   * 检查更新
-   */
-  checkForUpdate: async (): Promise<UpdateInfo> => {
-    const service = AppUpdateService.getInstance();
-    return service.checkUpdate();
-  },
-
-  /**
-   * 下载并安装更新
-   */
-  downloadAndInstall: async (): Promise<{ success: boolean; message: string }> => {
-    const service = AppUpdateService.getInstance();
-    const updateInfo = await service.checkUpdate();
-    
-    if (!updateInfo.hasUpdate) {
-      return { success: false, message: '当前已是最新版本' };
-    }
-
-    // 下载更新
-    const downloadResult = await service.downloadUpdate(updateInfo.downloadUrl);
-    if (!downloadResult.success) {
-      return downloadResult;
-    }
-
-    // 安装更新
-    return service.installUpdate();
-  },
-
-  /**
-   * 获取当前更新设置
-   */
-  getSettings: async (): Promise<UpdateSettings> => {
-    const service = AppUpdateService.getInstance();
-    return service.getSettings();
-  },
-
-  /**
-   * 保存更新设置
-   */
-  setSettings: async (settings: Partial<UpdateSettings>): Promise<void> => {
-    const service = AppUpdateService.getInstance();
-    return service.setSettings(settings);
-  },
-};
+// 导出类供直接使用
+export { AppUpdateService };

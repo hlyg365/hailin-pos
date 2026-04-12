@@ -7,3 +7,9 @@ project(':capacitor-community-barcode-scanner').projectDir = new File('../node_m
 
 include ':capacitor-community-bluetooth-le'
 project(':capacitor-community-bluetooth-le').projectDir = new File('../node_modules/.pnpm/@capacitor-community+bluetooth-le@8.1.3_@capacitor+core@8.2.0/node_modules/@capacitor-community/bluetooth-le/android')
+
+include ':capacitor-app'
+project(':capacitor-app').projectDir = new File('../node_modules/.pnpm/@capacitor+app@8.1.0_@capacitor+core@8.2.0/node_modules/@capacitor/app/android')
+
+include ':capacitor-network'
+project(':capacitor-network').projectDir = new File('../node_modules/.pnpm/@capacitor+network@8.0.1_@capacitor+core@8.2.0/node_modules/@capacitor/network/android')

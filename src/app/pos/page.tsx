@@ -57,6 +57,7 @@ import {
   isNativeApp,
   type RuntimeEnvironment 
 } from '@/lib/runtime-environment';
+import { AppUpdate } from '@/lib/native/app-update-service';
 import ReportsPage from '@/components/reports-page';
 import { 
   Search, Plus, Minus, User, Gift, Ticket, Store, 
@@ -4185,6 +4186,52 @@ export default function PosPage() {
           </div>
         );
 
+      case 'app-settings':
+        return (
+          <div className="space-y-2">
+            <h3 className="font-medium text-lg mb-4">APP设置</h3>
+            
+            {/* 版本信息 */}
+            <div className="bg-white rounded-lg border p-4">
+              <div className="text-sm font-medium mb-2">海邻到家收银台</div>
+              <div className="text-xs text-gray-500 mb-3">版本 3.0.0 (20260412)</div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  const result = await AppUpdate.checkUpdate();
+                  if (result.hasUpdate) {
+                    alert(`发现新版本 v${result.latestVersion}！\n\n更新内容：\n${result.versionInfo?.releaseNotes?.join('\n') || '详情请查看更新日志'}\n\n正在打开下载页面...`);
+                    AppUpdate.downloadAndInstall();
+                  } else {
+                    alert('当前已是最新版本！');
+                  }
+                }}
+              >
+                检查更新
+              </Button>
+            </div>
+            
+            {/* 快捷链接 */}
+            <div className="bg-white rounded-lg border">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start rounded-none border-b"
+                onClick={() => setCurrentView('devices')}
+              >
+                外设管理
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start rounded-none"
+                onClick={() => setCurrentView('printer-settings')}
+              >
+                打印设置
+              </Button>
+            </div>
+          </div>
+        );
+
       case 'other-settings':
         return (
           <div className="space-y-2">
@@ -6129,6 +6176,7 @@ export default function PosPage() {
                         { view: 'cash-drawer-settings', label: '钱箱设置', icon: Wallet },
                         { view: 'ad-settings', label: '客显屏广告', icon: Sparkles },
                         { view: 'other-settings', label: '其他功能', icon: MoreHorizontal },
+	                        { view: 'app-settings', label: 'APP设置', icon: Settings },
                       ].map((item) => {
                         const Icon = item.icon;
                         const isActive = currentView === item.view;
