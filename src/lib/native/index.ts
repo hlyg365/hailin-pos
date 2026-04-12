@@ -14,6 +14,7 @@ export interface ScaleDevice {
   address: string;
   vendorId?: number;
   productId?: number;
+  productName?: string;
 }
 
 export interface SerialPort {
@@ -87,7 +88,7 @@ export interface ReceiptData {
 
 // 原生插件接口
 interface ScalePlugin {
-  listDevices(): Promise<{ success: boolean; devices?: any }>;
+  listDevices(): Promise<{ success: boolean; devices?: ScaleDevice[] }>;
   listSerialPorts(): Promise<{
     success: boolean;
     serialPorts?: SerialPort[];
@@ -134,6 +135,10 @@ interface ScalePlugin {
     protocol?: string;
     available?: boolean;
     baudRate?: number;
+    name?: string;
+    deviceName?: string;
+    address?: string;
+    device?: string;
   }>;
   openCashbox(): Promise<{ success: boolean; message?: string }>;
   getCashboxStatus(): Promise<{ success: boolean; open?: boolean; connected?: boolean; hasCashDrawer?: boolean }>;
@@ -145,7 +150,7 @@ interface PrinterPlugin {
   disconnect(): Promise<void>;
   printReceipt(data: ReceiptData): Promise<{ success: boolean }>;
   openCashbox(): Promise<{ success: boolean }>;
-  getStatus(): Promise<{ connected: boolean }>;
+  getStatus(): Promise<{ connected: boolean; address?: string; printerName?: string; name?: string }>;
 }
 
 interface DualScreenPlugin {
@@ -162,7 +167,15 @@ interface AppUpdatePlugin {
 }
 
 interface CashboxPlugin {
-  getStatus(): Promise<{ connected: boolean; drawerOpen: boolean; hasDevice: boolean }>;
+  getStatus(): Promise<{ 
+    connected: boolean; 
+    drawerOpen?: boolean; 
+    hasDevice?: boolean;
+    address?: string;
+    deviceName?: string;
+    interface?: string;
+    mode?: string;
+  }>;
   listDevices(): Promise<{ success: boolean; devices?: any[] }>;
   connect(config: { port?: string; baudRate?: number }): Promise<{ success: boolean; mode?: string; message?: string }>;
   open(config: { drawer?: number }): Promise<{ success: boolean; drawerOpen?: boolean; mode?: string; message?: string }>;
@@ -440,6 +453,10 @@ export const Scale = {
     protocol?: string;
     baudRate?: number;
     polling?: boolean;
+    name?: string;
+    deviceName?: string;
+    address?: string;
+    device?: string;
   }> {
     const plugin = getScalePlugin();
     if (plugin) {
@@ -452,6 +469,10 @@ export const Scale = {
           protocol: result.protocol,
           baudRate: result.baudRate,
           polling: result.polling,
+          name: result.name,
+          deviceName: result.deviceName,
+          address: result.address,
+          device: result.device,
         };
       } catch (e) {
         console.error('[Scale] getStatus error:', e);
@@ -552,12 +573,30 @@ export const Printer = {
   /**
    * 获取连接状态
    */
-  async getStatus(): Promise<{ connected: boolean; available: boolean }> {
+  async getStatus(): Promise<{ 
+    connected: boolean; 
+    available: boolean;
+    address?: string;
+    printerName?: string;
+    name?: string;
+  }> {
     const plugin = getPrinterPlugin();
-    return {
-      connected: plugin ? (await plugin.getStatus()).connected : false,
-      available: plugin !== null,
-    };
+    if (plugin) {
+      try {
+        const result = await plugin.getStatus();
+        return {
+          connected: result.connected,
+          available: plugin !== null,
+          address: result.address,
+          printerName: result.printerName,
+          name: result.name,
+        };
+      } catch (e) {
+        console.error('[Printer] getStatus error:', e);
+        return { connected: false, available: true };
+      }
+    }
+    return { connected: false, available: false };
   },
 };
 
@@ -678,7 +717,15 @@ export const Cashbox = {
   /**
    * 获取钱箱状态
    */
-  async getStatus(): Promise<{ connected: boolean; drawerOpen: boolean; hasDevice: boolean }> {
+  async getStatus(): Promise<{ 
+    connected: boolean; 
+    drawerOpen: boolean; 
+    hasDevice: boolean;
+    address?: string;
+    deviceName?: string;
+    interface?: string;
+    mode?: string;
+  }> {
     const plugin = getCashboxPlugin();
     if (plugin) {
       try {
@@ -687,6 +734,10 @@ export const Cashbox = {
           connected: result.connected || false,
           drawerOpen: result.drawerOpen || false,
           hasDevice: result.hasDevice || false,
+          address: result.address,
+          deviceName: result.deviceName,
+          interface: result.interface,
+          mode: result.mode,
         };
       } catch (e) {
         console.error('[Cashbox] getStatus error:', e);

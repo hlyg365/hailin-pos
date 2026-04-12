@@ -66,7 +66,7 @@ interface DeviceInfo {
   type: 'scale' | 'printer' | 'cashbox' | 'display';
   status: 'connected' | 'disconnected' | 'connecting' | 'error';
   address?: string;
-  portType?: 'usb' | 'serial' | 'bluetooth';
+  portType?: 'usb' | 'serial' | 'bluetooth' | 'printer';
   baudRate?: number;
   protocol?: string;
   lastConnected?: Date;
@@ -222,14 +222,24 @@ export default function HardwarePage() {
         setDevices(prev => {
           if (scaleStatus.connected && !prev.scale) {
             console.log('[Hardware] Scale auto-connected');
+            // 获取真实设备信息
+            const realDevices = [...(availableScales || []), ...(availableSerialPorts || []).map(sp => ({ name: sp.name || sp.path, address: sp.path }))];
+            const connectedScale = realDevices.find(d => 
+              d.address === scaleStatus.address || 
+              (d as any).path === scaleStatus.address
+            );
             return {
               ...prev,
               scale: {
-                id: 'scale-usb-1',
-                name: 'USB电子秤',
+                id: scaleStatus.address || `scale-${Date.now()}`,
+                name: connectedScale?.name || scaleStatus.name || scaleStatus.deviceName || '电子秤',
                 type: 'scale',
                 status: 'connected',
-                address: 'USB',
+                address: scaleStatus.address || scaleStatus.device,
+                portType: scaleStatus.mode as 'usb' | 'serial' | 'bluetooth' || 'serial',
+                baudRate: scaleStatus.baudRate || 9600,
+                protocol: scaleStatus.protocol || selectedProtocol,
+                lastConnected: new Date(),
               },
             };
           } else if (!scaleStatus.connected && prev.scale && prev.scale.status === 'connected') {
@@ -248,30 +258,43 @@ export default function HardwarePage() {
 
         // 检查打印机状态
         const printerStatus = await Printer.getStatus();
+        const rawCashboxStatus = printerStatus.connected && Cashbox ? await Cashbox.getStatus() : null;
+        const cashboxStatus = rawCashboxStatus || { connected: false, drawerOpen: false, hasDevice: false };
+        
         setDevices(prev => {
           if (printerStatus.connected && !prev.printer) {
             console.log('[Hardware] Printer auto-connected');
+            // 获取真实打印机设备信息
+            const connectedPrinter = availablePrinters?.find(p => 
+              p.address === printerStatus.address || 
+              p.name === printerStatus.printerName
+            );
+            
             return {
               ...prev,
               printer: {
-                id: 'printer-bt-1',
-                name: '蓝牙打印机',
+                id: printerStatus.address || `printer-${Date.now()}`,
+                name: connectedPrinter?.name || printerStatus.printerName || printerStatus.name || '小票打印机',
                 type: 'printer',
                 status: 'connected',
+                address: printerStatus.address,
+                lastConnected: new Date(),
               },
-              cashbox: {
-                id: 'cashbox-1',
-                name: '钱箱',
-                type: 'cashbox',
+              cashbox: cashboxStatus.connected ? {
+                id: `cashbox-${Date.now()}`,
+                name: cashboxStatus.deviceName || '钱箱',
+                type: 'cashbox' as const,
                 status: 'connected',
-              },
+                address: cashboxStatus.address || printerStatus.address || 'via-printer',
+                portType: cashboxStatus.mode as 'usb' | 'serial' | 'bluetooth' | 'printer' || 'printer',
+              } : (prev.cashbox?.status === 'connected' ? prev.cashbox : null),
             };
           } else if (!printerStatus.connected && prev.printer && prev.printer.status === 'connected') {
             console.log('[Hardware] Printer disconnected');
             return {
               ...prev,
               printer: prev.printer ? { ...prev.printer, status: 'disconnected' } : null,
-              cashbox: { id: 'cashbox-1', name: '钱箱', type: 'cashbox', status: 'disconnected' },
+              cashbox: { id: prev.cashbox?.id || 'cashbox-1', name: prev.cashbox?.name || '钱箱', type: 'cashbox' as const, status: 'disconnected', address: prev.cashbox?.address },
             };
           }
           return prev;
@@ -402,21 +425,26 @@ export default function HardwarePage() {
       // 检查是否已连接
       const status = await Printer.getStatus();
       if (status.connected) {
+        const connectedPrinter = printers.find(p => 
+          p.address === status.address || 
+          p.name === status.printerName
+        );
         setDevices(prev => ({
           ...prev,
           printer: {
-            id: printers[0]?.address || 'printer-bt-1',
-            name: printers[0]?.name || '蓝牙打印机',
+            id: status.address || connectedPrinter?.address || `printer-${Date.now()}`,
+            name: connectedPrinter?.name || status.printerName || '小票打印机',
             type: 'printer',
             status: 'connected',
-            address: printers[0]?.address,
+            address: status.address || connectedPrinter?.address,
             lastConnected: new Date(),
           },
           cashbox: {
-            id: 'cashbox-1',
-            name: '钱箱',
+            id: prev.cashbox?.id || `cashbox-${Date.now()}`,
+            name: prev.cashbox?.name || '钱箱',
             type: 'cashbox',
             status: 'connected',
+            address: status.address || 'via-printer',
           },
         }));
       } else {
@@ -479,16 +507,21 @@ export default function HardwarePage() {
       // 检查钱箱状态
       const status = await Cashbox.getStatus();
       if (status.connected) {
-        const savedCashbox = savedConfig.cashboxes[0];
-        const box = normalizedBoxes.find(c => c.path === savedCashbox?.address);
+        // 获取真实钱箱设备信息
+        const connectedBox = normalizedBoxes.find(c => 
+          c.path === status.address || 
+          c.name.toLowerCase().includes('cash') ||
+          c.name.toLowerCase().includes('drawer')
+        );
         setDevices(prev => ({
           ...prev,
           cashbox: {
-            id: savedCashbox?.address || 'cashbox-1',
-            name: box?.name || '钱箱',
+            id: status.address || connectedBox?.path || `cashbox-${Date.now()}`,
+            name: connectedBox?.name || status.deviceName || `钱箱 (${status.interface || 'USB'})`,
             type: 'cashbox',
             status: 'connected',
-            address: savedCashbox?.address || box?.path,
+            address: status.address || connectedBox?.path,
+            portType: connectedBox?.type as 'usb' | 'serial' | 'printer' || 'printer',
           },
         }));
       }
@@ -620,10 +653,11 @@ export default function HardwarePage() {
             lastConnected: new Date(),
           },
           cashbox: {
-            id: 'cashbox-1',
-            name: '钱箱',
+            id: `cashbox-${printer.address}`,
+            name: `钱箱 (via ${printer.name})`,
             type: 'cashbox',
             status: 'connected',
+            address: printer.address,
           },
         }));
         setTestResult({ success: true, message: `已连接: ${printer.name}` });
@@ -906,18 +940,28 @@ export default function HardwarePage() {
                 // 已连接状态
                 <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium flex items-center gap-2">
                         {devices.scale.name}
                         {devices.scale.lastConnected && (
                           <span className="text-xs text-gray-500">
-                            连接于 {formatTime(devices.scale.lastConnected)}
+                            {formatTime(devices.scale.lastConnected)}
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
-                        <Usb className="h-3 w-3" />
-                        {devices.scale.address || 'USB'}
+                      <div className="text-sm text-gray-500 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Plug className="h-3 w-3" />
+                          {devices.scale.portType === 'serial' ? '串口' : 'USB'}: {devices.scale.address || '未知'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Zap className="h-3 w-3" />
+                          协议: {devices.scale.protocol || selectedProtocol}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Settings2 className="h-3 w-3" />
+                          {devices.scale.baudRate || selectedBaudRate} bps
+                        </span>
                       </div>
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDisconnectScale}>
@@ -1246,18 +1290,24 @@ export default function HardwarePage() {
               {devices.cashbox ? (
                 <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium flex items-center gap-2">
                         {devices.cashbox.name}
                         {devices.cashbox.lastConnected && (
                           <span className="text-xs text-gray-500">
-                            连接于 {formatTime(devices.cashbox.lastConnected)}
+                            {formatTime(devices.cashbox.lastConnected)}
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500 flex items-center gap-2">
-                        <Plug className="h-3 w-3" />
-                        {devices.cashbox.address}
+                      <div className="text-sm text-gray-500 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Plug className="h-3 w-3" />
+                          接口: {devices.cashbox.address || '未知'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Settings2 className="h-3 w-3" />
+                          类型: {devices.cashbox.portType === 'serial' ? 'RJ11/RJ12串口' : devices.cashbox.portType === 'usb' ? 'USB' : '打印机'}
+                        </span>
                       </div>
                     </div>
                     <Button variant="outline" size="sm" onClick={handleDisconnectCashbox}>

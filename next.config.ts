@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.dev.coze.site'],
   // 使用 standalone 输出模式加快生产启动速度
   output: 'standalone',
+  // Turbopack 配置（Next.js 16 默认使用 Turbopack）
+  turbopack: {
+    resolveAlias: {
+      // Turbopack 别名配置
+    },
+  },
   images: {
     unoptimized: true,
     remotePatterns: [
