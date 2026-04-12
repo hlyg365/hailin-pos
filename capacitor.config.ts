@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.hailin.pos.cashier',
-  appName: '海邻收银台',
+  appName: '海邻到家',
   webDir: '.next',
   server: {
     androidScheme: 'https',
