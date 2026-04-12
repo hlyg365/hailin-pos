@@ -6,7 +6,15 @@
  * - PWA/Web：通过API代理调用（模拟模式）
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor，避免 SSR 时出错
+let Capacitor: any = null;
+
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
 
 // 类型定义
 export interface ScaleDevice {
@@ -236,8 +244,11 @@ export function isNativeApp(): boolean {
     return false;
   }
   
+  const cap = getCapacitor();
+  if (!cap) return false;
+  
   // 1. 检查Capacitor.isNativePlatform()
-  if (Capacitor.isNativePlatform()) {
+  if (cap.isNativePlatform && cap.isNativePlatform()) {
     return true;
   }
   
@@ -248,8 +259,7 @@ export function isNativeApp(): boolean {
   }
   
   // 3. 检查Capacitor插件是否存在
-  const cap = (window as any).Capacitor;
-  if (cap && cap.Plugins && Object.keys(cap.Plugins).length > 0) {
+  if (cap.Plugins && Object.keys(cap.Plugins).length > 0) {
     return true;
   }
   
