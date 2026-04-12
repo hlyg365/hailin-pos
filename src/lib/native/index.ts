@@ -185,6 +185,7 @@ interface CashboxPlugin {
 
 // 获取原生插件（如果存在）
 function getScalePlugin(): ScalePlugin | null {
+  if (typeof window === 'undefined') return null;
   const cap = (window as any).Capacitor;
   if (cap && cap.Plugins && cap.Plugins.Scale) {
     return cap.Plugins.Scale;
@@ -193,6 +194,7 @@ function getScalePlugin(): ScalePlugin | null {
 }
 
 function getPrinterPlugin(): PrinterPlugin | null {
+  if (typeof window === 'undefined') return null;
   const cap = (window as any).Capacitor;
   if (cap && cap.Plugins && cap.Plugins.Printer) {
     return cap.Plugins.Printer;
@@ -201,6 +203,7 @@ function getPrinterPlugin(): PrinterPlugin | null {
 }
 
 function getDualScreenPlugin(): DualScreenPlugin | null {
+  if (typeof window === 'undefined') return null;
   const cap = (window as any).Capacitor;
   if (cap && cap.Plugins && cap.Plugins.DualScreen) {
     return cap.Plugins.DualScreen;
@@ -209,6 +212,7 @@ function getDualScreenPlugin(): DualScreenPlugin | null {
 }
 
 function getAppUpdatePlugin(): AppUpdatePlugin | null {
+  if (typeof window === 'undefined') return null;
   const cap = (window as any).Capacitor;
   if (cap && cap.Plugins && cap.Plugins.AppUpdate) {
     return cap.Plugins.AppUpdate;
@@ -217,6 +221,7 @@ function getAppUpdatePlugin(): AppUpdatePlugin | null {
 }
 
 function getCashboxPlugin(): CashboxPlugin | null {
+  if (typeof window === 'undefined') return null;
   const cap = (window as any).Capacitor;
   if (cap && cap.Plugins && cap.Plugins.Cashbox) {
     return cap.Plugins.Cashbox;
@@ -226,6 +231,11 @@ function getCashboxPlugin(): CashboxPlugin | null {
 
 // 检测是否在原生APP中
 export function isNativeApp(): boolean {
+  // 服务端环境直接返回false
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  
   // 1. 检查Capacitor.isNativePlatform()
   if (Capacitor.isNativePlatform()) {
     return true;
