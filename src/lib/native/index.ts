@@ -162,8 +162,15 @@ interface PrinterPlugin {
 }
 
 interface DualScreenPlugin {
-  getDisplays(): Promise<{ success: boolean; displays?: any[] }>;
-  open(config: { displayId?: number; url?: string }): Promise<{ success: boolean }>;
+  getDisplays(): Promise<{ 
+    success: boolean; 
+    displays?: any[]; 
+    count?: number;
+    isDualScreen?: boolean;
+    hasExternalDisplay?: boolean;
+    error?: string;
+  }>;
+  open(config: { displayId?: number; url?: string }): Promise<{ success: boolean; message?: string }>;
   close(): Promise<void>;
   sendData(data: any): Promise<{ success: boolean }>;
   getStatus(): Promise<{ isOpen: boolean }>;
@@ -626,28 +633,53 @@ export const CustomerDisplay = {
   /**
    * 获取可用屏幕列表
    */
-  async getDisplays(): Promise<Array<{ id: number; name: string; isPrimary: boolean }>> {
+  async getDisplays(): Promise<{ 
+    displays: Array<{ id: number; name: string; isPrimary: boolean; width?: number; height?: number }>;
+    count: number;
+    isDualScreen: boolean;
+    hasExternalDisplay: boolean;
+  }> {
     const plugin = getDualScreenPlugin();
     if (plugin) {
       try {
         const result = await plugin.getDisplays();
-        if (result.success && result.displays) {
-          const displays: Array<{ id: number; name: string; isPrimary: boolean }> = [];
-          for (const key in result.displays) {
-            const d = result.displays[key];
-            displays.push({
-              id: d.id,
-              name: d.name || `屏幕 ${d.id}`,
-              isPrimary: d.isPrimary || false,
-            });
+        if (result.success) {
+          const displays: Array<{ id: number; name: string; isPrimary: boolean; width?: number; height?: number }> = [];
+          if (result.displays) {
+            for (const key in result.displays) {
+              const d = result.displays[key];
+              displays.push({
+                id: d.id,
+                name: d.name || `屏幕 ${d.id}`,
+                isPrimary: d.isPrimary || false,
+                width: d.width,
+                height: d.height,
+              });
+            }
           }
-          return displays;
+          return {
+            displays,
+            count: result.count || displays.length,
+            isDualScreen: result.isDualScreen || displays.length > 1,
+            hasExternalDisplay: result.hasExternalDisplay || displays.length > 1,
+          };
         }
+        return {
+          displays: [],
+          count: result.count || 1,
+          isDualScreen: false,
+          hasExternalDisplay: false,
+        };
       } catch (e) {
         console.error('[DualScreen] getDisplays error:', e);
       }
     }
-    return [];
+    return {
+      displays: [],
+      count: 0,
+      isDualScreen: false,
+      hasExternalDisplay: false,
+    };
   },
 
   /**

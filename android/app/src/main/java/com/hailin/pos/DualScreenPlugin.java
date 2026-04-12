@@ -21,6 +21,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "DualScreen")
 public class DualScreenPlugin extends Plugin {
     
+    private static final String TAG = "DualScreenPlugin";
+    
     private CustomerPresentation currentPresentation = null;
     private WebView presentationWebView = null;
     private boolean isPresentationShowing = false;
@@ -39,6 +41,9 @@ public class DualScreenPlugin extends Plugin {
             Display[] displays = getDisplays();
             JSObject displaysResult = new JSObject();
             
+            // 记录日志
+            android.util.Log.i(TAG, "检测到显示器数量: " + displays.length);
+            
             for (int i = 0; i < displays.length; i++) {
                 Display display = displays[i];
                 JSObject displayInfo = new JSObject();
@@ -47,7 +52,13 @@ public class DualScreenPlugin extends Plugin {
                 displayInfo.put("width", display.getWidth());
                 displayInfo.put("height", display.getHeight());
                 displayInfo.put("isPrimary", (display.getDisplayId() == Display.DEFAULT_DISPLAY));
+                displayInfo.put("isExternal", (display.getFlags() & Display.FLAG_SECURE) == 0);
                 displaysResult.put("display_" + i, displayInfo);
+                
+                android.util.Log.i(TAG, "显示器[" + i + "]: id=" + display.getDisplayId() 
+                    + ", name=" + display.getName() 
+                    + ", isPrimary=" + (display.getDisplayId() == Display.DEFAULT_DISPLAY)
+                    + ", flags=" + display.getFlags());
             }
             
             result.put("displays", displaysResult);
@@ -55,7 +66,12 @@ public class DualScreenPlugin extends Plugin {
             result.put("isDualScreen", displays.length > 1);
             result.put("success", true);
             
+            // 添加诊断信息
+            result.put("hasExternalDisplay", displays.length > 1);
+            result.put("primaryDisplayId", Display.DEFAULT_DISPLAY);
+            
         } catch (Exception e) {
+            android.util.Log.e(TAG, "getDisplays error", e);
             result.put("success", false);
             result.put("error", e.getMessage());
             result.put("count", 1);

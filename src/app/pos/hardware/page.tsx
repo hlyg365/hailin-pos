@@ -466,7 +466,8 @@ export default function HardwarePage() {
   // 检测客显屏
   const detectDisplay = async () => {
     try {
-      const displays = await CustomerDisplay.getDisplays();
+      const result = await CustomerDisplay.getDisplays();
+      const displays = result.displays || [];
       console.log('[Hardware] Found displays:', displays.length);
       
       if (displays.length > 1) {
@@ -799,7 +800,8 @@ export default function HardwarePage() {
     setTestResult(null);
     
     try {
-      const displays = await CustomerDisplay.getDisplays();
+      const displayResult = await CustomerDisplay.getDisplays();
+	      const displays = displayResult.displays || [];
       const secondaryDisplay = displays.find(d => !d.isPrimary);
       
       const result = await CustomerDisplay.open(secondaryDisplay?.id);
@@ -1244,6 +1246,44 @@ export default function HardwarePage() {
                   </div>
                 </div>
               )}
+              
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={async () => {
+                  try {
+                    const result = await CustomerDisplay.getDisplays();
+                    const displayCount = result.count || 0;
+                    const isDual = result.isDualScreen;
+                    
+                    let message = `检测到 ${displayCount} 个显示器\n`;
+                    message += `双屏模式: ${isDual ? '已启用' : '未启用'}\n\n`;
+                    
+                    if (result.displays && result.displays.length > 0) {
+                      message += '显示器列表:\n';
+                      result.displays.forEach((d, i) => {
+                        message += `${i + 1}. ${d.name} ${d.isPrimary ? '(主屏)' : '(副屏)'}\n`;
+                      });
+                    }
+                    
+                    message += '\n提示: ';
+                    if (displayCount <= 1) {
+                      message += '如果只检测到1个显示器，请检查:\n';
+                      message += '1. 收银机是否支持双屏输出\n';
+                      message += '2. HDMI/外接显示器是否已连接\n';
+                      message += '3. 外接显示器是否已开启';
+                    } else {
+                      message += '双屏硬件已就绪，可以正常使用';
+                    }
+                    
+                    alert(message);
+                  } catch (e: any) {
+                    alert('检测失败: ' + e.message);
+                  }
+                }}
+              >
+                检测显示器
+              </Button>
               
               <Button
                 className="w-full"
