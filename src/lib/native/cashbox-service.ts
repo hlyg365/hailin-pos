@@ -11,11 +11,18 @@
  * const result = await CashboxService.open();
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
 
 // 获取原生插件
 function getCashboxPlugin(): any | null {
-  const cap = (window as any).Capacitor;
+  const cap = getCapacitor();
   if (cap && cap.Plugins && cap.Plugins.Cashbox) {
     return cap.Plugins.Cashbox;
   }

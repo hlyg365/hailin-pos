@@ -18,9 +18,22 @@
  * await update.installUpdate();
  */
 
-import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
-import { Network } from '@capacitor/network';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+let CapacitorApp: any = null;
+let Network: any = null;
+
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+    // 延迟加载插件
+    if (Capacitor) {
+      CapacitorApp = Capacitor.Plugins?.App;
+      Network = Capacitor.Plugins?.Network;
+    }
+  }
+  return Capacitor;
+}
 
 export interface UpdateInfo {
   hasUpdate: boolean;

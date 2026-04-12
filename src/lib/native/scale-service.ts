@@ -8,7 +8,14 @@
  * scale.onWeightChange((data) => console.log(data));
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
 
 // 类型定义
 export interface ScaleDevice {

@@ -6,7 +6,14 @@
  * - Web环境（普通浏览器）
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
 
 // 运行环境类型
 export type RuntimeEnvironment = 'app' | 'pwa' | 'web';
@@ -28,15 +35,17 @@ export function getRuntimeEnvironment(): RuntimeInfo {
     return { environment: 'web', isNative: false, platform: 'web', version: '1.0.0' };
   }
 
+  const cap = getCapacitor();
+  
   // 获取userAgent
   const ua = navigator.userAgent || '';
   
   // 方法1：检查Capacitor.isNativePlatform()
-  if (Capacitor.isNativePlatform()) {
+  if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
     return {
       environment: 'app',
       isNative: true,
-      platform: Capacitor.getPlatform(),
+      platform: cap.getPlatform ? cap.getPlatform() : 'android',
       version: '1.0.0',
     };
   }
@@ -57,7 +66,6 @@ export function getRuntimeEnvironment(): RuntimeInfo {
   }
   
   // 方法3：检查Capacitor对象存在且有插件
-  const cap = (window as any).Capacitor;
   if (cap && (cap.Plugins || cap.platform)) {
     // 检查是否有原生插件
     const hasPlugins = cap.Plugins && Object.keys(cap.Plugins).length > 0;
@@ -103,8 +111,10 @@ export async function getRuntimeEnvironmentAsync(): Promise<RuntimeInfo> {
  * 这是最常用的方法
  */
 export function isNativeApp(): boolean {
+  const c = getCapacitor();
+  
   // 方法1：Capacitor.isNativePlatform()
-  if (Capacitor.isNativePlatform()) {
+  if (c && c.isNativePlatform && c.isNativePlatform()) {
     return true;
   }
   
@@ -115,8 +125,7 @@ export function isNativeApp(): boolean {
   }
   
   // 方法3：Capacitor对象有插件
-  const cap = (window as any).Capacitor;
-  if (cap && cap.Plugins && Object.keys(cap.Plugins).length > 0) {
+  if (c && c.Plugins && Object.keys(c.Plugins).length > 0) {
     return true;
   }
   
