@@ -8,7 +8,14 @@
  * await printer.printReceipt(receiptData);
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
 
 export interface PrinterDevice {
   name: string;

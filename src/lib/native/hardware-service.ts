@@ -21,7 +21,15 @@
  * await hardware.customerDisplay.sendData({ ... });
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
+
 import { scaleService, ScaleService } from './scale-service';
 import { printerService, PrinterService } from './printer-service';
 import { dualScreenService, DualScreenService } from './dual-screen-service';

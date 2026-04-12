@@ -12,7 +12,14 @@
  * 需要通过后端API代理或原生应用（Capacitor）访问
  */
 
-import { Capacitor } from '@capacitor/core';
+// 延迟加载 Capacitor
+let Capacitor: any = null;
+function getCapacitor() {
+  if (Capacitor === null && typeof window !== 'undefined') {
+    Capacitor = (window as any).Capacitor;
+  }
+  return Capacitor;
+}
 
 export interface ScaleConfig {
   ip: string;
