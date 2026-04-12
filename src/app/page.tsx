@@ -11,7 +11,13 @@ import {
   Users,
   BarChart3,
   Wifi,
-  Clock
+  Clock,
+  Zap,
+  Shield,
+  Cloud,
+  WifiOff,
+  Settings,
+  Headphones
 } from 'lucide-react';
 
 /**
@@ -20,13 +26,8 @@ import {
  * 访问策略：
  * - 原生APP（Capacitor/Android WebView）→ 收银台 /pos
  * - 浏览器访问 → 显示综合首页
- * 
- * 说明：
- * - 收银台APP已安装到收银机上，直接打开APP进入收银台
- * - 管理员在电脑浏览器访问此页面选择功能入口
  */
 
-// 快速入口配置
 const quickEntries = [
   {
     id: 'pos',
@@ -66,7 +67,51 @@ const quickEntries = [
   },
 ];
 
-// 功能模块配置
+const features = [
+  {
+    icon: Zap,
+    title: '闪电收银',
+    desc: '扫码即结，3秒完成交易',
+    color: 'text-orange-500',
+    bg: 'bg-orange-50',
+  },
+  {
+    icon: WifiOff,
+    title: '离线运行',
+    desc: '断网不断电，收银不中断',
+    color: 'text-blue-500',
+    bg: 'bg-blue-50',
+  },
+  {
+    icon: Cloud,
+    title: '云端同步',
+    desc: '数据实时备份，永不丢失',
+    color: 'text-green-500',
+    bg: 'bg-green-50',
+  },
+  {
+    icon: Shield,
+    title: '安全可靠',
+    desc: '金融级加密，守护每一笔交易',
+    color: 'text-purple-500',
+    bg: 'bg-purple-50',
+  },
+  {
+    icon: Settings,
+    title: '灵活配置',
+    desc: '商品、促销、会员一键管理',
+    color: 'text-cyan-500',
+    bg: 'bg-cyan-50',
+  },
+  {
+    icon: Headphones,
+    title: '7x24服务',
+    desc: '专属客服，随时响应',
+    color: 'text-pink-500',
+    bg: 'bg-pink-50',
+  },
+];
+
 const modules = [
   {
     id: 'products',
@@ -108,48 +153,31 @@ function CurrentTime() {
 
 function HomePageContent() {
   const [platform, setPlatform] = useState<'app' | 'browser'>('browser');
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // 检测平台类型
     const detectPlatform = () => {
-      if (typeof window === 'undefined') {
-        return 'browser';
-      }
-
+      if (typeof window === 'undefined') return 'browser';
+      
       const capacitor = (window as any).Capacitor;
-
-      // 1. Capacitor 原生平台
-      if (capacitor && capacitor.isNativePlatform && capacitor.isNativePlatform()) {
-        return 'app';
-      }
-
-      // 2. Android WebView
+      if (capacitor?.isNativePlatform?.()) return 'app';
+      
       const ua = navigator.userAgent || '';
-      if (ua.includes('Android') && (ua.includes('wv') || ua.includes('WebView'))) {
-        return 'app';
-      }
-
-      // 3. URL 参数强制APP模式
+      if (ua.includes('Android') && (ua.includes('wv') || ua.includes('WebView'))) return 'app';
+      
       const params = new URLSearchParams(window.location.search);
-      if (params.get('app') === 'true') {
-        return 'app';
-      }
-
+      if (params.get('app') === 'true') return 'app';
+      
       return 'browser';
     };
 
     const result = detectPlatform();
-    setPlatform(result);
-    setIsChecking(false);
+    if (result === 'app') {
+      setPlatform('app');
+      setTimeout(() => { window.location.href = '/pos'; }, 100);
+    }
   }, []);
 
-  // 原生APP直接跳转到收银台
   if (platform === 'app') {
-    // 使用 window.location 强制跳转，避免 Next.js 路由
-    if (typeof window !== 'undefined') {
-      window.location.href = '/pos';
-    }
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
         <div className="text-center text-white">
@@ -161,7 +189,6 @@ function HomePageContent() {
     );
   }
 
-  // 浏览器显示综合首页
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* 顶部标题栏 */}
@@ -191,11 +218,45 @@ function HomePageContent() {
         </div>
       </header>
 
-      {/* 主内容区 */}
       <main className="max-w-6xl mx-auto px-6 py-8">
+        {/* 系统介绍 */}
+        <section className="mb-10 bg-gradient-to-r from-orange-500 to-orange-400 rounded-2xl p-8 text-white">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            <div className="w-24 h-24 bg-white/20 rounded-2xl flex items-center justify-center">
+              <span className="text-5xl">🏪</span>
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-2xl font-bold mb-2">专为社区便利店打造</h2>
+              <p className="text-orange-100 leading-relaxed">
+                海邻到家是面向社区便利店的智能收银与营销管理系统，集成收银、会员、供应链、财务等核心功能，
+                支持离线运行、PWA安装、硬件设备集成，帮助便利店实现数字化运营，提升经营效率。
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* 核心优势 */}
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">核心优势</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-xl p-4 border border-slate-200 hover:shadow-lg transition-all text-center"
+              >
+                <div className={`w-12 h-12 ${feature.bg} rounded-xl flex items-center justify-center mx-auto mb-3`}>
+                  <feature.icon className={`w-6 h-6 ${feature.color}`} />
+                </div>
+                <h3 className="font-semibold text-slate-800 mb-1">{feature.title}</h3>
+                <p className="text-xs text-slate-500">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* 快速入口 */}
         <section className="mb-10">
-          <h2 className="text-lg font-semibold text-slate-700 mb-4">快速入口</h2>
+          <h2 className="text-xl font-bold text-slate-800 mb-4">快速入口</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {quickEntries.map((entry) => (
               <Link
@@ -212,8 +273,8 @@ function HomePageContent() {
         </section>
 
         {/* 功能模块 */}
-        <section>
-          <h2 className="text-lg font-semibold text-slate-700 mb-4">功能模块</h2>
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">功能模块</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {modules.map((module) => (
               <Link
@@ -231,6 +292,24 @@ function HomePageContent() {
                   </div>
                 </div>
               </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* 功能列表 */}
+        <section className="bg-white rounded-2xl p-6 border border-slate-200">
+          <h2 className="text-xl font-bold text-slate-800 mb-4">更多功能</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            {[
+              '收银台独立APP', '离线收银运行', '扫码枪集成', '小票打印',
+              '钱箱控制', '客显屏支持', '会员四级体系', '积分规则',
+              '优惠券系统', '满减促销', '晚8点清货', '便民服务',
+              '库存管理', '供应链协同', '财务分账', '合规风控'
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-2 text-slate-600">
+                <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                {item}
+              </div>
             ))}
           </div>
         </section>
