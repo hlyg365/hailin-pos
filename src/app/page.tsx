@@ -24,7 +24,6 @@ import {
  * 根页面 - 综合管理首页
  * 
  * 访问策略：
- * - 原生APP（Capacitor/Android WebView）→ 收银台 /pos
  * - 浏览器访问 → 显示综合首页
  */
 
@@ -151,44 +150,7 @@ function CurrentTime() {
   );
 }
 
-function HomePageContent() {
-  const [platform, setPlatform] = useState<'app' | 'browser'>('browser');
-
-  useEffect(() => {
-    const detectPlatform = () => {
-      if (typeof window === 'undefined') return 'browser';
-      
-      const capacitor = (window as any).Capacitor;
-      if (capacitor?.isNativePlatform?.()) return 'app';
-      
-      const ua = navigator.userAgent || '';
-      if (ua.includes('Android') && (ua.includes('wv') || ua.includes('WebView'))) return 'app';
-      
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('app') === 'true') return 'app';
-      
-      return 'browser';
-    };
-
-    const result = detectPlatform();
-    if (result === 'app') {
-      setPlatform('app');
-      setTimeout(() => { window.location.href = '/pos'; }, 100);
-    }
-  }, []);
-
-  if (platform === 'app') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="animate-spin text-6xl mb-4">🛒</div>
-          <h1 className="text-2xl font-bold mb-2">海邻到家</h1>
-          <p className="text-orange-100">正在启动收银台...</p>
-        </div>
-      </div>
-    );
-  }
-
+export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* 顶部标题栏 */}
@@ -322,8 +284,4 @@ function HomePageContent() {
       </main>
     </div>
   );
-}
-
-export default function HomePage() {
-  return <HomePageContent />;
 }

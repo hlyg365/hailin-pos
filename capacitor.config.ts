@@ -5,15 +5,8 @@ const config: CapacitorConfig = {
   appName: '海邻到家',
   webDir: '.next',
   server: {
+    // 使用本地构建资源，不依赖外部URL
     androidScheme: 'https',
-    cleartext: true,
-    // 收银台APP专用域名 - 应用启动时页面会自动跳转
-    url: 'https://hldj365.coze.site',
-    // 允许导航到收银台相关页面
-    allowNavigation: [
-      'https://hldj365.coze.site/*',
-      'https://*.coze.site/*',
-    ],
   },
   android: {
     allowMixedContent: true,

@@ -14,7 +14,7 @@
     "start": "bash ./scripts/start.sh",
     "ts-check": "tsc -p tsconfig.json",
     "android:open": "npx cap open android",
-    "android:sync": "npx cap sync android && rm -rf android/app/src/main/assets/public/standalone",
+    "android:sync": "cp .next/server/app/index.html .next/index.html 2>/dev/null; npx cap sync android && rm -rf android/app/src/main/assets/public/standalone",
     "android:run": "cd android && ./gradlew installDebug && cd ..",
     "pos:build": "bash ./scripts/pos-app-build.sh"
   },

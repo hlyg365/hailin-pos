@@ -4,8 +4,6 @@ import path from 'path';
 const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
-  // 使用 standalone 输出模式加快生产启动速度
-  output: 'standalone',
   // Turbopack 配置（Next.js 16 默认使用 Turbopack）
   turbopack: {
     resolveAlias: {
