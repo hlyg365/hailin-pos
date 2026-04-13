@@ -28,22 +28,20 @@ import {
  * - 浏览器访问 → 显示综合首页
  */
 
-// APK配置 - 每次更新APP后修改此配置
+// APK配置 - 每次更新APP后必须修改此配置
 const APK_CONFIG = {
-  fileName: 'hailin-pos-v3.0.apk',
-  version: '3.0',
-  buildDate: '2026-04-13',
-  // 强制刷新时间戳
-  timestamp: '202604131255',
+  fileName: 'hailin-pos-v3.0.20260413.apk',  // ← 更新APK时修改文件名（包含版本日期）
+  version: 'v3.0.20260413',                   // ← 更新APK时同步修改版本号
+  buildDate: '2026-04-13',                    // ← 构建日期
 };
 
 const quickEntries = [
   {
     id: 'pos-app',
     title: '收银台APP',
-    subtitle: `下载 v${APK_CONFIG.version}`,
+    subtitle: `下载 ${APK_CONFIG.version}`,
     icon: Download,
-    href: `/${APK_CONFIG.fileName}?v=${APK_CONFIG.timestamp}`,
+    href: `/${APK_CONFIG.fileName}?v=${Date.now()}`,
     color: 'bg-gradient-to-br from-orange-500 to-orange-600',
     hoverColor: 'hover:from-orange-600 hover:to-orange-700',
     isExternal: true,
