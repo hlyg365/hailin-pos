@@ -5,8 +5,9 @@
   "scripts": {
     "build": "bash ./scripts/build.sh",
     "build:android": "bash ./scripts/build-android.sh",
-    "build:apk": "pnpm run build && npx cap sync android && cd android && ./gradlew assembleDebug && cd ..",
-    "build:apk:release": "pnpm run build && npx cap sync android && cd android && ./gradlew assembleRelease && cd ..",
+    "build:apk": "pnpm run build && pnpm run export && npx cap sync android && cd android && ./gradlew assembleDebug && cd ..",
+    "build:apk:release": "pnpm run build && pnpm run export && npx cap sync android && cd android && ./gradlew assembleRelease && cd ..",
+    "export": "node scripts/export.js",
     "dev": "bash ./scripts/dev.sh",
     "dev:android": "bash ./scripts/dev-android.sh",
     "preinstall": "npx only-allow pnpm",
@@ -14,7 +15,7 @@
     "start": "bash ./scripts/start.sh",
     "ts-check": "tsc -p tsconfig.json",
     "android:open": "npx cap open android",
-    "android:sync": "cp .next/server/app/index.html .next/index.html 2>/dev/null; npx cap sync android && rm -rf android/app/src/main/assets/public/standalone",
+    "android:sync": "npx cap sync android",
     "android:run": "cd android && ./gradlew installDebug && cd ..",
     "pos:build": "bash ./scripts/pos-app-build.sh"
   },
