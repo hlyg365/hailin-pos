@@ -69,7 +69,7 @@ const APK_CONFIG = {
   fileName: 'hailin-pos-v3.1.2.apk',  // ← 更新APK时修改文件名（递增版本号）
   version: '3.1.2',                    // ← 更新APK时同步修改版本号（递增）
   buildDate: '2026-04-13',             // ← 构建日期
-  downloadUrl: 'https://coze-coding-project.tos.coze.site/coze_storage_7617372917596323890/apk/hailin-pos-v3.1.2_9de4c1fe.apk?sign=1776686602-99090282bf-0-368cf62338b0d33537fe2acc69ab06e78a50e5457ecf0ed2661c080547752191',
+  downloadUrl: 'https://coze-coding-project.tos.coze.site/coze_storage_7617372917596323890/apk/hailin-pos-v3.1.2_2624d520.apk?sign=1776688103-b611506610-0-36be300e43ad9df353fcddbdfbafc40370b43d5fafb63e80742f6f01a684ab45',
 };
 
 const quickEntries = [
