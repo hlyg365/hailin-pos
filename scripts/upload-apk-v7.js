@@ -10,7 +10,7 @@ async function uploadAPK() {
     region: "cn-beijing",
   });
 
-  const apkPath = '/workspace/projects/out/hailin-pos-v3.1.2-release.apk';
+  const apkPath = '/workspace/projects/out/hailin-pos-v3.1.2.apk';
   
   console.log('Creating read stream...');
   const stream = createReadStream(apkPath);

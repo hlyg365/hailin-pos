@@ -1,6 +1,8 @@
 {
-  "apkFileName": "hailin-pos-v3.0.4.apk",
-  "version": "3.0.4",
+  "apkFileName": "hailin-pos-latest.apk",
+  "version": "3.1.2",
   "buildDate": "2026-04-13",
-  "downloadUrl": "/hailin-pos-v3.0.4.apk"
+  "size": "6.2MB",
+  "downloadUrl": "/hailin-pos-latest.apk",
+  "note": "优化版本，体积从627MB减小到6.2MB"
 }

@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 import path from 'path';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
   // Turbopack 配置（Next.js 16 默认使用 Turbopack）
