@@ -33,6 +33,8 @@ const APK_CONFIG = {
   fileName: 'hailin-pos-v3.0.apk',
   version: '3.0',
   buildDate: '2026-04-13',
+  // 强制刷新时间戳
+  timestamp: '202604131255',
 };
 
 const quickEntries = [
@@ -41,7 +43,7 @@ const quickEntries = [
     title: '收银台APP',
     subtitle: `下载 v${APK_CONFIG.version}`,
     icon: Download,
-    href: `/${APK_CONFIG.fileName}`,
+    href: `/${APK_CONFIG.fileName}?v=${APK_CONFIG.timestamp}`,
     color: 'bg-gradient-to-br from-orange-500 to-orange-600',
     hoverColor: 'hover:from-orange-600 hover:to-orange-700',
     isExternal: true,
