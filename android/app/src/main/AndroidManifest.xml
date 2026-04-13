@@ -11,9 +11,9 @@
         android:hardwareAccelerated="true"
         android:largeHeap="true">
 
+        <!-- 启动页 - 直接跳转到收银台 -->
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
-            android:name=".MainActivity"
+            android:name=".SplashActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
@@ -26,6 +26,16 @@
             </intent-filter>
 
         </activity>
+
+        <!-- 主Activity（收银台） -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="false"
+            android:screenOrientation="landscape" />
 
         <!-- 客显屏Activity（用于双屏显示） -->
         <activity

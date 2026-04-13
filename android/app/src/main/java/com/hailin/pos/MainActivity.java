@@ -5,7 +5,6 @@ import android.view.WindowManager;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.usb.UsbManager;
-import android.net.Uri;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Plugin;
@@ -16,6 +15,11 @@ public class MainActivity extends BridgeActivity {
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 设置启动路径为收银台页面
+        Intent intent = getIntent();
+        intent.putExtra("com.capacitor.startPath", "/pos/cashier");
+        setIntent(intent);
+        
         super.onCreate(savedInstanceState);
         
         // 保持屏幕常亮
