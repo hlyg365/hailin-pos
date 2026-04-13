@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { 
   ShoppingCart, 
   Plus, 
@@ -10,24 +9,19 @@ import {
   CreditCard,
   QrCode,
   User,
-  ArrowLeft,
   Wifi,
   Clock,
   Printer,
-  Trash2,
   Banknote,
-  Tag,
   Percent,
   Package,
-  Barcode,
   Search,
   X,
   CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  HardDrive,
-  Smartphone,
-  Monitor
+  ArrowLeft,
+  LogOut,
+  KeyRound,
+  Store
 } from 'lucide-react';
 
 interface CartItem {
@@ -36,7 +30,6 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
-  image?: string;
 }
 
 interface Product {
@@ -64,42 +57,40 @@ const mockProducts: Product[] = [
   { id: '12', barcode: '6901234567901', name: '伊利酸奶', price: 4.00, stock: 35, category: '乳品' },
 ];
 
-// 商品分类
 const categories = ['全部', '饮料', '方便食品', '零食', '乳品', '肉类'];
 
+// 模拟员工账号
+const mockStaff = [
+  { id: '001', name: '收银员小王', pin: '1234', role: 'cashier' },
+  { id: '002', name: '店长李明', pin: '5678', role: 'manager' },
+];
+
 export default function CashierPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentStaff, setCurrentStaff] = useState<{id: string; name: string; role: string} | null>(null);
+  const [showLogin, setShowLogin] = useState(true);
+  const [pin, setPin] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnline, setIsOnline] = useState(true);
   const [showPayment, setShowPayment] = useState(false);
   const [showMember, setShowMember] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
-  const [showHangList, setShowHangList] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [total, setTotal] = useState(0);
   const [member, setMember] = useState<{name: string; level: string; points: number} | null>(null);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountType, setDiscountType] = useState<'none' | 'member' | 'coupon' | 'manual'>('none');
-  const [hangOrders, setHangOrders] = useState<any[]>([]);
 
-  // 初始化和加载挂单列表
-  useEffect(() => {
-    const saved = localStorage.getItem('hangOrders');
-    if (saved) {
-      setHangOrders(JSON.parse(saved));
-    }
-  }, []);
-
-  // 更新时钟
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 网络状态
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -112,13 +103,32 @@ export default function CashierPage() {
     };
   }, []);
 
-  // 计算相关
+  // 登录处理
+  const handleLogin = () => {
+    const staff = mockStaff.find(s => s.pin === pin);
+    if (staff) {
+      setCurrentStaff(staff);
+      setIsLoggedIn(true);
+      setShowLogin(false);
+      setLoginError('');
+    } else {
+      setLoginError('工号或密码错误');
+    }
+  };
+
+  // 登出处理
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setCurrentStaff(null);
+    setShowLogin(true);
+    setPin('');
+    setCart([]);
+  };
+
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discount = discountType === 'member' ? subtotal * 0.05 : discountType === 'coupon' ? 10 : discountAmount;
-  const total = Math.max(0, subtotal - discount);
-  const change = 0;
+  const finalTotal = Math.max(0, subtotal - discount);
 
-  // 添加商品到购物车
   const addToCart = (product: Product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -127,54 +137,10 @@ export default function CashierPage() {
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prev, { 
-        id: product.id, 
-        barcode: product.barcode, 
-        name: product.name, 
-        price: product.price, 
-        quantity: 1 
-      }];
+      return [...prev, { id: product.id, barcode: product.barcode, name: product.name, price: product.price, quantity: 1 }];
     });
   };
 
-  // 根据条码搜索
-  const handleBarcodeSearch = useCallback((barcode: string) => {
-    const product = mockProducts.find(p => p.barcode === barcode);
-    if (product) {
-      addToCart(product);
-      return true;
-    }
-    return false;
-  }, []);
-
-  // 键盘事件监听（扫码枪）
-  useEffect(() => {
-    let barcodeBuffer = '';
-    let lastKeyTime = 0;
-    
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const now = Date.now();
-      // 如果超过100ms没有按键，清空缓冲区
-      if (now - lastKeyTime > 100) {
-        barcodeBuffer = '';
-      }
-      lastKeyTime = now;
-      
-      if (e.key === 'Enter') {
-        if (barcodeBuffer.length >= 8) {
-          handleBarcodeSearch(barcodeBuffer);
-        }
-        barcodeBuffer = '';
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        barcodeBuffer += e.key;
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleBarcodeSearch]);
-
-  // 数量加减
   const updateQuantity = (id: string, delta: number) => {
     setCart(prev =>
       prev.map(item => {
@@ -187,12 +153,10 @@ export default function CashierPage() {
     );
   };
 
-  // 删除商品
   const removeFromCart = (id: string) => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
-  // 清空购物车
   const clearCart = () => {
     if (cart.length > 0 && confirm('确定要清空购物车吗？')) {
       setCart([]);
@@ -202,13 +166,12 @@ export default function CashierPage() {
     }
   };
 
-  // 完成支付
-  const completePayment = (method: 'wechat' | 'alipay' | 'cash') => {
+  const completePayment = (method: string) => {
     const orderNum = 'ORD' + Date.now().toString().slice(-10);
     setOrderNumber(orderNum);
+    setTotal(finalTotal);
     setOrderSuccess(true);
     
-    // 3秒后重置
     setTimeout(() => {
       setOrderSuccess(false);
       setCart([]);
@@ -219,86 +182,58 @@ export default function CashierPage() {
     }, 3000);
   };
 
-  // 过滤商品
   const filteredProducts = mockProducts.filter(p => {
-    const matchCategory = selectedCategory === '全部' || p.category === selectedCategory;
+    const matchCat = selectedCategory === '全部' || p.category === selectedCategory;
     const matchSearch = !searchKeyword || p.name.includes(searchKeyword) || p.barcode.includes(searchKeyword);
-    return matchCategory && matchSearch;
+    return matchCat && matchSearch;
   });
 
-  // 挂单
-  const hangOrder = () => {
-    if (cart.length > 0) {
-      const hangData = {
-        items: cart,
-        member,
-        discount,
-        timestamp: Date.now()
-      };
-      const newList = [hangData, ...hangOrders].slice(0, 10);
-      setHangOrders(newList);
-      localStorage.setItem('hangOrders', JSON.stringify(newList));
-      setCart([]);
-      setDiscountAmount(0);
-      setDiscountType('none');
-      setMember(null);
-      alert('挂单成功');
-    }
-  };
-
-  // 取单
-  const fetchOrder = (index: number) => {
-    if (hangOrders[index]) {
-      const order = hangOrders[index];
-      const newList = hangOrders.filter((_, i) => i !== index);
-      setHangOrders(newList);
-      localStorage.setItem('hangOrders', JSON.stringify(newList));
-      setCart(order.items);
-      setMember(order.member);
-      setDiscountAmount(order.discount);
-      setShowHangList(false);
-    }
-  };
-
-  // 挂单列表弹窗
-  if (showHangList) {
+  // 登录页面
+  if (showLogin) {
     return (
-      <div className="min-h-screen bg-slate-100">
-        <header className="bg-orange-500 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowHangList(false)} className="flex items-center gap-1">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <span className="font-bold">挂单列表</span>
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 w-80 text-center">
+          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Store className="w-10 h-10 text-orange-500" />
           </div>
-          <span className="text-sm">{hangOrders.length} 单</span>
-        </header>
-        
-        <div className="p-4 space-y-3">
-          {hangOrders.length === 0 ? (
-            <div className="text-center text-slate-400 py-12">暂无挂单</div>
-          ) : (
-            hangOrders.map((order: any, index: number) => (
-              <div key={index} className="bg-white rounded-xl p-4 shadow" onClick={() => fetchOrder(index)}>
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm text-slate-500">
-                    {new Date(order.timestamp).toLocaleString()}
-                  </span>
-                  <span className="text-orange-500 font-bold">¥{order.items.reduce((s: number, i: CartItem) => s + i.price * i.quantity, 0).toFixed(2)}</span>
-                </div>
-                <p className="text-sm text-slate-600">
-                  {order.items.length} 件商品 {order.member ? `· ${order.member.name}` : ''}
-                </p>
-                <p className="text-xs text-slate-400 mt-1">点击取单</p>
-              </div>
-            ))
-          )}
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">海邻到家</h1>
+          <p className="text-slate-500 mb-6">收银台登录</p>
+          
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 bg-slate-100 rounded-xl px-4 py-3">
+              <KeyRound className="w-5 h-5 text-slate-400" />
+              <input
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                placeholder="输入员工密码"
+                className="flex-1 bg-transparent outline-none text-lg"
+                maxLength={6}
+              />
+            </div>
+            
+            {loginError && (
+              <p className="text-red-500 text-sm">{loginError}</p>
+            )}
+            
+            <button
+              onClick={handleLogin}
+              className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors"
+            >
+              登录
+            </button>
+            
+            <p className="text-slate-400 text-sm mt-4">
+              测试账号: 1234 或 5678
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  // 支付成功弹窗
+  // 支付成功
   if (orderSuccess) {
     return (
       <div className="min-h-screen bg-green-500 flex items-center justify-center">
@@ -318,11 +253,12 @@ export default function CashierPage() {
       {/* 顶部状态栏 */}
       <header className="bg-orange-500 text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/pos" className="flex items-center gap-1 hover:bg-orange-600 px-2 py-1 rounded">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm">返回</span>
-          </Link>
           <span className="font-bold text-lg">收银台</span>
+          {currentStaff && (
+            <span className="text-sm bg-white/20 px-2 py-0.5 rounded">
+              {currentStaff.name}
+            </span>
+          )}
           {member && (
             <span className="bg-white/20 px-2 py-0.5 rounded text-sm">
               {member.name} ({member.level})
@@ -341,6 +277,9 @@ export default function CashierPage() {
               <><Wifi className="w-4 h-4 text-red-300" /><span className="text-xs">离线</span></>
             )}
           </div>
+          <button onClick={handleLogout} className="flex items-center gap-1 hover:bg-orange-600 px-2 py-1 rounded">
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
@@ -359,9 +298,6 @@ export default function CashierPage() {
                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-orange-500"
               />
             </div>
-            <button className="px-4 py-2 bg-slate-100 rounded-lg hover:bg-slate-200">
-              <Barcode className="w-5 h-5 text-slate-600" />
-            </button>
           </div>
 
           {/* 分类 */}
@@ -428,12 +364,7 @@ export default function CashierPage() {
           <div className="flex-1 overflow-y-auto p-3">
             <div className="flex items-center justify-between mb-2">
               <h2 className="font-bold">购物车</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-500">{cart.length} 件</span>
-                <button onClick={hangOrder} className="text-sm text-blue-500 hover:text-blue-600">
-                  挂单
-                </button>
-              </div>
+              <span className="text-sm text-slate-500">{cart.length} 件</span>
             </div>
 
             {cart.length === 0 ? (
@@ -451,24 +382,15 @@ export default function CashierPage() {
                       <p className="text-orange-500 text-sm">¥{item.price.toFixed(2)}</p>
                     </div>
                     <div className="flex items-center gap-1 bg-white rounded-lg px-1">
-                      <button
-                        onClick={() => updateQuantity(item.id, -1)}
-                        className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 rounded"
-                      >
+                      <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 rounded">
                         <Minus className="w-4 h-4" />
                       </button>
                       <span className="w-8 text-center font-medium">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, 1)}
-                        className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 rounded"
-                      >
+                      <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 rounded">
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="w-7 h-7 text-red-500 hover:bg-red-50 rounded flex items-center justify-center"
-                    >
+                    <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 text-red-500 hover:bg-red-50 rounded flex items-center justify-center">
                       <Delete className="w-4 h-4" />
                     </button>
                   </div>
@@ -500,7 +422,7 @@ export default function CashierPage() {
             <div className="flex justify-between mb-3">
               <span className="text-lg">合计</span>
               <div className="text-right">
-                <span className="text-2xl font-bold text-orange-500">¥{total.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-orange-500">¥{finalTotal.toFixed(2)}</span>
                 {discount > 0 && (
                   <p className="text-xs text-slate-400 line-through">¥{subtotal.toFixed(2)}</p>
                 )}
@@ -514,15 +436,9 @@ export default function CashierPage() {
                 className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-5 h-5" />
-                收款 ¥{total.toFixed(2)}
+                收款 ¥{finalTotal.toFixed(2)}
               </button>
-              <div className="grid grid-cols-3 gap-2">
-                <button 
-                  onClick={() => setShowHangList(true)}
-                  className="py-2 border border-slate-200 rounded-lg text-sm hover:bg-white"
-                >
-                  挂单/取单
-                </button>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={clearCart}
                   disabled={cart.length === 0}
@@ -612,12 +528,7 @@ export default function CashierPage() {
                   onChange={(e) => { setDiscountAmount(parseFloat(e.target.value) || 0); setDiscountType('manual'); }}
                   className="flex-1 border border-slate-200 rounded-lg px-4 py-2"
                 />
-                <button 
-                  onClick={() => setShowDiscount(false)}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg"
-                >
-                  确定
-                </button>
+                <button onClick={() => setShowDiscount(false)} className="px-4 py-2 bg-orange-500 text-white rounded-lg">确定</button>
               </div>
             </div>
           </div>
@@ -630,7 +541,7 @@ export default function CashierPage() {
           <div className="bg-white rounded-2xl w-[400px] overflow-hidden">
             <div className="bg-orange-500 text-white p-4 text-center">
               <p className="text-sm">需支付金额</p>
-              <p className="text-4xl font-bold">¥{total.toFixed(2)}</p>
+              <p className="text-4xl font-bold">¥{finalTotal.toFixed(2)}</p>
             </div>
             <div className="p-4 space-y-3">
               <button 
@@ -654,10 +565,7 @@ export default function CashierPage() {
                 <Banknote className="w-8 h-8" />
                 现金支付
               </button>
-              <button
-                onClick={() => setShowPayment(false)}
-                className="w-full py-3 text-slate-500 hover:text-slate-700"
-              >
+              <button onClick={() => setShowPayment(false)} className="w-full py-3 text-slate-500 hover:text-slate-700">
                 取消
               </button>
             </div>
