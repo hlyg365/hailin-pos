@@ -1,3 +1,4 @@
 #!/bin/bash
 cd "$(dirname "$0")/.."
-pnpm start
+pnpm install
+pnpm run build

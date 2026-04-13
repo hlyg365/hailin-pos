@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /workspace/projects
+cd "$(dirname "$0")/.."
 pnpm install
-pnpm run next build
-pnpm run next export
+pnpm run build
+pnpm run export
