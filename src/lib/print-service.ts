@@ -244,9 +244,13 @@ class PrintService {
       await port.open({ baudRate: 9600 });
       
       const commands = this.generateEscPosCommands(data);
-      const writer = port.writable.getWriter();
-      await writer.write(commands);
-      writer.releaseLock();
+      // @ts-ignore
+      if (port.writable) {
+        // @ts-ignore
+        const writer = port.writable.getWriter();
+        await writer.write(commands);
+        writer.releaseLock();
+      }
       
       await port.close();
       return { success: true, message: 'USB打印成功' };
@@ -488,9 +492,13 @@ class PrintService {
               if (ports.length > 0) {
                 const port = ports[0];
                 await port.open({ baudRate: 9600 });
-                const writer = port.writable.getWriter();
-                await writer.write(commands);
-                writer.releaseLock();
+                // @ts-ignore
+                if (port.writable) {
+                  // @ts-ignore
+                  const writer = port.writable.getWriter();
+                  await writer.write(commands);
+                  writer.releaseLock();
+                }
                 await port.close();
                 console.log('[Cashbox] USB: Cashbox opened via serial port');
                 return true;
