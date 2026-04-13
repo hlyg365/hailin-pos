@@ -66,8 +66,8 @@ function detectAppPlatform(): boolean {
 
 // APK配置 - 每次更新APP后手动递增版本号
 const APK_CONFIG = {
-  fileName: 'hailin-pos-v3.0.8.apk',  // ← 更新APK时修改文件名（递增版本号）
-  version: '3.0.8',                    // ← 更新APK时同步修改版本号（递增）
+  fileName: 'hailin-pos-v3.0.9.apk',  // ← 更新APK时修改文件名（递增版本号）
+  version: '3.0.9',                    // ← 更新APK时同步修改版本号（递增）
   buildDate: '2026-04-13',             // ← 构建日期
 };
 

@@ -258,110 +258,31 @@ export default function CashierPage() {
   // 登录页
   if (showLogin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex flex-col">
-        {/* 顶部 */}
-        <header className="bg-slate-900/80 backdrop-blur border-b border-slate-700 px-6 py-4">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-                <span className="text-2xl">🏪</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">海邻到家</h1>
-                <p className="text-xs text-slate-400">社区便利店智能收银系统</p>
-              </div>
-            </div>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-              isOnline ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-            }`}>
-              {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-              <span className="text-sm font-medium">{isOnline ? '在线' : '离线'}</span>
-            </div>
+      <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 w-80 text-center">
+          <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Store className="w-10 h-10 text-orange-500" />
           </div>
-        </header>
-
-        {/* 登录表单 */}
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md">
-            {/* Logo */}
-            <div className="text-center mb-8">
-              <div className="w-24 h-24 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <Store className="w-12 h-12 text-white" />
-              </div>
-              <h2 className="text-3xl font-bold text-slate-800">收银台登录</h2>
-              <p className="text-slate-500 mt-2">请输入6位员工密码</p>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">海邻到家</h1>
+          <p className="text-slate-500 mb-6">收银台登录</p>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 bg-slate-100 rounded-xl px-4 py-3">
+              <KeyRound className="w-5 h-5 text-slate-400" />
+              <input
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                placeholder="输入员工密码"
+                className="flex-1 bg-transparent outline-none text-lg"
+                maxLength={6}
+              />
             </div>
-
-            {/* 密码输入 */}
-            <div className="mb-6">
-              <div className="flex items-center gap-4 bg-slate-100 rounded-2xl px-6 py-4">
-                <KeyRound className="w-6 h-6 text-slate-400" />
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => {
-                    setPin(e.target.value);
-                    setLoginError('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleLogin();
-                    }
-                  }}
-                  placeholder="请输入6位密码"
-                  className="flex-1 bg-transparent outline-none text-2xl tracking-widest"
-                  maxLength={6}
-                  autoFocus
-                />
-              </div>
-              {loginError && (
-                <p className="text-red-500 text-center mt-3 font-medium">{loginError}</p>
-              )}
-            </div>
-
-            {/* 登录按钮 */}
-            <button
-              onClick={() => handleLogin()}
-              className="w-full h-16 text-xl font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-2xl shadow-lg shadow-orange-500/30 transition-all active:scale-95"
-            >
-              登 录
+            {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
+            <button onClick={handleLogin} className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600">
+              登录
             </button>
-
-            {/* 快速登录 */}
-            <div className="mt-8 pt-6 border-t border-slate-200">
-              <p className="text-sm text-slate-500 text-center mb-4">快速登录</p>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  onClick={() => setPin('1234')}
-                  className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 border-2 border-slate-200 hover:border-orange-300 rounded-xl transition-all"
-                >
-                  <div className="h-12 w-12 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center text-white text-lg font-bold">
-                    王
-                  </div>
-                  <div className="text-left">
-                    <div className="font-bold text-slate-800">收银员小王</div>
-                    <div className="text-xs text-slate-500">密码: 1234</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setPin('5678')}
-                  className="flex items-center gap-3 p-4 bg-slate-50 hover:bg-orange-50 border-2 border-slate-200 hover:border-orange-300 rounded-xl transition-all"
-                >
-                  <div className="h-12 w-12 bg-gradient-to-br from-purple-400 to-purple-500 rounded-full flex items-center justify-center text-white text-lg font-bold">
-                    李
-                  </div>
-                  <div className="text-left">
-                    <div className="font-bold text-slate-800">店长李明</div>
-                    <div className="text-xs text-slate-500">密码: 5678</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <p className="text-xs text-center text-slate-400 mt-6">
-              海邻到家智能收银系统 V3.0.7
-            </p>
+            <p className="text-slate-400 text-sm">测试密码: 1234 或 5678</p>
           </div>
         </div>
       </div>
