@@ -30,8 +30,8 @@ import {
 
 // APK配置 - 每次更新APP后手动递增版本号
 const APK_CONFIG = {
-  fileName: 'hailin-pos-v3.0.1.apk',  // ← 更新APK时修改文件名（递增版本号）
-  version: '3.0.1',                    // ← 更新APK时同步修改版本号（递增）
+  fileName: 'hailin-pos-v3.0.2.apk',  // ← 更新APK时修改文件名（递增版本号）
+  version: '3.0.2',                    // ← 更新APK时同步修改版本号（递增）
   buildDate: '2026-04-13',             // ← 构建日期
 };
 
