@@ -186,7 +186,7 @@ export function HqAuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     localStorage.removeItem('hq_logged_in');
     localStorage.removeItem('hq_user');
-    router.push('/auth/login');
+    router.push('/dashboard/auth/login');
   }, [router]);
 
   const hasPermission = useCallback((permission: string): boolean => {
