@@ -84,7 +84,6 @@ public class MainActivity extends BridgeActivity {
         customerLayout.addView(hintText);
         
         // 显示客显屏
-        ViewManager viewManager = null;
         try {
             // 尝试使用DisplayManager API
             Class<?> displayManagerClass = Class.forName("android.hardware.display.DisplayManager");

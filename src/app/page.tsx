@@ -66,8 +66,8 @@ function detectAppPlatform(): boolean {
 
 // APK配置 - 每次更新APP后手动递增版本号
 const APK_CONFIG = {
-  fileName: 'hailin-pos-v3.1.0.apk',  // ← 更新APK时修改文件名（递增版本号）
-  version: '3.1.0',                    // ← 更新APK时同步修改版本号（递增）
+  fileName: 'hailin-pos-v3.1.1.apk',  // ← 更新APK时修改文件名（递增版本号）
+  version: '3.1.1',                    // ← 更新APK时同步修改版本号（递增）
   buildDate: '2026-04-13',             // ← 构建日期
 };
 
@@ -77,7 +77,7 @@ const quickEntries = [
     title: '收银台APP',
     subtitle: `下载 v${APK_CONFIG.version}`,
     icon: Download,
-    href: `/${APK_CONFIG.fileName}?v=${Date.now()}`,
+    href: 'https://coze-coding-project.tos.coze.site/coze_storage_7617372917596323890/apk/hailin-pos-v3.1.1_3fd825ad.apk?sign=1776678810-49aa4b1d24-0-5879b1540d628e66f4f75d6f251844a1fa770683151916886ff30c185aea0320',
     color: 'bg-gradient-to-br from-orange-500 to-orange-600',
     hoverColor: 'hover:from-orange-600 hover:to-orange-700',
     isExternal: true,
