@@ -28,16 +28,24 @@ import {
  * - 浏览器访问 → 显示综合首页
  */
 
+// APK配置 - 每次更新APP后修改此配置
+const APK_CONFIG = {
+  fileName: 'hailin-pos-v3.0.apk',
+  version: '3.0',
+  buildDate: '2026-04-13',
+};
+
 const quickEntries = [
   {
     id: 'pos-app',
     title: '收银台APP',
-    subtitle: '下载安装包',
+    subtitle: `下载 v${APK_CONFIG.version}`,
     icon: Download,
-    href: '/hailin-pos-v3.0.apk',
+    href: `/${APK_CONFIG.fileName}`,
     color: 'bg-gradient-to-br from-orange-500 to-orange-600',
     hoverColor: 'hover:from-orange-600 hover:to-orange-700',
     isExternal: true,
+    badge: APK_CONFIG.buildDate,
   },
   {
     id: 'pos',
@@ -238,8 +246,13 @@ export default function HomePage() {
                   href={entry.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group`}
+                  className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group relative`}
                 >
+                  {entry.badge && (
+                    <span className="absolute top-2 right-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                      {entry.badge}
+                    </span>
+                  )}
                   <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
                   <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
                   <p className="text-sm opacity-80">{entry.subtitle}</p>
