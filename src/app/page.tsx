@@ -193,16 +193,19 @@ const modules = [
 ];
 
 function CurrentTime() {
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<string | null>(null);
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
+    setTime(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+    const timer = setInterval(() => {
+      setTime(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   return (
     <span className="text-sm">
-      {time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+      {time || '--:--'}
     </span>
   );
 }
