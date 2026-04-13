@@ -100,19 +100,21 @@ function getPinyinInitial(str: string): string {
   return result;
 }
 
-// 汉字转拼音（简化版）
+// 汉字转拼音（简化版）- 移除所有重复键
 const chinesePinyinData: Record<string, string> = {
   '农': 'nong', '夫': 'fu', '山': 'shan', '泉': 'quan',
   '可': 'ke', '口': 'kou', '乐': 'le', '统': 'tong', '一': 'yi', '致': 'zhi', '冰': 'bing', '红': 'hong', '茶': 'cha',
   '康': 'kang', '师': 'shi', '傅': 'fu', '娃': 'wa', '哈': 'ha', '纯': 'chun', '净': 'jing', '水': 'shui',
   '蒙': 'meng', '牛': 'niu', '奶': 'nai', '伊': 'yi', '利': 'li', '酸': 'suan', '汤': 'tang',
-  '奥': 'ao', '利': 'li', '奥': 'ao', '饼': 'bing', '干': 'gan', '夹': 'jia', '心': 'xin',
-  '旺': 'wang', '雪': 'xue', '德': 'de', '芙': 'fu', '巧': 'qiao', '克': 'ke', '力': 'li', '巧': 'qiao',
+  '奥': 'ao', '饼': 'bing', '干': 'gan', '夹': 'jia', '心': 'xin',
+  '旺': 'wang', '雪': 'xue', '德': 'de', '芙': 'fu', '巧': 'qiao', '克': 'ke', '力': 'li',
   '双': 'shuang', '汇': 'hui', '王': 'wang', '中': 'zhong', '火': 'huo', '腿': 'tui', '肠': 'chang',
   '雨': 'yu', '润': 'run', '清': 'qing', '风': 'feng', '抽': 'chou', '纸': 'zhi', '层': 'ceng',
   '雕': 'diao', '牌': 'pai', '洗': 'xi', '衣': 'yi', '皂': 'zao',
-  '红': 'hong', '烧': 'shao', '牛': 'niu', '肉': 'rou', '面': 'mian', '老': 'lao', '坛': 'tan', '酸': 'suan', '菜': 'cai',
-  '统': 'tong', '牌': 'pai'
+  '烧': 'shao', '肉': 'rou', '面': 'mian', '老': 'lao', '坛': 'tan', '菜': 'cai',
+  '百': 'bai', '岁': 'sui',
+  '脉': 'mai', '动': 'dong', '维': 'wei', '生': 'sheng', '素': 'su',
+  '吉': 'ji', '凉': 'liang',
 };
 
 function chineseToPinyin(char: string): string {
@@ -534,7 +536,10 @@ export default function MobileCashierPage() {
                 <div key={product.id} className="relative">
                   <button
                     onClick={() => addToCart(product)}
-                    onLongPress={() => setShowQuickAmount(product.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setShowQuickAmount(product.id);
+                    }}
                     className="w-full bg-white rounded-xl p-2 text-left shadow-sm active:bg-slate-50 transition-colors"
                   >
                     <div className="w-full h-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg mb-2 flex items-center justify-center">
