@@ -7,65 +7,74 @@ echo "=========================================="
 echo "  海邻到家 收银台APP 构建脚本"
 echo "=========================================="
 
-# 1. 生成版本号 (格式: v3.0.日期时分)
-VERSION_DATE=$(date +"%Y%m%d%H%M")
-VERSION_FULL="v3.0.${VERSION_DATE}"
-APK_NAME="hailin-pos-${VERSION_FULL}.apk"
+# 1. 读取当前版本号
+CURRENT_VERSION=$(grep -oP "version: '\K[^']*" src/app/page.tsx | head -1)
+echo "📦 当前版本: ${CURRENT_VERSION}"
 
-echo "📦 版本: ${VERSION_FULL}"
+# 2. 递增版本号（第三位数字+1）
+# 格式: x.y.z -> x.y.(z+1)
+IFS='.' read -ra VER <<< "$CURRENT_VERSION"
+MAJOR=${VER[0]}
+MINOR=${VER[1]}
+PATCH=${VER[2]}
+PATCH=$((PATCH + 1))
+NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+APK_NAME="hailin-pos-v${NEW_VERSION}.apk"
+
+echo "📦 新版本: ${NEW_VERSION}"
 echo "📱 APK名称: ${APK_NAME}"
 
-# 2. 提示用户确认
+# 3. 确认构建
 echo ""
-read -p "确认构建此版本? (y/n): " confirm
+read -p "确认构建版本 ${NEW_VERSION}? (y/n): " confirm
 if [ "$confirm" != "y" ]; then
     echo "已取消构建"
     exit 0
 fi
 
-# 3. 更新 src/app/page.tsx 中的版本配置
+# 4. 更新 src/app/page.tsx
 echo ""
 echo "📝 更新首页版本配置..."
 sed -i "s/fileName: 'hailin-pos-[^']*'/fileName: '${APK_NAME}'/" src/app/page.tsx
-sed -i "s/version: 'v[^']*'/version: '${VERSION_FULL}'/" src/app/page.tsx
+sed -i "s/version: '[^{'\'']*'/version: '${NEW_VERSION}'/" src/app/page.tsx
 sed -i "s/buildDate: '[^']*'/buildDate: '$(date +"%Y-%m-%d")'/" src/app/page.tsx
 
-# 4. 更新 public/apk-config.json
+# 5. 更新 public/apk-config.json
 cat > public/apk-config.json << EOF
 {
   "apkFileName": "${APK_NAME}",
-  "version": "${VERSION_FULL}",
+  "version": "${NEW_VERSION}",
   "buildDate": "$(date +"%Y-%m-%d")",
   "downloadUrl": "/${APK_NAME}"
 }
 EOF
 
-# 5. 构建Web应用
+# 6. 构建Web应用
 echo ""
 echo "🔨 构建Web应用..."
 pnpm run build
 
-# 6. 导出静态文件
+# 7. 导出静态文件
 echo ""
 echo "📁 导出静态文件..."
 pnpm run export
 
-# 7. 同步到Android
+# 8. 同步到Android
 echo ""
 echo "📲 同步到Android..."
 npx cap sync android
 
-# 8. 构建APK
+# 9. 构建APK
 echo ""
 echo "🔧 构建APK..."
 cd android && ./gradlew assembleDebug && cd ..
 
-# 9. 复制APK到public目录
+# 10. 复制APK到public目录
 echo ""
 echo "📋 复制APK到public目录..."
 cp android/app/build/outputs/apk/debug/app-debug.apk public/${APK_NAME}
 
-# 10. 获取文件大小
+# 11. 获取文件大小
 APK_SIZE=$(du -h public/${APK_NAME} | cut -f1)
 
 echo ""
