@@ -1,9 +1,9 @@
 package com.hailin.pos;
 
-import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -18,6 +18,16 @@ public class MainActivity extends BridgeActivity {
         
         // 全屏沉浸模式
         enableImmersiveMode();
+        
+        // 直接加载收银台页面
+        loadCashierPage();
+    }
+    
+    private void loadCashierPage() {
+        // 直接加载收银台页面的HTML文件
+        // 正确路径：file:///android_asset/public/pos/cashier.html
+        final WebView webView = this.bridge.getWebView();
+        webView.loadUrl("file:///android_asset/public/pos/cashier.html");
     }
     
     @Override
