@@ -5,8 +5,10 @@ import android.view.WindowManager;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.usb.UsbManager;
+import android.net.Uri;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
 
 public class MainActivity extends BridgeActivity {
     
@@ -49,11 +51,7 @@ public class MainActivity extends BridgeActivity {
     public void onDestroy() {
         // 取消注册广播接收器
         if (usbReceiver != null) {
-            try {
-                unregisterReceiver(usbReceiver);
-            } catch (Exception e) {
-                // 忽略未注册的异常
-            }
+            unregisterReceiver(usbReceiver);
         }
         super.onDestroy();
     }
