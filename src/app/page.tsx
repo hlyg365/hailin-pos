@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   ShoppingCart, 
   Smartphone, 
@@ -26,12 +27,47 @@ import {
  * 
  * 访问策略：
  * - 浏览器访问 → 显示综合首页
+ * - APP环境访问 → 自动跳转到收银台
  */
+
+/**
+ * 检测是否在APP环境中运行
+ * 支持：Capacitor原生APP、扣子平台WebView、Android WebView
+ */
+function detectAppPlatform(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  // 1. 检测 Capacitor
+  const capacitor = (window as any).Capacitor;
+  if (capacitor?.isNativePlatform?.()) {
+    return true;
+  }
+  
+  // 2. 增强 Android WebView 检测（包含扣子平台）
+  const ua = navigator.userAgent || '';
+  if (ua.includes('Android')) {
+    if (ua.includes('coze') || ua.includes('webview') || ua.includes('wv')) {
+      return true;
+    }
+  }
+  
+  // 3. 检测 Capacitor 环境变量
+  if ((window as any).__CAPACITOR__ || (window as any).capacitor) {
+    return true;
+  }
+  
+  // 4. 检测文件协议（Capacitor APP本地加载）
+  if (window.location.protocol === 'file:') {
+    return true;
+  }
+  
+  return false;
+}
 
 // APK配置 - 每次更新APP后手动递增版本号
 const APK_CONFIG = {
-  fileName: 'hailin-pos-v3.0.4.apk',  // ← 更新APK时修改文件名（递增版本号）
-  version: '3.0.4',                    // ← 更新APK时同步修改版本号（递增）
+  fileName: 'hailin-pos-v3.0.5.apk',  // ← 更新APK时修改文件名（递增版本号）
+  version: '3.0.5',                    // ← 更新APK时同步修改版本号（递增）
   buildDate: '2026-04-13',             // ← 构建日期
 };
 
@@ -170,6 +206,47 @@ function CurrentTime() {
 }
 
 export default function HomePage() {
+  const router = useRouter();
+  const [isApp, setIsApp] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // 检测APP环境并自动跳转
+  useEffect(() => {
+    setMounted(true);
+    
+    // 延迟检测，等待 Capacitor 初始化
+    const detectAndRedirect = () => {
+      if (detectAppPlatform()) {
+        setIsApp(true);
+        // APP环境：自动跳转到收银台
+        window.location.href = '/pos/cashier';
+        return;
+      }
+      setIsApp(false);
+    };
+    
+    // 立即检测一次
+    detectAndRedirect();
+    
+    // 延迟500ms再次检测（等待 Capacitor 完全初始化）
+    const timer = setTimeout(detectAndRedirect, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 加载状态（防止闪烁）
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-3xl">🏪</span>
+          </div>
+          <p className="text-slate-500">加载中...</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* 顶部标题栏 */}
