@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * 路由保护中间件
+ * 路由代理 - Next.js 16 替代中间件
  * 
- * 注意：此中间件已在 Next.js 16 中弃用，将被 proxy 替代
- * 目前保持简单逻辑，主要认证在客户端进行
+ * 主要处理路由保护和认证
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
   // 静态资源路径前缀 - 不需要认证
@@ -42,8 +41,8 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// 配置中间件匹配的路由
-export const config = {
+// 配置代理匹配的路由
+export const proxyConfig = {
   matcher: [
     /*
      * 匹配所有路径，除了静态文件
