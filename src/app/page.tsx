@@ -17,7 +17,8 @@ import {
   Cloud,
   WifiOff,
   Settings,
-  Headphones
+  Headphones,
+  Download
 } from 'lucide-react';
 
 /**
@@ -29,13 +30,23 @@ import {
 
 const quickEntries = [
   {
+    id: 'pos-app',
+    title: '收银台APP',
+    subtitle: '下载安装包',
+    icon: Download,
+    href: '/hailin-pos-v3.0.apk',
+    color: 'bg-gradient-to-br from-orange-500 to-orange-600',
+    hoverColor: 'hover:from-orange-600 hover:to-orange-700',
+    isExternal: true,
+  },
+  {
     id: 'pos',
     title: '收银台',
     subtitle: '快速收银结账',
     icon: ShoppingCart,
     href: '/pos',
-    color: 'bg-orange-500',
-    hoverColor: 'hover:bg-orange-600',
+    color: 'bg-orange-400',
+    hoverColor: 'hover:bg-orange-500',
   },
   {
     id: 'assistant',
@@ -219,17 +230,31 @@ export default function HomePage() {
         {/* 快速入口 */}
         <section className="mb-10">
           <h2 className="text-xl font-bold text-slate-800 mb-4">快速入口</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {quickEntries.map((entry) => (
-              <Link
-                key={entry.id}
-                href={entry.href}
-                className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group`}
-              >
-                <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
-                <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
-                <p className="text-sm opacity-80">{entry.subtitle}</p>
-              </Link>
+              entry.isExternal ? (
+                <a
+                  key={entry.id}
+                  href={entry.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group`}
+                >
+                  <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
+                  <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
+                  <p className="text-sm opacity-80">{entry.subtitle}</p>
+                </a>
+              ) : (
+                <Link
+                  key={entry.id}
+                  href={entry.href}
+                  className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group`}
+                >
+                  <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
+                  <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
+                  <p className="text-sm opacity-80">{entry.subtitle}</p>
+                </Link>
+              )
             ))}
           </div>
         </section>
