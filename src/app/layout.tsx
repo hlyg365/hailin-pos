@@ -30,7 +30,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icons/icon.svg" />
+        <link rel="apple-touch-icon" href="/icons/icon-512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="海邻收银台" />
