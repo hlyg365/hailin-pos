@@ -69,14 +69,15 @@ const APK_CONFIG = {
   fileName: 'hailin-pos-v3.1.2.apk',  // ← 更新APK时修改文件名（递增版本号）
   version: '3.1.2',                    // ← 更新APK时同步修改版本号（递增）
   buildDate: '2026-04-13',             // ← 构建日期
-  downloadUrl: 'https://coze-coding-project.tos.coze.site/coze_storage_7617372917596323890/apk/hailin-pos-v3.1.2_2624d520.apk?sign=1776688103-b611506610-0-36be300e43ad9df353fcddbdfbafc40370b43d5fafb63e80742f6f01a684ab45',
+  downloadUrl: 'https://github.com/hlyg365/hailin-pos/releases/download/v3.1.2/hailin-pos-v3.1.2.apk',
+  note: '完整版（推荐）- 含Capacitor原生库'
 };
 
 const quickEntries = [
   {
     id: 'pos-app',
     title: '收银台APP',
-    subtitle: `下载 v${APK_CONFIG.version}`,
+    subtitle: `v${APK_CONFIG.version} 完整版`,
     icon: Download,
     href: APK_CONFIG.downloadUrl,
     color: 'bg-gradient-to-br from-orange-500 to-orange-600',
