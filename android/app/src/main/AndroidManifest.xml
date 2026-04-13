@@ -6,8 +6,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- USB权限（扫码枪等） -->
-    <uses-permission android:name="android.permission.USB_PERMISSION" />
+    <!-- USB权限（扫码枪、钱箱等外设） -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    
+    <!-- 蓝牙权限（扫码枪、打印机） -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:maxSdkVersion="30" />
 
     <application
         android:allowBackup="true"
@@ -17,10 +23,8 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true"
-        android:resizeableActivity="false"
-        android:requestLegacyExternalStorage="true">
+        android:usesCleartextTraffic="false">
 
-        <!-- 主Activity - 收银台（主屏） -->
         <activity
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
@@ -29,8 +33,7 @@
             android:launchMode="singleTask"
             android:exported="true"
             android:screenOrientation="landscape"
-            android:maxAspectRatio="2.4"
-            android:resizeableActivity="false">
+            android:maxAspectRatio="2.4">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
