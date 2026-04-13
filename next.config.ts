@@ -23,6 +23,12 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   distDir: '.next',
   
+  // 字体配置 - 使用本地回退字体
+  experimental: {
+    // 禁用 Google Fonts 预加载
+    optimizePackageImports: ['lucide-react'],
+  },
+  
   // Webpack 配置 - 处理 langchain 模块解析问题
   webpack: (config, { isServer }) => {
     // 处理 @langchain/core 模块解析问题
