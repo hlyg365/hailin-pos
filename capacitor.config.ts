@@ -7,8 +7,8 @@ const config: CapacitorConfig = {
   server: {
     // 使用本地构建资源
     androidScheme: 'https',
-    // 启动时打开的路径（收银台首页）
-    appStartPath: '/pos/index',
+    // 启动时直接进入收银台
+    appStartPath: '/pos/cashier',
   },
   android: {
     allowMixedContent: true,
