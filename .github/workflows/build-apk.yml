@@ -77,9 +77,7 @@ jobs:
       - name: Update download link to HQ backend
         run: |
           APK_URL="https://github.com/hlyg365/hailin-pos/releases/download/v${{ steps.version.outputs.version }}/app-debug.apk"
-          RESPONSE=$(curl -s -X POST "https://hldj365.coze.site/api/update-apk-link" \
-            -H "Content-Type: application/json" \
-            -d "{\"version\": \"v${{ steps.version.outputs.version }}\",\"downloadUrl\": \"$APK_URL\",\"buildTime\": \"${{ steps.version.outputs.build_time }}\",\"fileSize\": \"${{ steps.version.outputs.apk_size }}\"}")
+          RESPONSE=$(curl -s -X POST "https://hldj365.coze.site/api/update-apk-link" -H "Content-Type: application/json" -d "{\"version\": \"v${{ steps.version.outputs.version }}\",\"downloadUrl\": \"$APK_URL\",\"buildTime\": \"${{ steps.version.outputs.build_time }}\",\"fileSize\": \"${{ steps.version.outputs.apk_size }}\"}")
           echo "API Response: $RESPONSE"
-          if echo "$RESPONSE" | grep -q '"code":0'; then echo "✅ 总部后台下载链接更新成功"; else echo "⚠️ 总部后台更新失败，APK已上传到GitHub Release"; fi
+          if echo "$RESPONSE" | grep -q '"code":0'; then echo "✅ HQ backend updated"; else echo "⚠️ HQ update failed"; fi
         continue-on-error: true
