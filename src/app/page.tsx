@@ -51,26 +51,29 @@ export default function HomePage() {
       return 'browser';
     };
 
+    // 平台检测和跳转（仅在客户端执行）
     const result = detectPlatform();
     setPlatform(result);
 
-    // 根据平台类型跳转
-    if (result === 'app') {
-      router.replace('/pos');
-    } else {
-      router.replace('/dashboard');
-    }
+    // 根据平台类型跳转（延迟到客户端渲染后再跳转）
+    const timer = setTimeout(() => {
+      if (result === 'app') {
+        router.replace('/pos');
+      } else {
+        router.replace('/dashboard');
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [router]);
 
-  // 显示加载页面
+  // 显示加载页面（服务端和客户端初始渲染一致）
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
       <div className="text-center text-white">
         <div className="animate-spin text-6xl mb-4">🛒</div>
         <h1 className="text-2xl font-bold mb-2">海邻到家</h1>
-        <p className="text-orange-100">
-          {platform === 'app' ? '正在启动收银台...' : '正在启动后台管理...'}
-        </p>
+        <p className="text-orange-100">正在启动...</p>
       </div>
     </div>
   );
