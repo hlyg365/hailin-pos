@@ -11,6 +11,8 @@ on:
 
 jobs:
   build-and-update:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
