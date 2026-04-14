@@ -32,6 +32,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { usePosAuth } from '@/contexts/PosAuthContext';
 import { useHardware, isHardwareSupported, getSupportedHardwareFeatures } from '@/hooks/useHardware';
+import { useAIRecognition, AIRecognitionSettings } from '@/hooks/useAIRecognition';
+import { CameraPreview } from '@/components/ai-recognition/CameraPreview';
+import { ProductLearning } from '@/components/ai-recognition/ProductLearning';
 import {
   Printer,
   Barcode,
@@ -55,6 +58,8 @@ import {
   Tag,
   Volume2,
   ShoppingCart,
+  Camera,
+  Sparkles,
 } from 'lucide-react';
 
 // 设备类型定义
@@ -133,6 +138,18 @@ export default function HardwarePage() {
     testPrint,
     openCashbox,
   } = useHardware();
+
+  // AI识别Hook
+  const {
+    settings: aiSettings,
+    saveSettings: saveAISettings,
+    isRecognizing,
+    lastResult: aiResult,
+    error: aiError,
+    captureImage,
+    recognizeProduct,
+    clearError: clearAIError,
+  } = useAIRecognition();
   
   // 当前选中的设备类型
   const [activeDevice, setActiveDevice] = useState<string>('printer');
@@ -1120,6 +1137,188 @@ export default function HardwarePage() {
     </div>
   );
 
+  // 渲染AI识别设置面板
+  const renderAIRecognitionSettings = () => (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            AI商品智能识别
+          </CardTitle>
+          <CardDescription>
+            通过AI视觉识别技术，自动识别称重商品
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 功能开关 */}
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">启用AI识别</p>
+                <p className="text-sm text-muted-foreground">
+                  开启后可在称重时自动识别商品
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={aiSettings.enabled}
+              onCheckedChange={(checked) => saveAISettings({ ...aiSettings, enabled: checked })}
+            />
+          </div>
+
+          {/* AI品牌选择 */}
+          <div className="space-y-2">
+            <Label>AI识别品牌</Label>
+            <Select
+              value={aiSettings.brand}
+              onValueChange={(value) => saveAISettings({ ...aiSettings, brand: value as any })}
+              disabled={!aiSettings.enabled}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="aibao">爱宝</SelectItem>
+                <SelectItem value="youyou">由由</SelectItem>
+                <SelectItem value="shifang">食方</SelectItem>
+                <SelectItem value="custom">自定义API</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 自定义API配置 */}
+          {aiSettings.brand === 'custom' && (
+            <div className="space-y-4 p-4 bg-muted rounded-lg">
+              <div className="space-y-2">
+                <Label>API地址</Label>
+                <Input
+                  value={aiSettings.customApiUrl || ''}
+                  onChange={(e) => saveAISettings({ ...aiSettings, customApiUrl: e.target.value })}
+                  placeholder="https://api.example.com/recognize"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>API密钥</Label>
+                <Input
+                  type="password"
+                  value={aiSettings.customApiKey || ''}
+                  onChange={(e) => saveAISettings({ ...aiSettings, customApiKey: e.target.value })}
+                  placeholder="请输入API密钥"
+                />
+              </div>
+            </div>
+          )}
+
+          <Separator />
+
+          {/* 触发参数配置 */}
+          <div className="space-y-4">
+            <h3 className="font-medium">触发参数</h3>
+            
+            <div className="space-y-2">
+              <Label>触发重量（克）</Label>
+              <Input
+                type="number"
+                value={aiSettings.triggerWeight}
+                onChange={(e) => saveAISettings({ ...aiSettings, triggerWeight: Number(e.target.value) })}
+                disabled={!aiSettings.enabled}
+                min="0"
+                max="1000"
+              />
+              <p className="text-xs text-muted-foreground">
+                商品重量达到此值时触发识别，默认20克
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>触发模式</Label>
+              <Select
+                value={aiSettings.triggerMode}
+                onValueChange={(value) => saveAISettings({ ...aiSettings, triggerMode: value as any })}
+                disabled={!aiSettings.enabled}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stable">稳定后触发（推荐）</SelectItem>
+                  <SelectItem value="immediate">立即触发</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                建议选择"稳定后触发"，确保商品放稳后再识别
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>识别相似度阈值: {aiSettings.similarityThreshold}%</Label>
+              <input
+                type="range"
+                min="40"
+                max="80"
+                value={aiSettings.similarityThreshold}
+                onChange={(e) => saveAISettings({ ...aiSettings, similarityThreshold: Number(e.target.value) })}
+                disabled={!aiSettings.enabled}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                匹配度低于此阈值将不返回结果，默认60%
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 测试区域 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            测试识别
+          </CardTitle>
+          <CardDescription>
+            测试AI识别功能是否正常工作
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CameraPreview
+            onCapture={async (imageBase64) => {
+              const result = await recognizeProduct(imageBase64);
+              if (result) {
+                showSaveMessage(`识别成功: ${result.productName} (${result.confidence}%)`);
+              }
+            }}
+            onRecognize={() => {}}
+            isRecognizing={isRecognizing}
+            lastResult={aiResult}
+            error={aiError}
+          />
+        </CardContent>
+      </Card>
+
+      {/* 使用说明 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">使用说明</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm space-y-2">
+          <p>1. 启用AI识别功能并选择识别品牌</p>
+          <p>2. 配置触发参数（触发重量、触发模式、相似度阈值）</p>
+          <p>3. 在商品管理中为需要AI识别的商品进行学习</p>
+          <p>4. 每个商品建议学习20张左右的多角度照片</p>
+          <p>5. 称重时系统会自动识别商品并显示结果</p>
+          <p className="text-muted-foreground mt-4">
+            💡 提示：识别准确率与商品学习的样本数量和质量密切相关
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1148,6 +1347,7 @@ export default function HardwarePage() {
                   { id: 'printer', name: '打印机', icon: Printer },
                   { id: 'scanner', name: '扫码枪', icon: Barcode },
                   { id: 'scale', name: '电子秤', icon: Scale },
+                  { id: 'ai-recognition', name: 'AI识别', icon: Sparkles },
                   { id: 'cashbox', name: '钱箱', icon: Wallet },
                   { id: 'customer-display', name: '客显屏', icon: Monitor },
                 ].map((item) => (
@@ -1191,6 +1391,7 @@ export default function HardwarePage() {
             {activeDevice === 'printer' && renderPrinterSettings()}
             {activeDevice === 'scanner' && renderScannerSettings()}
             {activeDevice === 'scale' && renderScaleSettings()}
+            {activeDevice === 'ai-recognition' && renderAIRecognitionSettings()}
             {activeDevice === 'cashbox' && renderCashboxSettings()}
             {activeDevice === 'customer-display' && renderCustomerDisplaySettings()}
           </div>
