@@ -167,6 +167,17 @@ export async function clearCustomerDisplay(): Promise<void> {
 }
 
 /**
+ * 显示欢迎信息到客显屏
+ */
+export async function showWelcomeOnDisplay(): Promise<void> {
+  await updateCustomerDisplay({
+    total: 0,
+    change: 0,
+    paymentMethod: '欢迎光临'
+  });
+}
+
+/**
  * 显示商品信息到客显屏
  */
 export async function showProductOnDisplay(name: string, price: number, weight?: number): Promise<void> {
