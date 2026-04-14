@@ -112,12 +112,9 @@ class ScaleService {
       // @ts-ignore - serial API 尚未完全标准化
       const serial = navigator.serial;
       const selectedPort = port 
-        // @ts-ignore
         ? await serial.getPort(port)
-        // @ts-ignore
         : await serial.requestPort();
       
-      // @ts-ignore
       await selectedPort.open({ baudRate: this.config.baudRate });
       
       this.serialPort = selectedPort;

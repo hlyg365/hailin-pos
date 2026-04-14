@@ -1,87 +1,88 @@
 'use client';
 
 import React from 'react';
-import type { VersionInfo } from '@/lib/native/app-update-service';
+import { UpdateInfo } from '@/lib/native/app-update-service';
 import { Button } from '@/components/ui/button';
-import { X, Download } from 'lucide-react';
+import { X, Download, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface UpdateDialogProps {
-  versionInfo: VersionInfo | null;
+  updateInfo: UpdateInfo | null;
   isOpen: boolean;
   isDownloading: boolean;
   downloadProgress: number;
   onDownload: () => void;
+  onInstall: () => void;
   onSkip: () => void;
   onClose: () => void;
 }
 
 export function UpdateDialog({
-  versionInfo,
+  updateInfo,
   isOpen,
   isDownloading,
   downloadProgress,
   onDownload,
+  onInstall,
   onSkip,
   onClose,
 }: UpdateDialogProps) {
-  if (!isOpen || !versionInfo) return null;
+  if (!isOpen || !updateInfo) return null;
+
+  const isDownloaded = !updateInfo.downloadUrl;
+  const isForceUpdate = updateInfo.forceUpdate;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-xl shadow-2xl w-[400px] max-w-[90vw] overflow-hidden">
         {/* 头部 */}
-        <div className="bg-gradient-to-r from-orange-500 to-orange-400 px-6 py-4">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Download className="w-6 h-6 text-white" />
+              {isForceUpdate ? (
+                <AlertTriangle className="w-6 h-6 text-yellow-300" />
+              ) : (
+                <Download className="w-6 h-6 text-white" />
+              )}
               <div>
                 <h3 className="text-lg font-bold text-white">
-                  发现新版本
+                  {isForceUpdate ? '强制更新' : '发现新版本'}
                 </h3>
-                <p className="text-orange-100 text-sm">
-                  v{versionInfo.version}
+                <p className="text-blue-100 text-sm">
+                  v{updateInfo.latestVersion}
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="text-white/80 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {!isForceUpdate && (
+              <button
+                onClick={onClose}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* 内容 */}
-        <div className="p-6">
-          {/* 更新日志 */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
-            <h4 className="font-medium text-sm mb-2">更新内容：</h4>
-            <ul className="text-sm text-gray-600 space-y-1">
-              {versionInfo.releaseNotes.map((note, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <span className="text-orange-500">•</span>
-                  {note}
-                </li>
-              ))}
-            </ul>
+        <div className="px-6 py-5">
+          {/* 更新说明 */}
+          <div className="mb-5">
+            <h4 className="text-sm font-medium text-gray-500 mb-2">更新内容</h4>
+            <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 max-h-32 overflow-y-auto">
+              {updateInfo.releaseNotes || '优化了一些问题，提升了应用稳定性'}
+            </div>
           </div>
-
-          {/* 发布日期 */}
-          <p className="text-xs text-gray-400 mb-4">
-            发布日期：{versionInfo.releaseDate}
-          </p>
 
           {/* 下载进度 */}
           {isDownloading && (
-            <div className="mb-4">
+            <div className="mb-5">
               <div className="flex justify-between text-sm mb-1">
                 <span className="text-gray-600">下载中...</span>
-                <span className="text-orange-600 font-medium">{Math.round(downloadProgress)}%</span>
+                <span className="text-blue-600 font-medium">{downloadProgress}%</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-orange-500 transition-all duration-300"
+                  className="h-full bg-blue-500 transition-all duration-300"
                   style={{ width: `${downloadProgress}%` }}
                 />
               </div>
@@ -89,32 +90,48 @@ export function UpdateDialog({
           )}
 
           {/* 按钮 */}
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={onSkip}
-            >
-              稍后再说
-            </Button>
-            <Button
-              className="flex-1 bg-orange-500 hover:bg-orange-600"
-              onClick={onDownload}
-              disabled={isDownloading}
-            >
-              {isDownloading ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin">⏳</span>
-                  下载中... {Math.round(downloadProgress)}%
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  下载安装
-                </span>
-              )}
-            </Button>
+          <div className="space-y-2">
+            {isDownloaded ? (
+              // 已下载，显示安装按钮
+              <Button
+                onClick={onInstall}
+                className="w-full bg-green-600 hover:bg-green-700"
+                size="lg"
+              >
+                <CheckCircle className="w-5 h-5 mr-2" />
+                安装更新
+              </Button>
+            ) : (
+              // 未下载，显示下载按钮
+              <Button
+                onClick={onDownload}
+                disabled={isDownloading}
+                className="w-full"
+                size="lg"
+              >
+                <Download className="w-5 h-5 mr-2" />
+                {isDownloading ? `下载中 ${downloadProgress}%` : '立即下载'}
+              </Button>
+            )}
+
+            {/* 非强制更新时显示跳过按钮 */}
+            {!isForceUpdate && (
+              <Button
+                onClick={onSkip}
+                variant="ghost"
+                className="w-full text-gray-500"
+              >
+                稍后提醒我
+              </Button>
+            )}
           </div>
+
+          {/* 强制更新提示 */}
+          {isForceUpdate && (
+            <p className="mt-4 text-xs text-center text-red-500">
+              此版本包含重要安全更新，必须安装后才能继续使用
+            </p>
+          )}
         </div>
       </div>
     </div>

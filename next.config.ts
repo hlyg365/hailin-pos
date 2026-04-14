@@ -4,6 +4,8 @@ import path from 'path';
 const nextConfig: NextConfig = {
   /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
+  // 使用 standalone 输出模式加快生产启动速度
+  output: 'standalone',
   // Turbopack 配置（Next.js 16 默认使用 Turbopack）
   turbopack: {
     resolveAlias: {
@@ -22,12 +24,6 @@ const nextConfig: NextConfig = {
   },
   trailingSlash: true,
   distDir: '.next',
-  
-  // 字体配置 - 使用本地回退字体
-  experimental: {
-    // 禁用 Google Fonts 预加载
-    optimizePackageImports: ['lucide-react'],
-  },
   
   // Webpack 配置 - 处理 langchain 模块解析问题
   webpack: (config, { isServer }) => {

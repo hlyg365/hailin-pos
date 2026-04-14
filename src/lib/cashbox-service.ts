@@ -139,20 +139,14 @@ class CashboxService {
         
         if (ports.length > 0) {
           // 尝试打开第一个可用端口
-          // @ts-ignore
           const targetPort = ports[0];
           // @ts-ignore
           await targetPort.open({ baudRate });
           
-          // @ts-ignore
-          if (targetPort.writable) {
-            // @ts-ignore
-            const writer = targetPort.writable.getWriter();
-            await writer.write(CASHBOX_OPEN_COMMAND);
-            writer.releaseLock();
-          }
+          const writer = targetPort.writable.getWriter();
+          await writer.write(CASHBOX_OPEN_COMMAND);
+          writer.releaseLock();
           
-          // @ts-ignore
           await targetPort.close();
           
           console.log('[Cashbox] Serial (Web API): Cashbox opened');

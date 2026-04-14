@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: '海邻到家 - 智能收银系统',
@@ -36,7 +39,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="海邻收银台" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="font-sans antialiased">
+      <body className={inter.className}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 bg-white px-4 py-2 rounded shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500"

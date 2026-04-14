@@ -5,9 +5,8 @@
   "scripts": {
     "build": "bash ./scripts/build.sh",
     "build:android": "bash ./scripts/build-android.sh",
-    "build:apk": "pnpm run build && pnpm run export && npx cap sync android && cd android && ./gradlew assembleDebug && cd ..",
-    "build:apk:release": "pnpm run build && pnpm run export && npx cap sync android && cd android && ./gradlew assembleRelease && cd ..",
-    "export": "node scripts/export.js",
+    "build:apk": "pnpm run build && npx cap sync android && cd android && ./gradlew assembleDebug && cd ..",
+    "build:apk:release": "pnpm run build && npx cap sync android && cd android && ./gradlew assembleRelease && cd ..",
     "dev": "bash ./scripts/dev.sh",
     "dev:android": "bash ./scripts/dev-android.sh",
     "preinstall": "npx only-allow pnpm",
@@ -107,7 +106,6 @@
     "react-dev-inspector": "^2.0.1",
     "serve": "^14.2.0",
     "shadcn": "latest",
-    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

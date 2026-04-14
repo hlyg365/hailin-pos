@@ -738,15 +738,11 @@ export class HardwareService {
             if (ports.length > 0) {
               const port = ports[0];
               await port.open({ baudRate: 9600 });
-              // @ts-ignore
-              if (port.writable) {
-                // @ts-ignore
-                const writer = port.writable.getWriter();
-                // ESC p m t1 t2 - 钱箱指令
-                const commands = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]);
-                await writer.write(commands);
-                writer.releaseLock();
-              }
+              const writer = port.writable.getWriter();
+              // ESC p m t1 t2 - 钱箱指令
+              const commands = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]);
+              await writer.write(commands);
+              writer.releaseLock();
               await port.close();
               
               this.cashboxStatus = 'open';
