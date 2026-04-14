@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, memo, useSyncExternalStore } from 'react';
+import { useState, useEffect, memo, useSyncExternalStore } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -249,6 +249,9 @@ export default function StoreAdminLayout({
     setIsInitialized(true);
   }, [isLoginPage, router]);
 
+  // 计算当前页面标题（在条件返回之前，避免 Hooks 顺序不一致）
+  const currentPageTitle = pathname ? sidebarMenus.flatMap(g => g.items).find(item => item.path === pathname)?.label || '店长管理' : '店长管理';
+
   // 登录页面直接返回
   if (isLoginPage) {
     return children;
@@ -275,11 +278,6 @@ export default function StoreAdminLayout({
     localStorage.removeItem('store_admin_user');
     router.push('/store-admin/auth/login');
   };
-
-  // 使用 useMemo 缓存当前页面标题
-  const currentPageTitle = useMemo(() => {
-    return sidebarMenus.flatMap(g => g.items).find(item => item.path === pathname)?.label || '店长管理';
-  }, [pathname]);
 
   return (
     <div className="h-screen flex bg-gray-50">
