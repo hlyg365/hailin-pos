@@ -20,6 +20,7 @@
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.2.0",
     "@capacitor/network": "^8.0.1",
+    "@ericblade/quagga2": "^1.12.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
     "@langchain/core": "^1.1.39",

@@ -977,3 +977,27 @@ export {
   type HardwareEventType,
   type HardwareEvent,
 } from './hardware-manager';
+
+// ==================== 摄像头扫码服务 ====================
+export {
+  cameraScanner,
+  CameraScannerService,
+  type ScanResult,
+  type CameraConfig,
+  type CameraStatus,
+  type CameraDevice,
+  type BarcodeType,
+} from './camera-scanner-service';
+
+// ==================== AI商品识别服务 ====================
+export {
+  aiProductRecognition,
+  AIProductRecognitionService,
+  type AIRecognitionConfig,
+  type AIRecognitionResult,
+  type AIProductMatch,
+  type ImagePreprocessConfig,
+  type RecognitionRequest,
+  type LocalModelStatus,
+  type ImageAnalysisResult,
+} from './ai-recognition-service';
