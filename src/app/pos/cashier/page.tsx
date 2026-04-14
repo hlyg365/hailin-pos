@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  ShoppingCart, Plus, Minus, Delete, CreditCard, QrCode, User, Wifi, Clock, Printer, Banknote, Percent, Package, Search, X, CheckCircle, LogOut, KeyRound, Store, WifiOff, CloudOff, RefreshCw, TrendingUp, DollarSign, Scale, Monitor, Bot, Tag, MonitorSmartphone, HardDrive, Camera, Settings, Receipt, Ticket
+  ShoppingCart, Plus, Minus, Delete, CreditCard, QrCode, User, Wifi, Clock, Printer, Banknote, Percent, Package, Search, X, CheckCircle, LogOut, KeyRound, Store, WifiOff, RefreshCw, TrendingUp, Scale, Monitor, Camera, Settings, Receipt, Ticket, Truck, BarChart3, Gift, Bell, Cuboid, ClipboardList, MinusCircle, Zap
 } from 'lucide-react';
 import { posStore, Product, Order } from '@/lib/pos-store';
 import * as Hardware from '@/lib/pos-hardware-service';
@@ -17,15 +17,16 @@ interface CartItem {
   quantity: number;
   isWeighed?: boolean;
   weight?: number;
+  tag?: 'hot' | 'new' | 'weigh';
+  imageUrl?: string;
 }
 
-const categories = ['全部', '称重商品', '饮料', '乳品', '方便食品', '零食', '肉类', '日用品'];
+const categories = ['全部', '饮料', '乳品', '方便食品', '零食', '日用品', '称重'];
 
 export default function CashierPage() {
   const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement>(null);
   
-  // 登录状态
+  // 登录状态 - 从 localStorage 恢复
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentStaff, setCurrentStaff] = useState<{id: string; name: string; role: string} | null>(null);
   const [showLogin, setShowLogin] = useState(true);
@@ -47,6 +48,9 @@ export default function CashierPage() {
   const [showHardware, setShowHardware] = useState(false);
   const [showReceiptPrint, setShowReceiptPrint] = useState(false);
   const [showLabelPrint, setShowLabelPrint] = useState(false);
+  const [showPendingOrders, setShowPendingOrders] = useState(false);
+  const [showPriceAdjust, setShowPriceAdjust] = useState(false);
+  const [showMolar, setShowMolar] = useState(false);
   
   // 硬件状态
   const [scaleConnected, setScaleConnected] = useState(false);
@@ -58,10 +62,12 @@ export default function CashierPage() {
   const [member, setMember] = useState<{id: string; name: string; level: string; points: number} | null>(null);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountType, setDiscountType] = useState<'none' | 'member' | 'coupon' | 'manual'>('none');
+  const [molarAmount, setMolarAmount] = useState(0);
   
   // 销售数据
   const [todaySales, setTodaySales] = useState({ amount: 0, count: 0 });
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
   const [total, setTotal] = useState(0);
@@ -70,7 +76,24 @@ export default function CashierPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
 
-  // 初始化
+  // 初始化 - 恢复登录状态
+  useEffect(() => {
+    const savedLogin = localStorage.getItem('pos_logged_in');
+    const savedStaff = localStorage.getItem('pos_staff');
+    if (savedLogin === 'true' && savedStaff) {
+      try {
+        const staff = JSON.parse(savedStaff);
+        setCurrentStaff(staff);
+        setIsLoggedIn(true);
+        setShowLogin(false);
+      } catch {
+        localStorage.removeItem('pos_logged_in');
+        localStorage.removeItem('pos_staff');
+        setShowLogin(true);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       await posStore.initDefaultProducts();
@@ -80,12 +103,10 @@ export default function CashierPage() {
       setTodaySales({ amount: sales.totalAmount, count: sales.orderCount });
       const pending = await posStore.getPendingOrders();
       setPendingCount(pending.length);
-      
-      // 尝试连接硬件
+      setPendingOrders(pending);
       await connectHardware();
     };
     init();
-
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => {
       clearInterval(timer);
@@ -95,7 +116,7 @@ export default function CashierPage() {
 
   // 网络状态
   useEffect(() => {
-    const handleOnline = () => { setIsOnline(true); };
+    const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -130,11 +151,10 @@ export default function CashierPage() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [products]);
+  }, [products, showLogin, showPayment, showMember, showDiscount, showWeighing, showAI]);
 
   // 连接硬件
   const connectHardware = async () => {
-    // 连接称重器
     try {
       await Hardware.connectScale();
       setScaleConnected(true);
@@ -142,7 +162,6 @@ export default function CashierPage() {
       setScaleConnected(false);
     }
     
-    // 连接打印机
     try {
       await Hardware.connectReceiptPrinter();
       setPrinterConnected(true);
@@ -156,7 +175,6 @@ export default function CashierPage() {
     const product = products.find(p => p.barcode === barcode);
     if (product) {
       addToCart(product);
-      // 更新客显屏
       Hardware.showProductOnDisplay(product.name, product.price);
     } else {
       alert('未找到商品: ' + barcode);
@@ -166,15 +184,21 @@ export default function CashierPage() {
   // 登录
   const handleLogin = () => {
     if (pin === '1234') {
-      setCurrentStaff({ id: '001', name: '收银员小王', role: 'cashier' });
+      const staff = { id: '001', name: '收银员小王', role: 'cashier' };
+      setCurrentStaff(staff);
       setIsLoggedIn(true);
       setShowLogin(false);
       setLoginError('');
+      localStorage.setItem('pos_logged_in', 'true');
+      localStorage.setItem('pos_staff', JSON.stringify(staff));
     } else if (pin === '5678') {
-      setCurrentStaff({ id: '002', name: '店长李明', role: 'manager' });
+      const staff = { id: '002', name: '店长李明', role: 'manager' };
+      setCurrentStaff(staff);
       setIsLoggedIn(true);
       setShowLogin(false);
       setLoginError('');
+      localStorage.setItem('pos_logged_in', 'true');
+      localStorage.setItem('pos_staff', JSON.stringify(staff));
     } else {
       setLoginError('密码错误');
     }
@@ -186,12 +210,14 @@ export default function CashierPage() {
     setShowLogin(true);
     setPin('');
     setCart([]);
+    localStorage.removeItem('pos_logged_in');
+    localStorage.removeItem('pos_staff');
   };
 
   // 计算
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discount = discountType === 'member' ? subtotal * 0.05 : discountType === 'coupon' ? 10 : discountAmount;
-  const finalTotal = Math.max(0, subtotal - discount);
+  const finalTotal = Math.max(0, subtotal - discount - molarAmount);
 
   // 添加到购物车
   const addToCart = (product: Product, weight?: number, unitPrice?: number) => {
@@ -213,7 +239,8 @@ export default function CashierPage() {
         price: finalPrice,
         quantity: 1,
         isWeighed: !!weight,
-        weight: weight
+        weight: weight,
+        imageUrl: product.imageUrl
       }];
     });
   };
@@ -238,15 +265,63 @@ export default function CashierPage() {
     setCart([]);
     setDiscountAmount(0);
     setDiscountType('none');
+    setMolarAmount(0);
     setMember(null);
     Hardware.clearCustomerDisplay();
+  };
+
+  // 挂单/取单
+  const suspendOrder = async () => {
+    if (cart.length === 0) return;
+    const suspendedOrder: Order = {
+      id: 'suspend_' + Date.now(),
+      orderNo: 'SUSPEND_' + Date.now().toString().slice(-8),
+      items: cart.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        barcode: item.barcode,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        subtotal: item.price * item.quantity
+      })),
+      totalAmount: subtotal,
+      discountAmount: discount,
+      finalAmount: finalTotal,
+      paymentMethod: 'cash',
+      staffId: currentStaff?.id || '',
+      staffName: currentStaff?.name || '',
+      storeId: 'store_001',
+      storeName: '南山店',
+      createdAt: Date.now(),
+      status: 'pending',
+      syncStatus: 'pending'
+    };
+    await posStore.saveOrder(suspendedOrder);
+    const pending = await posStore.getPendingOrders();
+    setPendingCount(pending.length);
+    setPendingOrders(pending);
+    clearCart();
+    alert('订单已挂起');
+  };
+
+  const loadPendingOrder = (order: Order) => {
+    const loadedCart: CartItem[] = order.items.map(item => ({
+      id: item.id,
+      productId: item.productId,
+      barcode: item.barcode,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity
+    }));
+    setCart(loadedCart);
+    setShowPendingOrders(false);
   };
 
   // 称重功能
   const startWeighing = async () => {
     setShowWeighing(true);
     if (scaleConnected) {
-      // 读取称重数据
       const data = await Hardware.readScaleData();
       setScaleData(data);
     }
@@ -254,7 +329,6 @@ export default function CashierPage() {
 
   const confirmWeighing = () => {
     if (scaleData) {
-      // 创建一个称重商品
       const weighedProduct: Product = {
         id: 'weighed_' + Date.now(),
         name: '称重商品',
@@ -278,16 +352,18 @@ export default function CashierPage() {
   // AI识别
   const initAI = async () => {
     setShowAI(true);
-    if (videoRef.current) {
-      await Hardware.initAICamera(videoRef.current);
+    const video = document.querySelector('video') as HTMLVideoElement;
+    if (video) {
+      await Hardware.initAICamera(video);
     }
   };
 
   const captureAI = async () => {
-    if (!videoRef.current) return;
+    const video = document.querySelector('video') as HTMLVideoElement;
+    if (!video) return;
     setAiScanning(true);
     
-    const result = await Hardware.captureAndRecognize(videoRef.current);
+    const result = await Hardware.captureAndRecognize(video);
     if (result.success && result.products.length > 0) {
       const recognized = result.products[0];
       const product = products.find(p => p.barcode === recognized.barcode) || {
@@ -333,28 +409,12 @@ export default function CashierPage() {
     setShowReceiptPrint(false);
   };
 
-  // 打印价签
-  const handlePrintLabel = async (item: CartItem) => {
-    const data: Hardware.LabelData = {
-      name: item.name,
-      price: item.price,
-      unit: item.isWeighed ? 'kg' : '件',
-      barcode: item.barcode,
-      origin: '深圳',
-      date: new Date().toLocaleDateString('zh-CN')
-    };
-    
-    await Hardware.printLabel(data);
-    setShowLabelPrint(false);
-  };
-
   // 完成支付
   const completePayment = async (method: 'wechat' | 'alipay' | 'cash' | 'card', cashReceived?: number) => {
     const orderNo = 'O' + Date.now().toString().slice(-10);
     setOrderNumber(orderNo);
     setTotal(finalTotal);
     
-    // 保存订单
     const order: Order = {
       id: 'order_' + Date.now(),
       orderNo,
@@ -376,7 +436,7 @@ export default function CashierPage() {
       staffId: currentStaff?.id || '',
       staffName: currentStaff?.name || '',
       storeId: 'store_001',
-      storeName: '海邻到家便利店',
+      storeName: '南山店',
       createdAt: Date.now(),
       status: 'completed',
       syncStatus: 'pending'
@@ -384,24 +444,20 @@ export default function CashierPage() {
 
     await posStore.saveOrder(order);
     
-    // 更新库存
     for (const item of cart) {
       await posStore.updateStock(item.productId, item.quantity, 'sale');
     }
 
-    // 更新销售数据
     const sales = await posStore.getTodaySales();
     setTodaySales({ amount: sales.totalAmount, count: sales.orderCount });
     setPendingCount(await (await posStore.getPendingOrders()).length);
     
-    // 更新客显屏
     Hardware.updateCustomerDisplay({
       total: finalTotal,
       change: cashReceived ? cashReceived - finalTotal : 0,
-      paymentMethod: method === 'cash' ? `现金` : method === 'wechat' ? '微信' : method === 'alipay' ? '支付宝' : '银行卡'
+      paymentMethod: method === 'cash' ? '现金' : method === 'wechat' ? '微信' : method === 'alipay' ? '支付宝' : '银行卡'
     });
 
-    // 打印小票
     await Hardware.printReceipt({
       storeName: '海邻到家便利店',
       orderNo,
@@ -414,11 +470,10 @@ export default function CashierPage() {
         weight: item.weight
       })),
       total: finalTotal,
-      paymentMethod: method === 'cash' ? `现金` : method === 'wechat' ? '微信' : method === 'alipay' ? '支付宝' : '银行卡',
+      paymentMethod: method === 'cash' ? '现金' : method === 'wechat' ? '微信' : method === 'alipay' ? '支付宝' : '银行卡',
       change: cashReceived ? cashReceived - finalTotal : undefined
     });
     
-    // 打开钱箱
     await Hardware.openCashbox();
 
     setOrderSuccess(true);
@@ -429,37 +484,29 @@ export default function CashierPage() {
       setShowPayment(false);
       setDiscountAmount(0);
       setDiscountType('none');
+      setMolarAmount(0);
       setMember(null);
       Hardware.clearCustomerDisplay();
     }, 3000);
   };
 
-  // 组合支付
-  const [comboPayments, setComboPayments] = useState<Array<{method: string; amount: number}>>([]);
-  const [showCombo, setShowCombo] = useState(false);
-  const [cashInput, setCashInput] = useState('');
-
-  const handleComboPayment = () => {
-    const cash = parseFloat(cashInput) || 0;
-    if (cash < finalTotal) {
-      const remaining = finalTotal - cash;
-      setComboPayments([{ method: 'cash', amount: cash }, { method: 'scan', amount: remaining }]);
-    } else {
-      setComboPayments([{ method: 'cash', amount: finalTotal }]);
-    }
-  };
-
   // 同步订单
   const syncOrders = async () => {
     const result = await posStore.syncOrders();
-    setPendingCount(await (await posStore.getPendingOrders()).length);
+    const pending = await posStore.getPendingOrders();
+    setPendingCount(pending.length);
+    setPendingOrders(pending);
     alert(`同步完成: 成功 ${result.success}, 失败 ${result.failed}`);
   };
 
+  // 打开钱箱
+  const openCashbox = async () => {
+    await Hardware.openCashbox();
+  };
+
+  // 过滤商品
   const filteredProducts = products.filter(p => {
-    const matchCat = selectedCategory === '全部' || 
-      (selectedCategory === '称重商品' && p.category === '称重商品') ||
-      p.category === selectedCategory;
+    const matchCat = selectedCategory === '全部' || p.category === selectedCategory;
     const matchSearch = !searchKeyword || p.name.includes(searchKeyword) || p.barcode.includes(searchKeyword);
     return matchCat && matchSearch;
   });
@@ -467,7 +514,7 @@ export default function CashierPage() {
   // 登录页
   if (showLogin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex flex-col">
+      <div className="h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex flex-col">
         <header className="bg-slate-900/80 backdrop-blur border-b border-slate-700 px-6 py-4">
           <div className="flex items-center justify-between max-w-7xl mx-auto">
             <div className="flex items-center gap-4">
@@ -552,7 +599,7 @@ export default function CashierPage() {
   // 支付成功
   if (orderSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+      <div className="h-screen bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
         <div className="text-center text-white">
           <CheckCircle className="w-24 h-24 mx-auto mb-4 animate-bounce" />
           <h1 className="text-4xl font-bold mb-2">收款成功</h1>
@@ -564,198 +611,294 @@ export default function CashierPage() {
     );
   }
 
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
-      {/* 顶部状态栏 */}
-      <header className="bg-orange-500 text-white px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <span className="font-bold text-lg">🏪 收银台</span>
-          {currentStaff && <span className="text-sm bg-white/20 px-2 py-0.5 rounded">{currentStaff.name}</span>}
-          {member && <span className="bg-white/20 px-2 py-0.5 rounded text-sm">{member.name} ({member.level})</span>}
-          
-          {/* 硬件状态指示 */}
-          <div className="hidden md:flex items-center gap-2 text-xs">
-            <span className={`flex items-center gap-1 ${scaleConnected ? 'text-green-300' : 'text-red-300'}`}>
-              <Scale className="w-3 h-3" /> {scaleConnected ? '称重就绪' : '称重离线'}
+    <div className="h-screen flex bg-slate-100 overflow-hidden">
+      {/* 左侧导航栏 */}
+      <nav className="w-20 bg-slate-800 flex flex-col items-center py-3 gap-1 shrink-0">
+        <button onClick={() => {}} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 rounded-lg bg-orange-500 text-white">
+          <ShoppingCart className="w-6 h-6" />
+          <span className="text-xs font-medium">收银</span>
+        </button>
+        <button onClick={() => router.push('/pos/inventory')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+          <Cuboid className="w-6 h-6" />
+          <span className="text-xs font-medium">库存</span>
+        </button>
+        <button onClick={() => router.push('/pos/products')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+          <Package className="w-6 h-6" />
+          <span className="text-xs font-medium">商品</span>
+        </button>
+        <button onClick={() => router.push('/pos/orders')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all relative">
+          <ClipboardList className="w-6 h-6" />
+          <span className="text-xs font-medium">订单</span>
+          {pendingCount > 0 && (
+            <span className="absolute top-1 right-2 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+              {pendingCount}
             </span>
-            <span className={`flex items-center gap-1 ${printerConnected ? 'text-green-300' : 'text-red-300'}`}>
-              <Printer className="w-3 h-3" /> {printerConnected ? '打印机就绪' : '打印机离线'}
-            </span>
-          </div>
-        </div>
+          )}
+        </button>
+        <button onClick={() => router.push('/pos/purchase')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+          <Truck className="w-6 h-6" />
+          <span className="text-xs font-medium">配送</span>
+        </button>
+        <button onClick={() => router.push('/pos/reports')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+          <BarChart3 className="w-6 h-6" />
+          <span className="text-xs font-medium">报表</span>
+        </button>
+        <button onClick={() => router.push('/assistant')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+          <Gift className="w-6 h-6" />
+          <span className="text-xs font-medium">助手</span>
+        </button>
+        <button onClick={() => router.push('/pos/settings')} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+          <Bell className="w-6 h-6" />
+          <span className="text-xs font-medium">客服</span>
+        </button>
         
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-4 text-sm">
-            <span>今日: ¥{todaySales.amount.toFixed(2)}</span>
-            <span>{todaySales.count} 笔</span>
-          </div>
-          {!isOnline && <span className="flex items-center gap-1 bg-red-500 px-2 py-0.5 rounded text-sm"><CloudOff className="w-4 h-4" /> 离线</span>}
-          {pendingCount > 0 && <button onClick={syncOrders} className="flex items-center gap-1 bg-yellow-500 px-2 py-0.5 rounded text-sm"><RefreshCw className="w-4 h-4" /> {pendingCount}待同步</button>}
-          <Clock className="w-4 h-4" /><span className="text-sm">{currentTime.toLocaleTimeString()}</span>
-          {isOnline ? <Wifi className="w-4 h-4 text-green-300" /> : <WifiOff className="w-4 h-4 text-red-300" />}
-          <button onClick={handleLogout} className="hover:bg-orange-600 px-2 py-1 rounded"><LogOut className="w-4 h-4" /></button>
+        <div className="mt-auto">
+          <button onClick={handleLogout} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 text-slate-400 hover:bg-slate-700 hover:text-white rounded-lg transition-all">
+            <Settings className="w-6 h-6" />
+            <span className="text-xs font-medium">设置</span>
+          </button>
         </div>
-      </header>
+      </nav>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-3 p-3">
-        {/* 左侧：商品区域 */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* 搜索和快捷功能 */}
-          <div className="bg-white rounded-xl p-3 mb-3 flex gap-2 flex-wrap">
-            <div className="flex-1 relative min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input type="text" placeholder="输入商品名称或条码..." value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:border-orange-500" />
+      {/* 主内容区 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* 顶部状态栏 */}
+        <header className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-orange-100 text-orange-600 px-3 py-1.5 rounded-full">
+              <Store className="w-4 h-4" />
+              <span className="font-medium text-sm">南山店</span>
+              <span className="text-slate-400">|</span>
+              <span className="text-sm">{currentStaff?.name || '员工'}</span>
             </div>
-            <button onClick={startWeighing} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2">
-              <Scale className="w-5 h-5" /> 称重
-            </button>
-            <button onClick={initAI} className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 flex items-center gap-2">
-              <Camera className="w-5 h-5" /> AI识别
-            </button>
-            <button onClick={() => router.push('/pos/products')} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2">
-              <Package className="w-5 h-5" /> 商品
-            </button>
-            <button onClick={() => router.push('/pos/inventory')} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" /> 库存
-            </button>
+            
+            {/* 搜索框 */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="扫描条码 / 商品名称"
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  className="w-64 pl-10 pr-4 py-2 bg-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+              <button onClick={() => setSearchKeyword('')} className="text-sm text-slate-500 hover:text-slate-700">
+                取消
+              </button>
+            </div>
           </div>
+          
+          {/* 右侧系统功能 */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1.5">
+              <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:bg-white hover:shadow rounded-lg transition-all">
+                <ClipboardList className="w-4 h-4" />
+                采购单
+              </button>
+              <button onClick={() => Hardware.showWelcomeOnDisplay()} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:bg-white hover:shadow rounded-lg transition-all">
+                <Monitor className="w-4 h-4" />
+                客显屏
+              </button>
+              <button onClick={handlePrintReceipt} disabled={cart.length === 0} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:bg-white hover:shadow rounded-lg transition-all disabled:opacity-50">
+                <Printer className="w-4 h-4" />
+                打印
+              </button>
+              <button onClick={handleLogout} className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:bg-white hover:shadow rounded-lg transition-all">
+                <LogOut className="w-4 h-4" />
+                锁屏
+              </button>
+            </div>
+            
+            {/* 在线状态 */}
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-sm ${isOnline ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></span>
+              {isOnline ? '在线' : '离线'}
+            </div>
+            
+            {/* 时间 */}
+            <div className="text-sm text-slate-600">
+              <span>{currentTime.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span>
+              <span className="mx-2">|</span>
+              <span>{currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+        </header>
 
-          {/* 分类 */}
-          <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-            {categories.map(cat => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap ${selectedCategory === cat ? 'bg-orange-500 text-white' : 'bg-white text-slate-600'}`}>
-                {cat}
+        {/* 分类标签栏 */}
+        <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 shrink-0">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-1.5 rounded-full text-sm transition-all ${
+                selectedCategory === cat
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* 商品展示区 */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="grid grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {filteredProducts.map((product) => (
+              <button
+                key={product.id}
+                onClick={() => addToCart(product)}
+                className="bg-white rounded-xl p-3 text-left hover:ring-2 hover:ring-orange-500 shadow-sm transition-all"
+              >
+                <div className="w-full aspect-square bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg mb-3 flex items-center justify-center relative">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    <Package className="w-10 h-10 text-slate-400" />
+                  )}
+                  {product.category === '饮料' && (
+                    <span className="absolute top-1 left-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded">热</span>
+                  )}
+                  {product.category === '日用品' && (
+                    <span className="absolute top-1 left-1 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded">新</span>
+                  )}
+                  {product.category === '称重商品' && (
+                    <span className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded">称重</span>
+                  )}
+                </div>
+                <p className="font-medium text-sm text-slate-800 truncate">{product.name}</p>
+                <p className="text-red-500 font-bold mt-1">¥{product.price.toFixed(2)}</p>
               </button>
             ))}
           </div>
-
-          {/* 商品网格 */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {filteredProducts.map((product) => (
-                <button key={product.id} onClick={() => addToCart(product)}
-                  className="bg-white rounded-xl p-2 text-left hover:ring-2 hover:ring-orange-500 shadow-sm">
-                  <div className="w-full aspect-square bg-slate-100 rounded-lg mb-2 flex items-center justify-center">
-                    <Package className="w-8 h-8 text-slate-400" />
-                  </div>
-                  <p className="font-medium text-sm truncate">{product.name}</p>
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-orange-500 font-bold">¥{product.price.toFixed(2)}</span>
-                    <span className={`text-xs ${product.stock <= product.minStock ? 'text-red-500' : 'text-slate-400'}`}>{product.stock}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* 右侧：购物车 */}
-        <div className="w-full lg:w-96 flex flex-col bg-white rounded-xl shadow overflow-hidden max-h-[calc(100vh-100px)]">
-          <div className="p-3 border-b border-slate-100">
-            <button onClick={() => setShowMember(true)} className="w-full flex items-center gap-3 p-3 bg-slate-50 rounded-lg hover:bg-slate-100">
-              <User className="w-5 h-5 text-slate-400" />
-              <span className="text-slate-600 flex-1 text-left">{member ? `${member.name} · ${member.level} · ${member.points}积分` : '添加会员'}</span>
+        {/* 底部快捷操作栏 */}
+        <div className="h-14 bg-white border-t border-slate-200 flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200">
+              <RefreshCw className="w-4 h-4" />
+              上一单
+            </button>
+            <button onClick={() => setShowPendingOrders(true)} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200 relative">
+              <Clock className="w-4 h-4" />
+              待收款
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+            <button onClick={openCashbox} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200">
+              <MinusCircle className="w-4 h-4" />
+              开钱箱
             </button>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-3">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="font-bold">购物车</h2>
-              <span className="text-sm text-slate-500">{cart.length} 件</span>
-            </div>
-
-            {cart.length === 0 ? (
-              <div className="text-center text-slate-400 py-8">
-                <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>购物车为空</p>
-                <p className="text-sm">点击商品添加到购物车</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.name}</p>
-                      <p className="text-orange-500 text-sm">
-                        ¥{item.price.toFixed(2)} × {item.quantity}
-                        {item.isWeighed && item.weight && ` (${item.weight}kg)`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 bg-white rounded-lg px-1">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="w-7 h-7 flex items-center justify-center"><Minus className="w-4 h-4" /></button>
-                      <span className="w-8 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="w-7 h-7 flex items-center justify-center"><Plus className="w-4 h-4" /></button>
-                    </div>
-                    <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 text-red-500 hover:bg-red-50 rounded flex items-center justify-center"><Delete className="w-4 h-4" /></button>
-                    <button onClick={() => { setShowLabelPrint(true); }} className="w-7 h-7 text-blue-500 hover:bg-blue-50 rounded flex items-center justify-center"><Tag className="w-4 h-4" /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="p-3 border-t border-slate-100">
-            <button onClick={() => setShowDiscount(true)} className="w-full flex items-center justify-between p-2 bg-orange-50 rounded-lg hover:bg-orange-100">
-              <div className="flex items-center gap-2">
-                <Percent className="w-4 h-4 text-orange-500" />
-                <span className="text-sm">{discountType === 'none' ? '添加优惠' : discountType === 'member' ? '会员95折' : discountType === 'coupon' ? '优惠券减10' : `减免¥${discountAmount}`}</span>
-              </div>
-              <span className="text-orange-500 text-sm">-¥{discount.toFixed(2)}</span>
+          
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200">
+              <Zap className="w-4 h-4" />
+              快速收银
             </button>
-          </div>
-
-          <div className="p-3 border-t border-slate-100 bg-slate-50">
-            <div className="flex justify-between mb-3">
-              <span className="text-lg">合计</span>
-              <div className="text-right">
-                <span className="text-2xl font-bold text-orange-500">¥{finalTotal.toFixed(2)}</span>
-                {discount > 0 && <p className="text-xs text-slate-400 line-through">¥{subtotal.toFixed(2)}</p>}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <button disabled={cart.length === 0} onClick={() => setShowPayment(true)}
-                className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 disabled:bg-slate-300 flex items-center justify-center gap-2">
-                <CreditCard className="w-5 h-5" /> 收款 ¥{finalTotal.toFixed(2)}
-              </button>
-              <div className="grid grid-cols-3 gap-2">
-                <button onClick={clearCart} disabled={cart.length === 0} className="py-2 border border-slate-200 rounded-lg text-sm hover:bg-white disabled:opacity-50">清空</button>
-                <button onClick={handlePrintReceipt} disabled={cart.length === 0} className="py-2 border border-slate-200 rounded-lg text-sm hover:bg-white disabled:opacity-50 flex items-center justify-center gap-1">
-                  <Printer className="w-4 h-4" /> 重打
-                </button>
-                <button onClick={() => setShowHardware(true)} className="py-2 border border-slate-200 rounded-lg text-sm hover:bg-white flex items-center justify-center gap-1">
-                  <Settings className="w-4 h-4" /> 设置
-                </button>
-              </div>
-            </div>
+            <button onClick={suspendOrder} disabled={cart.length === 0} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200 disabled:opacity-50">
+              <MinusCircle className="w-4 h-4" />
+              挂单
+            </button>
           </div>
         </div>
       </div>
 
-      {/* 底部快捷功能栏 */}
-      <div className="bg-white border-t border-slate-200 px-4 py-2 flex justify-around">
-        <button className="flex flex-col items-center gap-1 text-slate-600 hover:text-orange-500">
-          <Receipt className="w-6 h-6" />
-          <span className="text-xs">订单</span>
-        </button>
-        <button className="flex flex-col items-center gap-1 text-slate-600 hover:text-orange-500">
-          <DollarSign className="w-6 h-6" />
-          <span className="text-xs">报表</span>
-        </button>
-        <button className="flex flex-col items-center gap-1 text-slate-600 hover:text-orange-500">
-          <Percent className="w-6 h-6" />
-          <span className="text-xs">促销</span>
-        </button>
-        <button className="flex flex-col items-center gap-1 text-slate-600 hover:text-orange-500">
-          <Package className="w-6 h-6" />
-          <span className="text-xs">库存</span>
-        </button>
-        <button onClick={() => router.push('/pos/purchase')} className="flex flex-col items-center gap-1 text-slate-600 hover:text-orange-500">
-          <ShoppingCart className="w-6 h-6" />
-          <span className="text-xs">采购</span>
-        </button>
+      {/* 右侧结算区 */}
+      <div className="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0">
+        {/* 金额显示 */}
+        <div className="bg-slate-800 text-white p-4">
+          <div className="text-center">
+            <p className="text-4xl font-bold">¥{finalTotal.toFixed(2)}</p>
+            <p className="text-slate-400 text-sm mt-1">共{totalItems}件</p>
+          </div>
+        </div>
+        
+        {/* 操作按钮 */}
+        <div className="p-3 border-b border-slate-100 flex gap-2">
+          <button onClick={() => setShowPriceAdjust(true)} disabled={cart.length === 0} className="flex-1 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200 disabled:opacity-50">
+            整单改价
+          </button>
+          <button onClick={() => setShowMolar(true)} disabled={cart.length === 0} className="flex-1 py-2 bg-slate-100 rounded-lg text-sm text-slate-600 hover:bg-slate-200 disabled:opacity-50">
+            抹分
+          </button>
+        </div>
+        
+        {/* 会员与优惠 */}
+        <div className="p-3 border-b border-slate-100 flex gap-2">
+          <button onClick={() => setShowMember(true)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-1">
+            <User className="w-4 h-4" />
+            {member ? `${member.name} (${member.level})` : '会员登录/新增'}
+          </button>
+          <button onClick={() => setShowDiscount(true)} className="flex-1 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-1">
+            <Ticket className="w-4 h-4" />
+            优惠券核销
+          </button>
+        </div>
+        
+        {/* 称重提示 */}
+        <div className="p-3 bg-slate-50 text-center text-sm text-slate-500">
+          <div className="flex items-center justify-center gap-2">
+            <Scale className="w-4 h-4" />
+            开始称重结账吧
+          </div>
+        </div>
+        
+        {/* 购物车列表 */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {cart.length === 0 ? (
+            <div className="text-center text-slate-400 py-8">
+              <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">购物车为空</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {cart.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{item.name}</p>
+                    <p className="text-orange-500 text-sm">
+                      ¥{item.price.toFixed(2)} × {item.quantity}
+                      {item.isWeighed && item.weight && ` (${item.weight}kg)`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-white rounded-lg px-1">
+                    <button onClick={() => updateQuantity(item.id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 rounded">
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-6 text-center text-sm">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.id, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-slate-100 rounded">
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <button onClick={() => removeFromCart(item.id)} className="w-6 h-6 text-red-500 hover:bg-red-50 rounded flex items-center justify-center">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* 结账按钮 */}
+        <div className="p-3 border-t border-slate-200">
+          <button
+            disabled={cart.length === 0}
+            onClick={() => setShowPayment(true)}
+            className="w-full py-4 bg-pink-500 text-white text-lg font-bold rounded-2xl hover:bg-pink-600 disabled:bg-slate-300 transition-all active:scale-95"
+          >
+            结账
+          </button>
+        </div>
       </div>
 
       {/* 会员弹窗 */}
@@ -804,12 +947,218 @@ export default function CashierPage() {
                 className="w-full p-4 border-2 border-slate-200 rounded-xl text-left hover:border-orange-500">
                 <p className="font-bold text-lg">优惠券 (满50减10)</p>
               </button>
-              <div className="flex gap-2">
-                <input type="number" placeholder="手动减免金额" value={discountAmount || ''}
-                  onChange={(e) => { setDiscountAmount(parseFloat(e.target.value) || 0); setDiscountType('manual'); }}
-                  className="flex-1 border border-slate-200 rounded-lg px-4 py-3 text-lg" />
-                <button onClick={() => setShowDiscount(false)} className="px-6 py-3 bg-orange-500 text-white rounded-lg font-bold">确定</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 抹零弹窗 */}
+      {showMolar && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-96 overflow-hidden">
+            <div className="bg-slate-700 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg">抹分（抹零）</h3>
+              <button onClick={() => setShowMolar(false)}><X className="w-6 h-6" /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="text-center py-4">
+                <p className="text-3xl font-bold text-orange-500">抹 ¥{molarAmount.toFixed(2)}</p>
+                <p className="text-slate-500 text-sm mt-1">应收金额：¥{finalTotal.toFixed(2)}</p>
               </div>
+              <div className="grid grid-cols-4 gap-2">
+                {[0.01, 0.1, 0.5, 1].map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => setMolarAmount(Math.min(amount, finalTotal))}
+                    className="py-3 bg-slate-100 rounded-lg text-sm hover:bg-slate-200"
+                  >
+                    抹 ¥{amount}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="number" 
+                  placeholder="输入抹零金额" 
+                  value={molarAmount || ''}
+                  onChange={(e) => setMolarAmount(parseFloat(e.target.value) || 0)}
+                  className="flex-1 border border-slate-200 rounded-lg px-4 py-3" 
+                />
+                <button 
+                  onClick={() => setShowMolar(false)}
+                  className="px-6 py-3 bg-orange-500 text-white rounded-lg font-bold"
+                >
+                  确定
+                </button>
+              </div>
+              <button 
+                onClick={() => { setMolarAmount(0); setShowMolar(false); }}
+                className="w-full py-3 bg-slate-100 rounded-lg text-sm hover:bg-slate-200"
+              >
+                不抹零
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 待收款订单弹窗 */}
+      {showPendingOrders && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-[500px] max-h-[600px] overflow-hidden">
+            <div className="bg-slate-700 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg">待收款订单</h3>
+              <button onClick={() => setShowPendingOrders(false)}><X className="w-6 h-6" /></button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[400px]">
+              {pendingOrders.length === 0 ? (
+                <p className="text-center text-slate-400 py-8">暂无待收款订单</p>
+              ) : (
+                <div className="space-y-3">
+                  {pendingOrders.map((order) => (
+                    <div key={order.id} className="p-4 bg-slate-50 rounded-xl">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium">订单号: {order.orderNo}</span>
+                        <span className="text-orange-500 font-bold">¥{order.finalAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="text-sm text-slate-500 mb-2">
+                        {order.items.length}件商品 | {new Date(order.createdAt).toLocaleString('zh-CN')}
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => loadPendingOrder(order)}
+                          className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600"
+                        >
+                          加载订单
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const orders = await posStore.getOrders();
+                            const filtered = orders.filter(o => o.id !== order.id);
+                            localStorage.setItem('pos_orders', JSON.stringify(filtered));
+                            const pending = await posStore.getPendingOrders();
+                            setPendingOrders(pending);
+                            setPendingCount(pending.length);
+                          }}
+                          className="py-2 px-4 bg-red-100 text-red-600 rounded-lg text-sm hover:bg-red-200"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 整单改价弹窗 */}
+      {showPriceAdjust && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-96 overflow-hidden">
+            <div className="bg-slate-700 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg">整单改价</h3>
+              <button onClick={() => setShowPriceAdjust(false)}><X className="w-6 h-6" /></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="text-center py-4">
+                <p className="text-sm text-slate-500">原金额</p>
+                <p className="text-2xl text-slate-400 line-through">¥{subtotal.toFixed(2)}</p>
+              </div>
+              <input 
+                type="number" 
+                placeholder="输入新金额" 
+                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-lg text-center" 
+                autoFocus
+              />
+              <button 
+                onClick={() => setShowPriceAdjust(false)}
+                className="w-full py-3 bg-orange-500 text-white rounded-lg font-bold hover:bg-orange-600"
+              >
+                确认修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 支付方式弹窗 */}
+      {showPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-[500px] overflow-hidden">
+            <div className="bg-orange-500 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg">选择支付方式</h3>
+              <button onClick={() => setShowPayment(false)}><X className="w-6 h-6" /></button>
+            </div>
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <p className="text-4xl font-bold text-orange-500">¥{finalTotal.toFixed(2)}</p>
+                <p className="text-slate-500 text-sm mt-1">共{totalItems}件商品</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <button 
+                  onClick={() => completePayment('wechat')}
+                  className="p-6 bg-green-500 text-white rounded-2xl hover:bg-green-600 transition-all"
+                >
+                  <QrCode className="w-12 h-12 mx-auto mb-2" />
+                  <p className="font-bold">微信支付</p>
+                </button>
+                <button 
+                  onClick={() => completePayment('alipay')}
+                  className="p-6 bg-blue-500 text-white rounded-2xl hover:bg-blue-600 transition-all"
+                >
+                  <QrCode className="w-12 h-12 mx-auto mb-2" />
+                  <p className="font-bold">支付宝</p>
+                </button>
+                <button 
+                  onClick={() => completePayment('card')}
+                  className="p-6 bg-purple-500 text-white rounded-2xl hover:bg-purple-600 transition-all"
+                >
+                  <CreditCard className="w-12 h-12 mx-auto mb-2" />
+                  <p className="font-bold">银行卡</p>
+                </button>
+                <button 
+                  onClick={() => {
+                    const cash = prompt('请输入收款金额:', finalTotal.toFixed(2));
+                    if (cash) {
+                      completePayment('cash', parseFloat(cash));
+                    }
+                  }}
+                  className="p-6 bg-orange-500 text-white rounded-2xl hover:bg-orange-600 transition-all"
+                >
+                  <Banknote className="w-12 h-12 mx-auto mb-2" />
+                  <p className="font-bold">现金</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI识别弹窗 */}
+      {showAI && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl w-[700px] overflow-hidden">
+            <div className="bg-purple-500 text-white p-4 flex items-center justify-between">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <Camera className="w-6 h-6" />
+                AI商品识别
+              </h3>
+              <button onClick={() => { setShowAI(false); Hardware.stopAICamera(); }}><X className="w-6 h-6" /></button>
+            </div>
+            <div className="p-6">
+              <div className="bg-slate-900 rounded-xl aspect-video flex items-center justify-center mb-4">
+                <video className="w-full h-full object-cover" autoPlay playsInline muted />
+              </div>
+              <button 
+                onClick={captureAI}
+                disabled={aiScanning}
+                className="w-full py-4 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 disabled:bg-slate-300"
+              >
+                {aiScanning ? '识别中...' : '拍照识别'}
+              </button>
             </div>
           </div>
         </div>
@@ -845,180 +1194,6 @@ export default function CashierPage() {
                 </button>
               </div>
               {!scaleConnected && <p className="text-red-500 mt-4">称重器未连接，使用模拟数据</p>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI识别弹窗 */}
-      {showAI && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-[700px] overflow-hidden">
-            <div className="bg-purple-500 text-white p-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg flex items-center gap-2"><Bot className="w-6 h-6" /> AI商品识别</h3>
-              <button onClick={() => { setShowAI(false); Hardware.stopAICamera(); }}><X className="w-6 h-6" /></button>
-            </div>
-            <div className="p-4">
-              <div className="relative bg-black rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                {aiScanning && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <div className="text-white text-xl font-bold">识别中...</div>
-                  </div>
-                )}
-              </div>
-              <p className="text-center text-slate-500 mt-4">将商品放入摄像头视野内，点击拍照识别</p>
-              <button onClick={captureAI} disabled={aiScanning}
-                className="w-full mt-4 py-4 bg-purple-500 text-white rounded-xl text-lg font-bold hover:bg-purple-600 disabled:bg-slate-300 flex items-center justify-center gap-2">
-                <Camera className="w-6 h-6" /> {aiScanning ? '识别中...' : '拍照识别'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 硬件设置弹窗 */}
-      {showHardware && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-[500px] overflow-hidden">
-            <div className="bg-slate-600 text-white p-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg flex items-center gap-2"><Settings className="w-6 h-6" /> 硬件设置</h3>
-              <button onClick={() => setShowHardware(false)}><X className="w-6 h-6" /></button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between p-4 bg-slate-100 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <Scale className="w-8 h-8 text-blue-500" />
-                  <div>
-                    <p className="font-bold">电子秤</p>
-                    <p className="text-sm text-slate-500">{scaleConnected ? '已连接' : '未连接'}</p>
-                  </div>
-                </div>
-                <button onClick={connectHardware} className="px-4 py-2 bg-blue-500 text-white rounded-lg">
-                  {scaleConnected ? '重新连接' : '连接'}
-                </button>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-100 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <Printer className="w-8 h-8 text-green-500" />
-                  <div>
-                    <p className="font-bold">小票打印机</p>
-                    <p className="text-sm text-slate-500">{printerConnected ? '已连接' : '未连接'}</p>
-                  </div>
-                </div>
-                <button onClick={connectHardware} className="px-4 py-2 bg-green-500 text-white rounded-lg">
-                  {printerConnected ? '重新连接' : '连接'}
-                </button>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-100 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <MonitorSmartphone className="w-8 h-8 text-purple-500" />
-                  <div>
-                    <p className="font-bold">客显屏</p>
-                    <p className="text-sm text-slate-500">双屏异显</p>
-                  </div>
-                </div>
-                <span className="text-green-500 font-bold">正常</span>
-              </div>
-              <button onClick={async () => { await Hardware.openCashbox(); alert('钱箱已打开'); }} className="w-full py-4 bg-orange-500 text-white rounded-xl text-lg font-bold hover:bg-orange-600">
-                测试开钱箱
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 价签打印弹窗 */}
-      {showLabelPrint && cart.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-[500px] overflow-hidden">
-            <div className="bg-blue-500 text-white p-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg flex items-center gap-2"><Tag className="w-6 h-6" /> 打印价签</h3>
-              <button onClick={() => setShowLabelPrint(false)}><X className="w-6 h-6" /></button>
-            </div>
-            <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
-              {cart.map(item => (
-                <button key={item.id} onClick={() => handlePrintLabel(item)}
-                  className="w-full flex items-center justify-between p-4 bg-slate-100 rounded-xl hover:bg-slate-200">
-                  <div>
-                    <p className="font-bold">{item.name}</p>
-                    <p className="text-sm text-slate-500">¥{item.price.toFixed(2)} × {item.quantity}</p>
-                  </div>
-                  <Printer className="w-6 h-6 text-blue-500" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 支付弹窗 */}
-      {showPayment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-[500px] overflow-hidden">
-            <div className="bg-orange-500 text-white p-4 text-center">
-              <p className="text-sm">需支付金额</p>
-              <p className="text-5xl font-bold">¥{finalTotal.toFixed(2)}</p>
-            </div>
-            <div className="p-4 space-y-3">
-              <button onClick={() => completePayment('wechat')} className="w-full py-5 bg-green-500 text-white rounded-xl text-xl font-bold hover:bg-green-600 flex items-center justify-center gap-3">
-                <QrCode className="w-8 h-8" /> 微信支付
-              </button>
-              <button onClick={() => completePayment('alipay')} className="w-full py-5 bg-blue-500 text-white rounded-xl text-xl font-bold hover:bg-blue-600 flex items-center justify-center gap-3">
-                <QrCode className="w-8 h-8" /> 支付宝
-              </button>
-              <button onClick={() => completePayment('cash')} className="w-full py-5 bg-slate-200 text-slate-700 rounded-xl text-xl font-bold hover:bg-slate-300 flex items-center justify-center gap-3">
-                <Banknote className="w-8 h-8" /> 现金支付
-              </button>
-              <button onClick={() => completePayment('card')} className="w-full py-5 bg-purple-500 text-white rounded-xl text-xl font-bold hover:bg-purple-600 flex items-center justify-center gap-3">
-                <CreditCard className="w-8 h-8" /> 银行卡
-              </button>
-              <button onClick={() => setShowCombo(true)} className="w-full py-4 border-2 border-orange-500 text-orange-500 rounded-xl text-lg font-bold hover:bg-orange-50 flex items-center justify-center gap-3">
-                <DollarSign className="w-6 h-6" /> 组合支付
-              </button>
-              <button onClick={() => setShowPayment(false)} className="w-full py-3 text-slate-500">取消</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 组合支付弹窗 */}
-      {showCombo && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-2xl w-[500px] overflow-hidden">
-            <div className="bg-purple-500 text-white p-4 text-center">
-              <p className="text-sm">组合支付 - 应付 ¥{finalTotal.toFixed(2)}</p>
-            </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">现金金额</label>
-                <input type="number" value={cashInput} onChange={(e) => setCashInput(e.target.value)}
-                  placeholder="输入现金金额" className="w-full p-4 border-2 border-slate-200 rounded-xl text-xl" />
-              </div>
-              {cashInput && parseFloat(cashInput) > 0 && (
-                <div className="p-4 bg-slate-100 rounded-xl">
-                  <p className="text-sm text-slate-600">支付方案：</p>
-                  {parseFloat(cashInput) >= finalTotal ? (
-                    <p className="font-bold text-green-600">全额现金 ¥{finalTotal.toFixed(2)}</p>
-                  ) : (
-                    <>
-                      <p>现金: ¥{parseFloat(cashInput).toFixed(2)}</p>
-                      <p>扫码: ¥{(finalTotal - parseFloat(cashInput)).toFixed(2)}</p>
-                    </>
-                  )}
-                  {parseFloat(cashInput) > finalTotal && (
-                    <p className="text-orange-500 font-bold">找零: ¥{(parseFloat(cashInput) - finalTotal).toFixed(2)}</p>
-                  )}
-                </div>
-              )}
-              <button onClick={handleComboPayment} className="w-full py-4 bg-purple-500 text-white rounded-xl text-lg font-bold hover:bg-purple-600">
-                确认组合支付
-              </button>
-              <button onClick={() => { setShowCombo(false); completePayment('cash', parseFloat(cashInput)); }} 
-                disabled={!cashInput || parseFloat(cashInput) < finalTotal}
-                className="w-full py-3 text-slate-500 disabled:opacity-50">
-                取消
-              </button>
             </div>
           </div>
         </div>
