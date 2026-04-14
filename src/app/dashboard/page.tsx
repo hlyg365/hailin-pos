@@ -261,7 +261,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between bg-white border-b border-slate-100 px-6 py-4">
             <CardTitle className="text-base font-semibold text-slate-800">店铺销售概览</CardTitle>
             <Button variant="outline" size="sm" className="text-slate-600 border-slate-200 hover:bg-slate-50" asChild>
-              <a href="/stores/manage">
+              <a href="/dashboard/stores/manage">
                 <Store className="h-4 w-4 mr-1.5" />
                 店铺管理
               </a>
@@ -306,7 +306,7 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between bg-white border-b border-slate-100 px-6 py-4">
               <CardTitle className="text-base font-semibold text-slate-800">近期采购单</CardTitle>
               <Button variant="link" size="sm" className="text-blue-600 hover:text-blue-700" asChild>
-                <a href="/inventory/purchase" className="flex items-center gap-1">
+                <a href="/dashboard/inventory/purchase" className="flex items-center gap-1">
                   查看全部
                   <ChevronRight className="h-4 w-4" />
                 </a>
@@ -349,7 +349,7 @@ export default function DashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between bg-white border-b border-slate-100 px-6 py-4">
               <CardTitle className="text-base font-semibold text-slate-800">近期调拨单</CardTitle>
               <Button variant="link" size="sm" className="text-blue-600 hover:text-blue-700" asChild>
-                <a href="/inventory/transfer" className="flex items-center gap-1">
+                <a href="/dashboard/inventory/transfer" className="flex items-center gap-1">
                   查看全部
                   <ChevronRight className="h-4 w-4" />
                 </a>
@@ -394,7 +394,7 @@ export default function DashboardPage() {
               <CardTitle className="text-base font-semibold text-slate-800">库存预警商品</CardTitle>
             </div>
             <Button variant="link" size="sm" className="text-blue-600 hover:text-blue-700" asChild>
-              <a href="/inventory?status=warning" className="flex items-center gap-1">
+              <a href="/dashboard/inventory?status=warning" className="flex items-center gap-1">
                 查看全部
                 <ChevronRight className="h-4 w-4" />
               </a>
@@ -447,31 +447,31 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="p-6">
             <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-              <a href="/inventory/purchase" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors group">
+              <a href="/dashboard/inventory/purchase" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors group">
                 <div className="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
                   <Truck className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-sm font-medium text-slate-700">采购管理</div>
               </a>
-              <a href="/inventory/transfer" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors group">
+              <a href="/dashboard/inventory/transfer" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors group">
                 <div className="w-12 h-12 rounded-xl bg-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:scale-105 transition-transform">
                   <ArrowRightLeft className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-sm font-medium text-slate-700">库存调拨</div>
               </a>
-              <a href="/inventory/psa" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors group">
+              <a href="/dashboard/inventory/psa" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors group">
                 <div className="w-12 h-12 rounded-xl bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
                   <BarChart3 className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-sm font-medium text-slate-700">进销存报表</div>
               </a>
-              <a href="/products" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-orange-50 hover:bg-orange-100 transition-colors group">
+              <a href="/dashboard/products" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-orange-50 hover:bg-orange-100 transition-colors group">
                 <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform">
                   <Package className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-sm font-medium text-slate-700">商品管理</div>
               </a>
-              <a href="/stores/manage" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-cyan-50 hover:bg-cyan-100 transition-colors group">
+              <a href="/dashboard/stores/manage" className="flex flex-col items-center gap-2 p-4 rounded-xl bg-cyan-50 hover:bg-cyan-100 transition-colors group">
                 <div className="w-12 h-12 rounded-xl bg-cyan-500 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
                   <Store className="h-6 w-6 text-white" />
                 </div>
