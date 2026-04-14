@@ -3,36 +3,83 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (optional)'
+        required: false
+        default: ''
+
 jobs:
-  build:
+  build-and-update:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+
       - name: Install dependencies
         run: pnpm install
+
       - name: Build web app
         run: pnpm build
+
       - name: Sync Capacitor
         run: npx cap sync android
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
       - name: Build APK
         run: cd android && ./gradlew assembleDebug
-      - name: Upload APK
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION=$(date '+%Y.%m.%d')
+          BUILD_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+          APK_SIZE=$(stat -c%s android/app/build/outputs/apk/debug/app-debug.apk)
+          APK_SIZE_MB=$(echo "scale=1; $APK_SIZE/1024/1024" | bc)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
+          echo "apk_size=$APK_SIZE_MB MB" >> $GITHUB_OUTPUT
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: hailin-pos-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: "海邻收银台 v${{ steps.version.outputs.version }}"
+          body: |
+            构建时间: ${{ steps.version.outputs.build_time }}
+            APK大小: ${{ steps.version.outputs.apk_size }}
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update download link to HQ backend
+        run: |
+          APK_URL="https://github.com/hlyg365/hailin-pos/releases/download/v${{ steps.version.outputs.version }}/app-debug.apk"
+          RESPONSE=$(curl -s -X POST "https://hldj365.coze.site/api/update-apk-link" \
+            -H "Content-Type: application/json" \
+            -d "{\"version\": \"v${{ steps.version.outputs.version }}\",\"downloadUrl\": \"$APK_URL\",\"buildTime\": \"${{ steps.version.outputs.build_time }}\",\"fileSize\": \"${{ steps.version.outputs.apk_size }}\"}")
+          echo "API Response: $RESPONSE"
+          if echo "$RESPONSE" | grep -q '"code":0'; then echo "✅ 总部后台下载链接更新成功"; else echo "⚠️ 总部后台更新失败，APK已上传到GitHub Release"; fi
+        continue-on-error: true
