@@ -6,6 +6,9 @@
  * - PWA/Web：通过API代理调用（模拟模式）
  */
 
+// 导入热敏打印机ReceiptData类型
+import { ReceiptData } from './thermal-printer-service';
+
 // 延迟加载 Capacitor，避免 SSR 时出错
 let Capacitor: any = null;
 
@@ -82,17 +85,6 @@ export interface PrinterDevice {
   paired: boolean;
 }
 
-export interface ReceiptData {
-  shopName?: string;
-  orderNo?: string;
-  date?: string;
-  cashier?: string;
-  items: Array<{ name: string; quantity: string; price: string }>;
-  total: number;
-  discount?: number;
-  payment: number;
-  change: number;
-}
 
 // 原生插件接口
 interface ScalePlugin {
@@ -904,3 +896,84 @@ export function getDebugInfo() {
     userAgent: navigator.userAgent,
   };
 }
+
+// ==================== 导出新服务 ====================
+// 这些服务提供更完善的收银机硬件支持
+
+export {
+  // 串口通信服务（RS232/USB转串口）
+  serialService,
+  SerialService,
+  ScaleProtocolParser,
+  USB_SERIAL_CHIPS,
+  type SerialPortConfig,
+  type SerialDevice,
+  type SerialConnectionStatus,
+} from './serial-service';
+
+export {
+  // USB设备管理服务
+  usbService,
+  UsbService,
+  COMMON_POS_DEVICES,
+  USB_CLASS_CODES,
+  type UsbDeviceWrapper,
+  type UsbDeviceType,
+  type HidDeviceInfo,
+} from './usb-service';
+
+export {
+  // 钱箱驱动服务
+  cashboxDriver,
+  CashboxDriver,
+  CASHBOX_PINOUT,
+  type CashboxInterface,
+  type CashboxConfig,
+  type CashboxStatus,
+  type CashboxResult,
+  type CashboxDevice,
+} from './cashbox-driver';
+
+export {
+  // 客显屏服务
+  customerDisplayService,
+  CustomerDisplayService,
+  type DisplayType,
+  type DisplayInfo,
+  type CustomerDisplayContent,
+} from './customer-display-service';
+
+export {
+  // 热敏打印机服务
+  thermalPrinterService,
+  ThermalPrinterService,
+  ESC_POS_COMMANDS,
+  type ThermalPrinterType,
+  type PrinterConfig,
+  type PrinterStatus,
+  type PrintJob,
+  type ReceiptItem,
+  type LabelData,
+} from './thermal-printer-service';
+
+export {
+  // 网络连接服务
+  networkService,
+  NetworkService,
+  type NetworkType,
+  type NetworkStatus,
+  type NetworkConfig,
+  type WifiConfig,
+  type NetworkDiagnostic,
+} from './network-service';
+
+export {
+  // 统一硬件管理
+  hardwareManager,
+  HardwareManager,
+  type HardwareDeviceStatus,
+  type HardwareInitResult,
+  type HardwareManagerConfig,
+  type HardwareEventType,
+  type HardwareEvent,
+} from './hardware-manager';
