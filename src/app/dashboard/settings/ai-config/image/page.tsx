@@ -254,7 +254,7 @@ export default function ImageRecognitionConfigPage() {
 
       {/* 返回按钮 */}
       <div className="pt-4">
-        <Button variant="outline" onClick={() => router.push('/settings/ai-config')}>
+        <Button variant="outline" onClick={() => router.push('/dashboard/settings/ai-config')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           返回AI功能配置
         </Button>

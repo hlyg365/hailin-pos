@@ -384,7 +384,7 @@ export default function GroupBuyPage() {
     }
 
     // 导航到接龙创建页面，并传递团购活动ID
-    router.push(`/group-buy/dragon/create?activityId=${activity.id}`);
+    router.push(`/dashboard/group-buy/dragon/create?activityId=${activity.id}`);
   };
 
   return (

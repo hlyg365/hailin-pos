@@ -39,7 +39,7 @@ export default function HeadquarterLoginPage() {
           permissions: ['all'],
           avatar: '',
         }));
-        router.push('/');
+        router.push('/dashboard');
       } else if (username === 'manager' && password === 'manager123') {
         localStorage.setItem('hq_logged_in', 'true');
         localStorage.setItem('hq_user', JSON.stringify({
@@ -50,7 +50,7 @@ export default function HeadquarterLoginPage() {
           permissions: ['inventory', 'promotion', 'report', 'store'],
           avatar: '',
         }));
-        router.push('/');
+        router.push('/dashboard');
       } else if (username === 'finance' && password === 'finance123') {
         localStorage.setItem('hq_logged_in', 'true');
         localStorage.setItem('hq_user', JSON.stringify({
@@ -61,7 +61,7 @@ export default function HeadquarterLoginPage() {
           permissions: ['finance', 'report'],
           avatar: '',
         }));
-        router.push('/');
+        router.push('/dashboard');
       } else if (username === 'supply' && password === 'supply123') {
         localStorage.setItem('hq_logged_in', 'true');
         localStorage.setItem('hq_user', JSON.stringify({
@@ -72,7 +72,7 @@ export default function HeadquarterLoginPage() {
           permissions: ['supply', 'inventory'],
           avatar: '',
         }));
-        router.push('/');
+        router.push('/dashboard');
       } else {
         setError('用户名或密码错误');
         setLoading(false);

@@ -234,7 +234,7 @@ export default function BarcodeApiConfigPage() {
     <div className="space-y-6">
       {/* 返回按钮和标题 */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/settings/ai-config')}>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/settings/ai-config')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>

@@ -165,7 +165,7 @@ export function HqAuthProvider({ children }: { children: ReactNode }) {
         } else if (user) {
           // 本地状态有用户，但 localStorage 没有，说明被清除了
           setUser(null);
-          router.replace('/auth/login');
+          router.replace('/dashboard/auth/login');
         }
       }
     };
