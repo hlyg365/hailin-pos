@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  ShoppingCart, Plus, Minus, Delete, CreditCard, QrCode, User, Wifi, Clock, Printer, Banknote, Percent, Package, Search, X, CheckCircle, LogOut, KeyRound, Store, WifiOff, RefreshCw, TrendingUp, Scale, Monitor, Camera, Settings, Receipt, Ticket, Truck, BarChart3, Gift, Bell, Cuboid, ClipboardList, MinusCircle, Zap
+  ShoppingCart, Plus, Minus, Delete, CreditCard, QrCode, User, Wifi, Clock, Printer, Banknote, Percent, Package, Search, X, CheckCircle, LogOut, KeyRound, Store, WifiOff, RefreshCw, TrendingUp, Scale, Monitor, Camera, Settings, Receipt, Ticket, Truck, BarChart3, Gift, Bell, Cuboid, ClipboardList, MinusCircle, Zap, Volume2
 } from 'lucide-react';
 import { posStore, Product, Order } from '@/lib/pos-store';
 import * as Hardware from '@/lib/pos-hardware-service';
@@ -25,6 +25,12 @@ const categories = ['全部', '饮料', '乳品', '方便食品', '零食', '日
 
 export default function CashierPage() {
   const router = useRouter();
+  
+  // 使用 ref 保存 products，确保扫码回调能获取最新数据
+  const productsRef = useRef<Product[]>([]);
+  
+  // 扫码成功提示状态
+  const [scanFeedback, setScanFeedback] = useState<{show: boolean; text: string; type: 'success' | 'error'}>({show: false, text: '', type: 'success'});
   
   // 登录状态 - 从 localStorage 恢复
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -99,6 +105,7 @@ export default function CashierPage() {
       await posStore.initDefaultProducts();
       const prods = await posStore.getProducts();
       setProducts(prods);
+      productsRef.current = prods; // 同时更新 ref
       const sales = await posStore.getTodaySales();
       setTodaySales({ amount: sales.totalAmount, count: sales.orderCount });
       const pending = await posStore.getPendingOrders();
@@ -127,31 +134,78 @@ export default function CashierPage() {
     };
   }, []);
 
-  // 扫码枪监听
+  // 扫码枪监听 - 使用 ref 确保获取最新商品数据
   useEffect(() => {
     let barcodeBuffer = '';
     let lastKeyTime = 0;
     
+    const showFeedback = (text: string, type: 'success' | 'error') => {
+      setScanFeedback({ show: true, text, type });
+      setTimeout(() => setScanFeedback({ show: false, text: '', type: 'success' }), 1500);
+    };
+    
+    const playSound = (success: boolean) => {
+      // 使用 Web Audio API 播放提示音
+      try {
+        const audioCtx = new (window.AudioContext || (window as unknown as {webkitAudioContext: typeof AudioContext}).webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.frequency.value = success ? 880 : 440;
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.1;
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + (success ? 0.1 : 0.3));
+      } catch {
+        // 浏览器不支持音频时静默失败
+      }
+    };
+    
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showLogin || showPayment || showMember || showDiscount || showWeighing || showAI) return;
+      // 忽略在输入框中的按键
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      // 弹窗打开时不处理扫码
+      if (showLogin || showPayment || showMember || showDiscount || showWeighing || showAI || showPendingOrders || showPriceAdjust || showMolar) return;
       
       const now = Date.now();
-      if (now - lastKeyTime > 100) barcodeBuffer = '';
+      // 如果按键间隔超过150ms，清空缓冲区（扫码枪输入很快）
+      if (now - lastKeyTime > 150) {
+        barcodeBuffer = '';
+      }
       lastKeyTime = now;
       
       if (e.key === 'Enter') {
-        if (barcodeBuffer.length >= 8) {
-          handleBarcodeSearch(barcodeBuffer);
+        e.preventDefault();
+        const barcode = barcodeBuffer.trim();
+        if (barcode.length >= 4) {
+          console.log('[扫码] 识别到条码:', barcode);
+          // 直接从 localStorage 获取最新商品数据
+          const prods = productsRef.current;
+          const product = prods.find(p => p.barcode === barcode);
+          if (product) {
+            console.log('[扫码] 找到商品:', product.name);
+            addToCart(product);
+            showFeedback(`已添加: ${product.name}`, 'success');
+            playSound(true);
+            Hardware.showProductOnDisplay(product.name, product.price);
+          } else {
+            console.log('[扫码] 未找到商品:', barcode);
+            showFeedback(`未找到商品: ${barcode}`, 'error');
+            playSound(false);
+          }
         }
         barcodeBuffer = '';
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // 只接收可打印字符
         barcodeBuffer += e.key;
       }
     };
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [products, showLogin, showPayment, showMember, showDiscount, showWeighing, showAI]);
+  }, [showLogin, showPayment, showMember, showDiscount, showWeighing, showAI, showPendingOrders, showPriceAdjust, showMolar]);
 
   // 连接硬件
   const connectHardware = async () => {
@@ -169,17 +223,6 @@ export default function CashierPage() {
       setPrinterConnected(false);
     }
   };
-
-  // 扫码处理
-  const handleBarcodeSearch = useCallback(async (barcode: string) => {
-    const product = products.find(p => p.barcode === barcode);
-    if (product) {
-      addToCart(product);
-      Hardware.showProductOnDisplay(product.name, product.price);
-    } else {
-      alert('未找到商品: ' + barcode);
-    }
-  }, [products]);
 
   // 登录
   const handleLogin = () => {
@@ -614,7 +657,23 @@ export default function CashierPage() {
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="h-screen flex bg-slate-100 overflow-hidden">
+    <div className="h-screen flex bg-slate-100 overflow-hidden relative">
+      {/* 扫码成功/失败反馈 */}
+      {scanFeedback.show && (
+        <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-pulse ${
+          scanFeedback.type === 'success' 
+            ? 'bg-green-500 text-white' 
+            : 'bg-red-500 text-white'
+        }`}>
+          {scanFeedback.type === 'success' ? (
+            <CheckCircle className="w-6 h-6" />
+          ) : (
+            <X className="w-6 h-6" />
+          )}
+          <span className="font-bold">{scanFeedback.text}</span>
+        </div>
+      )}
+
       {/* 左侧导航栏 */}
       <nav className="w-20 bg-slate-800 flex flex-col items-center py-3 gap-1 shrink-0">
         <button onClick={() => {}} className="w-full flex flex-col items-center py-3 px-2 gap-1.5 rounded-lg bg-orange-500 text-white">
