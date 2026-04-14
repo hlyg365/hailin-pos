@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -28,7 +28,7 @@ interface Product {
   updatedAt: number;
 }
 
-const categories = ['全部', '饮料', '乳品', '方便食品', '零食', '肉类', '日用品'];
+const CATEGORIES = ['全部', '饮料', '乳品', '方便食品', '零食', '肉类', '日用品'];
 
 export default function AssistantProductsPage() {
   const router = useRouter();
@@ -38,8 +38,6 @@ export default function AssistantProductsPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
-  const categories = ['全部', '饮料', '乳品', '方便食品', '零食', '肉类', '日用品'];
 
   useEffect(() => {
     loadProducts();
@@ -114,7 +112,7 @@ export default function AssistantProductsPage() {
           
           {/* 分类标签 */}
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-            {categories.map(cat => (
+            {CATEGORIES.map(cat => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
@@ -359,7 +357,7 @@ function AddProductModal({ onClose, onAdd }: { onClose: () => void; onAdd: (p: O
                 onChange={(e) => setForm({...form, category: e.target.value})}
                 className="w-full p-3 border border-slate-200 rounded-xl"
               >
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>

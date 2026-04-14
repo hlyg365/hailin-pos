@@ -1,66 +1,44 @@
 {
-  "name": "海邻到家",
-  "short_name": "海邻收银台",
-  "description": "社区便利店智能收银管理系统",
-  "start_url": "/",
+  "name": "海邻收银台",
+  "short_name": "海邻收银",
+  "description": "海邻到家社区便利店智能收银系统",
+  "start_url": "/pos",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "orientation": "any",
+  "background_color": "#FF6B35",
   "theme_color": "#FF6B35",
-  "orientation": "portrait",
+  "scope": "/pos",
   "icons": [
     {
-      "src": "/icons/icon-72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "density": "0.75"
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-96.png",
-      "sizes": "96x96",
-      "type": "image/png",
-      "density": "1.0"
-    },
-    {
-      "src": "/icons/icon-128.png",
-      "sizes": "128x128",
-      "type": "image/png",
-      "density": "1.25"
-    },
-    {
-      "src": "/icons/icon-144.png",
-      "sizes": "144x144",
-      "type": "image/png",
-      "density": "1.5"
-    },
-    {
-      "src": "/icons/icon-152.png",
-      "sizes": "152x152",
-      "type": "image/png",
-      "density": "1.75"
-    },
-    {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "density": "2.0"
-    },
-    {
-      "src": "/icons/icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "density": "3.0"
-    },
-    {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/icon.svg",
       "sizes": "512x512",
-      "type": "image/png",
-      "density": "4.0"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "收银台",
+      "short_name": "收银",
+      "description": "快速进入收银界面",
+      "url": "/pos",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "商品管理",
+      "short_name": "商品",
+      "description": "管理商品信息",
+      "url": "/pos/products",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "96x96" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

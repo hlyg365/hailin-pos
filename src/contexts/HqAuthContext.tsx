@@ -165,7 +165,7 @@ export function HqAuthProvider({ children }: { children: ReactNode }) {
         } else if (user) {
           // 本地状态有用户，但 localStorage 没有，说明被清除了
           setUser(null);
-          router.replace('/dashboard/auth/login');
+          router.replace('/auth/login');
         }
       }
     };
@@ -186,7 +186,7 @@ export function HqAuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     localStorage.removeItem('hq_logged_in');
     localStorage.removeItem('hq_user');
-    router.push('/dashboard/auth/login');
+    router.push('/auth/login');
   }, [router]);
 
   const hasPermission = useCallback((permission: string): boolean => {

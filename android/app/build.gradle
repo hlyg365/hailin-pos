@@ -22,19 +22,8 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-        debug {
             minifyEnabled false
-            shrinkResources false
-        }
-    }
-    
-    packagingOptions {
-        resources {
-            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt']
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }

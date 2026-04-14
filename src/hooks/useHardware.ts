@@ -698,11 +698,9 @@ export function useHardware(options?: {
       date: new Date().toLocaleString(),
       cashier: '系统测试',
       items: [
-        { name: '测试商品', quantity: 1, price: 99, subtotal: 99 },
+        { name: '测试商品', quantity: '1', price: '99.00' },
       ],
-      subtotal: 99,
       total: 99,
-      paymentMethod: '现金',
       payment: 100,
       change: 1,
     };

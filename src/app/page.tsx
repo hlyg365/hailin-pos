@@ -18,7 +18,8 @@ import {
   Cloud,
   WifiOff,
   Settings,
-  Headphones
+  Headphones,
+  Download
 } from 'lucide-react';
 
 /**
@@ -63,9 +64,25 @@ function detectAppPlatform(): boolean {
   return false;
 }
 
-
+// APK配置 - 每次更新APP后手动递增版本号
+const APK_CONFIG = {
+  fileName: 'hailin-pos-v3.1.1.apk',  // ← 更新APK时修改文件名（递增版本号）
+  version: '3.1.1',                    // ← 更新APK时同步修改版本号（递增）
+  buildDate: '2026-04-13',             // ← 构建日期
+};
 
 const quickEntries = [
+  {
+    id: 'pos-app',
+    title: '收银台APP',
+    subtitle: `下载 v${APK_CONFIG.version}`,
+    icon: Download,
+    href: 'https://coze-coding-project.tos.coze.site/coze_storage_7617372917596323890/apk/hailin-pos-v3.1.1_3fd825ad.apk?sign=1776678810-49aa4b1d24-0-5879b1540d628e66f4f75d6f251844a1fa770683151916886ff30c185aea0320',
+    color: 'bg-gradient-to-br from-orange-500 to-orange-600',
+    hoverColor: 'hover:from-orange-600 hover:to-orange-700',
+    isExternal: true,
+    badge: APK_CONFIG.buildDate,
+  },
   {
     id: 'pos',
     title: '收银台',
@@ -73,6 +90,7 @@ const quickEntries = [
     icon: ShoppingCart,
     href: '/pos',
     color: 'bg-orange-400',
+    hoverColor: 'hover:bg-orange-500',
   },
   {
     id: 'assistant',
@@ -80,7 +98,8 @@ const quickEntries = [
     subtitle: '移动端管理',
     icon: Smartphone,
     href: '/assistant',
-    color: 'bg-blue-400',
+    color: 'bg-blue-500',
+    hoverColor: 'hover:bg-blue-600',
   },
   {
     id: 'store-admin',
@@ -89,6 +108,7 @@ const quickEntries = [
     icon: Monitor,
     href: '/store-admin',
     color: 'bg-purple-500',
+    hoverColor: 'hover:bg-purple-600',
   },
   {
     id: 'dashboard',
@@ -97,6 +117,7 @@ const quickEntries = [
     icon: Building2,
     href: '/dashboard',
     color: 'bg-green-500',
+    hoverColor: 'hover:bg-green-600',
   },
 ];
 
@@ -170,19 +191,16 @@ const modules = [
 ];
 
 function CurrentTime() {
-  const [time, setTime] = useState<string | null>(null);
+  const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    setTime(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
-    const timer = setInterval(() => {
-      setTime(new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
-    }, 1000);
+    const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   return (
     <span className="text-sm">
-      {time || '--:--'}
+      {time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
     </span>
   );
 }
@@ -297,17 +315,36 @@ export default function HomePage() {
         {/* 快速入口 */}
         <section className="mb-10">
           <h2 className="text-xl font-bold text-slate-800 mb-4">快速入口</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {quickEntries.map((entry) => (
-              <Link
-                key={entry.id}
-                href={entry.href}
-                className={`${entry.color} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group`}
-              >
-                <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
-                <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
-                <p className="text-sm opacity-80">{entry.subtitle}</p>
-              </Link>
+              entry.isExternal ? (
+                <a
+                  key={entry.id}
+                  href={entry.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group relative`}
+                >
+                  {entry.badge && (
+                    <span className="absolute top-2 right-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                      {entry.badge}
+                    </span>
+                  )}
+                  <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
+                  <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
+                  <p className="text-sm opacity-80">{entry.subtitle}</p>
+                </a>
+              ) : (
+                <Link
+                  key={entry.id}
+                  href={entry.href}
+                  className={`${entry.color} ${entry.hoverColor} rounded-2xl p-6 text-white transition-all duration-200 hover:scale-105 hover:shadow-xl group`}
+                >
+                  <entry.icon className="w-10 h-10 mb-4 group-hover:scale-110 transition-transform" />
+                  <h3 className="text-lg font-bold mb-1">{entry.title}</h3>
+                  <p className="text-sm opacity-80">{entry.subtitle}</p>
+                </Link>
+              )
             ))}
           </div>
         </section>

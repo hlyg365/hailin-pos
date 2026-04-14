@@ -45,45 +45,19 @@ export interface SerialConnectionStatus {
   error?: string;
 }
 
-// Web Serial API 类型声明
-declare global {
-  interface Navigator {
-    serial?: {
-      requestPort(options?: SerialRequestOptions): Promise<SerialPort>;
-      getPorts(): Promise<SerialPort[]>;
-    };
-  }
-  
-  interface SerialPort {
-    open(options: SerialOptions): Promise<void>;
-    close(): Promise<void>;
-    readable: ReadableStream<Uint8Array> | null;
-    writable: WritableStream<Uint8Array> | null;
-    getInfo(): SerialPortInfo;
-  }
-  
-  interface SerialRequestOptions {
-    filters?: SerialDeviceFilter[];
-  }
-  
-  interface SerialDeviceFilter {
-    usbVendorId?: number;
-    usbProductId?: number;
-  }
-  
-  interface SerialOptions {
-    baudRate: number;
-    dataBits?: 5 | 6 | 7 | 8;
-    stopBits?: 1 | 2;
-    parity?: 'none' | 'even' | 'odd';
-    bufferSize?: number;
-    flowControl?: 'none' | 'hardware';
-  }
-  
-  interface SerialPortInfo {
-    usbVendorId?: number;
-    usbProductId?: number;
-  }
+// Web Serial API 类型（避免与其他声明冲突）
+export interface SerialDeviceFilter {
+  usbVendorId?: number;
+  usbProductId?: number;
+}
+
+export interface SerialRequestOptions {
+  filters?: SerialDeviceFilter[];
+}
+
+export interface SerialPortInfo {
+  usbVendorId?: number;
+  usbProductId?: number;
 }
 
 // USB转串口芯片VID/PID

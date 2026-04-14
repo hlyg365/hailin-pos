@@ -42,9 +42,24 @@ export interface CustomerDisplayData {
 
 // ==================== 硬件连接状态 ====================
 
-// Web Serial API 类型已在 serial-service.ts 中声明
+// Web Serial API 类型声明
+declare global {
+  interface Navigator {
+    serial?: {
+      requestPort(options?: { filters?: Array<{ usbVendorId?: number }> }): Promise<SerialPort>;
+      getPorts(): Promise<SerialPort[]>;
+    };
+  }
+  
+  interface SerialPort {
+    open(options: { baudRate: number; dataBits?: number; stopBits?: number; parity?: string }): Promise<void>;
+    close(): Promise<void>;
+    readable: ReadableStream<Uint8Array> | null;
+    writable: WritableStream<Uint8Array> | null;
+  }
+}
 
-let serialPort: any = null;
+let serialPort: SerialPort | null = null;
 let scaleReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 let aiStream: MediaStream | null = null;
 
@@ -163,17 +178,6 @@ export async function clearCustomerDisplay(): Promise<void> {
     total: 0,
     change: 0,
     paymentMethod: ''
-  });
-}
-
-/**
- * 显示欢迎信息到客显屏
- */
-export async function showWelcomeOnDisplay(): Promise<void> {
-  await updateCustomerDisplay({
-    total: 0,
-    change: 0,
-    paymentMethod: '欢迎光临'
   });
 }
 

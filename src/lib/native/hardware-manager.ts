@@ -22,7 +22,6 @@ export * from './cashbox-driver';
 export * from './customer-display-service';
 export * from './thermal-printer-service';
 export * from './network-service';
-export * from './index';
 
 // 导入具体服务
 import { serialService, SerialService, SerialPortConfig, SerialDevice } from './serial-service';
