@@ -3,6 +3,121 @@
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
+// 模板样式接口
+interface TemplateStyle {
+  primaryColor: string;
+  secondaryColor: string;
+  gradientFrom: string;
+  gradientTo: string;
+  accentColor: string;
+  accentBg: string;
+}
+
+interface TemplateConfig {
+  showStoreLocation: boolean;
+  showSearchBar: boolean;
+  showBanner: boolean;
+  showServiceTags: boolean;
+  showQuickServices: boolean;
+  showCategories: boolean;
+  showRankings: boolean;
+}
+
+interface Template {
+  id: string;
+  name: string;
+  style: TemplateStyle;
+  config: TemplateConfig;
+}
+
+// 模板配置
+const TEMPLATES: Template[] = [
+  {
+    id: 'vibrant-orange',
+    name: '活力橙风',
+    style: {
+      primaryColor: 'text-orange-500',
+      secondaryColor: 'bg-orange-50',
+      gradientFrom: 'from-orange-400',
+      gradientTo: 'to-amber-400',
+      accentColor: 'text-orange-600',
+      accentBg: 'bg-orange-500',
+    },
+    config: {
+      showStoreLocation: true,
+      showSearchBar: true,
+      showBanner: true,
+      showServiceTags: true,
+      showQuickServices: true,
+      showCategories: true,
+      showRankings: true,
+    },
+  },
+  {
+    id: 'fresh-green',
+    name: '清新绿色',
+    style: {
+      primaryColor: 'text-green-600',
+      secondaryColor: 'bg-green-50',
+      gradientFrom: 'from-green-500',
+      gradientTo: 'to-emerald-400',
+      accentColor: 'text-green-600',
+      accentBg: 'bg-green-500',
+    },
+    config: {
+      showStoreLocation: true,
+      showSearchBar: true,
+      showBanner: true,
+      showServiceTags: true,
+      showQuickServices: false,
+      showCategories: true,
+      showRankings: true,
+    },
+  },
+  {
+    id: 'professional-blue',
+    name: '商务蓝调',
+    style: {
+      primaryColor: 'text-blue-600',
+      secondaryColor: 'bg-blue-50',
+      gradientFrom: 'from-blue-500',
+      gradientTo: 'to-blue-600',
+      accentColor: 'text-blue-600',
+      accentBg: 'bg-blue-500',
+    },
+    config: {
+      showStoreLocation: true,
+      showSearchBar: true,
+      showBanner: true,
+      showServiceTags: false,
+      showQuickServices: false,
+      showCategories: true,
+      showRankings: false,
+    },
+  },
+  {
+    id: 'classic-red',
+    name: '经典红韵',
+    style: {
+      primaryColor: 'text-red-500',
+      secondaryColor: 'bg-red-50',
+      gradientFrom: 'from-red-400',
+      gradientTo: 'to-red-500',
+      accentColor: 'text-red-500',
+      accentBg: 'bg-red-500',
+    },
+    config: {
+      showStoreLocation: true,
+      showSearchBar: true,
+      showBanner: true,
+      showServiceTags: true,
+      showQuickServices: true,
+      showCategories: true,
+      showRankings: true,
+    },
+  },
+];
+
 // 轮播图数据
 const STORE_BANNERS = [
   {
@@ -25,13 +140,13 @@ const STORE_BANNERS = [
   },
 ];
 
-// 功能按钮数据
+// 服务卡片数据
 const SERVICE_CARDS = [
   {
     id: 1,
     title: '同城配送',
     subtitle: '省心到家',
-    gradient: 'from-cyan-500 to-teal-400',
+    gradient: 'from-orange-400 to-amber-400',
     icon: '🛵',
   },
   {
@@ -92,7 +207,6 @@ const NEARBY_STORES = [
   { id: 4, name: '海邻到家(地铁站店)', distance: '1.5km', address: '地铁站C出口商业街' },
 ];
 
-// 当前选中门店
 const DEFAULT_STORE = NEARBY_STORES[0];
 
 // 店铺头图轮播组件
@@ -140,12 +254,21 @@ function StoreBannerSwiper({ current, setCurrent }: { current: number; setCurren
   );
 }
 
+// 模板预览组件属性
+interface MiniStorePreviewProps {
+  template?: Template;
+}
+
 // 主页面组件
-export default function MiniStorePreview() {
+export default function MiniStorePreview({ template }: MiniStorePreviewProps) {
   const [current, setCurrent] = useState(0);
   const [activeTab, setActiveTab] = useState<'sales' | 'attention'>('sales');
   const [showStoreSelector, setShowStoreSelector] = useState(false);
   const [currentStore, setCurrentStore] = useState(DEFAULT_STORE);
+
+  // 使用传入的模板或默认活力橙风
+  const activeTemplate = template || TEMPLATES[0];
+  const { style, config } = activeTemplate;
 
   const handleStoreSelect = (store: typeof NEARBY_STORES[0]) => {
     setCurrentStore(store);
@@ -165,13 +288,13 @@ export default function MiniStorePreview() {
       </div>
       
       {/* 小程序头部 */}
-      <div className="bg-white">
+      <div className={cn("bg-gradient-to-r", style.gradientFrom, style.gradientTo)}>
         <div className="flex items-center justify-between px-4 py-2.5">
           <div className="w-6" />
-          <h1 className="text-base font-bold text-gray-900">首页</h1>
+          <h1 className="text-base font-bold text-white">首页</h1>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 flex items-center justify-center text-gray-500">⋯</div>
-            <div className="w-6 h-6 flex items-center justify-center text-gray-500">⏺</div>
+            <div className="w-6 h-6 flex items-center justify-center text-white/80">⋯</div>
+            <div className="w-6 h-6 flex items-center justify-center text-white/80">⏺</div>
           </div>
         </div>
       </div>
@@ -179,37 +302,42 @@ export default function MiniStorePreview() {
       {/* 内容区域 */}
       <div className="h-[calc(100%-120px)] overflow-y-auto">
         {/* 门店定位选择 */}
-        <div className="px-3 py-2 bg-white border-b border-gray-100">
-          <button 
-            onClick={() => setShowStoreSelector(true)}
-            className="w-full flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl px-3 py-2.5 active:bg-orange-100 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-400 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm">📍</span>
-              </div>
-              <div className="text-left">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-gray-800 text-sm">{currentStore.name}</span>
-                  <span className="text-orange-500 text-xs">▾</span>
+        {config.showStoreLocation && (
+          <div className="px-3 py-2 bg-white border-b border-gray-100">
+            <button 
+              onClick={() => setShowStoreSelector(true)}
+              className={cn(
+                "w-full flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors",
+                style.secondaryColor
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-white", style.accentBg)}>
+                  <span>📍</span>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-gray-500 text-xs">{currentStore.distance}</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-gray-400 text-xs truncate max-w-[120px]">{currentStore.address}</span>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-gray-800 text-sm">{currentStore.name}</span>
+                    <span className={cn("text-xs", style.primaryColor)}>▾</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-gray-500 text-xs">{currentStore.distance}</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="text-gray-400 text-xs truncate max-w-[120px]">{currentStore.address}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-orange-500 bg-orange-100 px-1.5 py-0.5 rounded">切换门店</span>
-            </div>
-          </button>
-        </div>
+              <div className="flex items-center gap-1">
+                <span className={cn("text-xs px-1.5 py-0.5 rounded", style.primaryColor, style.secondaryColor)}>切换</span>
+              </div>
+            </button>
+          </div>
+        )}
 
         {/* 门店选择弹窗 */}
         {showStoreSelector && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-            <div className="w-[320px] bg-white rounded-t-3xl p-4 pb-8 animate-slide-up">
+            <div className="w-[320px] bg-white rounded-t-3xl p-4 pb-8">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-gray-800">选择门店</h3>
                 <button 
@@ -227,15 +355,13 @@ export default function MiniStorePreview() {
                     className={cn(
                       "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
                       currentStore.id === store.id 
-                        ? "bg-orange-50 border-2 border-orange-400" 
+                        ? `${style.secondaryColor} border-2 ${style.primaryColor.replace('text-', 'border-')}` 
                         : "bg-gray-50 border-2 border-transparent active:bg-gray-100"
                     )}
                   >
                     <div className={cn(
                       "w-10 h-10 rounded-lg flex items-center justify-center",
-                      currentStore.id === store.id 
-                        ? "bg-orange-400" 
-                        : "bg-gray-200"
+                      currentStore.id === store.id ? style.accentBg : "bg-gray-200"
                     )}>
                       <span className="text-lg">🏪</span>
                     </div>
@@ -243,12 +369,12 @@ export default function MiniStorePreview() {
                       <div className="flex items-center gap-1">
                         <span className={cn(
                           "font-medium text-sm",
-                          currentStore.id === store.id ? "text-orange-700" : "text-gray-800"
+                          currentStore.id === store.id ? style.primaryColor : "text-gray-800"
                         )}>
                           {store.name}
                         </span>
                         {currentStore.id === store.id && (
-                          <span className="text-xs text-orange-500 bg-orange-100 px-1 rounded">当前</span>
+                          <span className={cn("text-xs px-1.5 py-0.5 rounded", style.primaryColor, style.secondaryColor)}>当前</span>
                         )}
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5">{store.address}</div>
@@ -256,9 +382,7 @@ export default function MiniStorePreview() {
                     <div className="text-right">
                       <span className={cn(
                         "text-xs px-2 py-1 rounded-full",
-                        currentStore.id === store.id 
-                          ? "bg-orange-400 text-white" 
-                          : "bg-gray-200 text-gray-600"
+                        currentStore.id === store.id ? `${style.accentBg} text-white` : "bg-gray-200 text-gray-600"
                       )}>
                         {store.distance}
                       </span>
@@ -267,7 +391,7 @@ export default function MiniStorePreview() {
                 ))}
               </div>
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <button className="w-full py-2 text-center text-sm text-orange-500 active:text-orange-600">
+                <button className={cn("w-full py-2 text-center text-sm active:text-orange-600", style.primaryColor)}>
                   🗺️ 查看全部门店地图
                 </button>
               </div>
@@ -276,142 +400,152 @@ export default function MiniStorePreview() {
         )}
 
         {/* 店铺头图轮播 */}
-        <StoreBannerSwiper current={current} setCurrent={setCurrent} />
+        {config.showBanner && <StoreBannerSwiper current={current} setCurrent={setCurrent} />}
 
         {/* 搜索栏 */}
-        <div className="px-3 py-2 bg-white">
-          <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
-            <span className="text-gray-400 text-sm">🔍</span>
-            <input
-              type="text"
-              placeholder="搜索"
-              className="flex-1 bg-transparent outline-none text-sm text-gray-700"
-            />
-            <button className="text-gray-400 text-sm">搜索</button>
+        {config.showSearchBar && (
+          <div className="px-3 py-2 bg-white">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
+              <span className="text-gray-400 text-sm">🔍</span>
+              <input
+                type="text"
+                placeholder="搜索商品"
+                className="flex-1 bg-transparent outline-none text-sm text-gray-700"
+              />
+              <button className={cn("text-xs font-medium", style.primaryColor)}>搜索</button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 服务卡片 */}
-        <div className="px-3 py-2 bg-white">
-          <div className="flex gap-2">
-            {SERVICE_CARDS.map((card) => (
-              <div
-                key={card.id}
-                className={cn(
-                  "flex-1 relative overflow-hidden rounded-xl p-3 bg-gradient-to-br",
-                  card.gradient
-                )}
-              >
-                <div className="relative z-10">
-                  <h3 className="text-white font-bold text-sm">{card.title}</h3>
-                  <p className="text-white/80 text-xs">{card.subtitle}</p>
+        {/* 服务标签 */}
+        {config.showServiceTags && (
+          <div className="px-3 py-2 bg-white">
+            <div className="flex gap-3">
+              {SERVICE_CARDS.map((card) => (
+                <div
+                  key={card.id}
+                  className={cn(
+                    "flex-1 relative overflow-hidden rounded-xl p-3 bg-gradient-to-br",
+                    card.gradient
+                  )}
+                >
+                  <div className="relative z-10">
+                    <h3 className="text-white font-bold text-sm">{card.title}</h3>
+                    <p className="text-white/80 text-xs">{card.subtitle}</p>
+                  </div>
+                  <div className="absolute right-1 bottom-1 text-3xl opacity-30">{card.icon}</div>
                 </div>
-                <div className="absolute right-1 bottom-1 text-3xl opacity-30">{card.icon}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 分隔线 */}
         <div className="h-2 bg-gray-100" />
 
         {/* 快捷服务 */}
-        <div className="px-3 py-2 bg-white">
-          <div className="flex justify-around">
-            {QUICK_SERVICES.map((service) => (
-              <div key={service.id} className="flex flex-col items-center gap-1">
-                <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold", service.iconBg)}>
-                  {service.icon}
-                </div>
-                <span className={cn("text-xs font-medium", service.color)}>{service.title}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 分隔线 */}
-        <div className="h-2 bg-gray-100" />
-
-        {/* 商品分类 */}
-        <div className="px-3 py-2 bg-white">
-          <div className="grid grid-cols-3 gap-2">
-            {CATEGORIES.map((cat) => (
-              <div key={cat.id} className="flex flex-col items-center gap-0.5 py-1">
-                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-xl">
-                  {cat.icon}
-                </div>
-                <span className="text-xs text-gray-700 font-medium">{cat.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 分隔线 */}
-        <div className="h-2 bg-gray-100" />
-
-        {/* 排行榜 */}
-        <div className="px-3 py-2">
-          <div className="bg-gradient-to-r from-green-500 to-emerald-400 rounded-t-xl p-2">
-            <div className="flex items-center justify-between">
-              <span className="text-white font-bold text-sm">排行榜</span>
-              <span className="text-white/80 text-xs">更多 ›</span>
-            </div>
-          </div>
-          <div className="bg-white rounded-b-xl px-2 pb-2">
-            <div className="flex gap-1 py-2">
-              <button
-                onClick={() => setActiveTab('sales')}
-                className={cn(
-                  "flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all",
-                  activeTab === 'sales' 
-                    ? "bg-white text-gray-800 shadow-sm border border-gray-200" 
-                    : "bg-gray-100 text-gray-500"
-                )}
-              >
-                {activeTab === 'sales' && <span className="text-red-500">🔥</span>}
-                销量榜
-              </button>
-              <button
-                onClick={() => setActiveTab('attention')}
-                className={cn(
-                  "flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all",
-                  activeTab === 'attention' 
-                    ? "bg-white text-gray-800 shadow-sm border border-gray-200" 
-                    : "bg-gray-100 text-gray-500"
-                )}
-              >
-                {activeTab === 'attention' && <span className="text-red-500">🔥</span>}
-                关注榜
-              </button>
-            </div>
-            <div className="space-y-1">
-              {RANKING_DATA[activeTab].slice(0, 4).map((product, index) => (
-                <div key={product.id} className="flex items-center gap-2 py-1">
-                  <span className={cn(
-                    "w-4 h-4 rounded flex items-center justify-center text-xs font-bold",
-                    index < 3 ? "bg-red-500 text-white" : "bg-gray-200 text-gray-500"
-                  )}>
-                    {index + 1}
-                  </span>
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-8 h-8 rounded-lg object-cover bg-gray-100"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-800 truncate">{product.name}</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-red-500 font-medium text-xs">¥{product.price.toFixed(2)}</span>
-                      <span className="text-xs text-gray-400">
-                        {'sales' in product ? `售${product.sales}` : `关${product.attention}`}
-                      </span>
-                    </div>
+        {config.showQuickServices && (
+          <div className="px-3 py-2 bg-white">
+            <div className="flex justify-around">
+              {QUICK_SERVICES.map((service) => (
+                <div key={service.id} className="flex flex-col items-center gap-1">
+                  <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold", service.iconBg)}>
+                    {service.icon}
                   </div>
+                  <span className={cn("text-xs font-medium", service.color)}>{service.title}</span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* 分隔线 */}
+        {config.showQuickServices && <div className="h-2 bg-gray-100" />}
+
+        {/* 商品分类 */}
+        {config.showCategories && (
+          <div className="px-3 py-2 bg-white">
+            <div className="grid grid-cols-3 gap-2">
+              {CATEGORIES.map((cat) => (
+                <div key={cat.id} className="flex flex-col items-center gap-0.5 py-1">
+                  <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-xl">
+                    {cat.icon}
+                  </div>
+                  <span className="text-xs text-gray-700 font-medium">{cat.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 分隔线 */}
+        {config.showCategories && <div className="h-2 bg-gray-100" />}
+
+        {/* 排行榜 */}
+        {config.showRankings && (
+          <div className="px-3 py-2">
+            <div className={cn("rounded-t-xl p-2 bg-gradient-to-r", style.gradientFrom, style.gradientTo)}>
+              <div className="flex items-center justify-between">
+                <span className="text-white font-bold text-sm">排行榜</span>
+                <span className="text-white/80 text-xs">更多 ›</span>
+              </div>
+            </div>
+            <div className="bg-white rounded-b-xl px-2 pb-2">
+              <div className="flex gap-1 py-2">
+                <button
+                  onClick={() => setActiveTab('sales')}
+                  className={cn(
+                    "flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all",
+                    activeTab === 'sales' 
+                      ? `bg-white ${style.primaryColor} shadow-sm border border-gray-200` 
+                      : "bg-gray-100 text-gray-500"
+                  )}
+                >
+                  {activeTab === 'sales' && <span className="text-red-500">🔥</span>}
+                  销量榜
+                </button>
+                <button
+                  onClick={() => setActiveTab('attention')}
+                  className={cn(
+                    "flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all",
+                    activeTab === 'attention' 
+                      ? `bg-white ${style.primaryColor} shadow-sm border border-gray-200` 
+                      : "bg-gray-100 text-gray-500"
+                  )}
+                >
+                  {activeTab === 'attention' && <span className="text-red-500">🔥</span>}
+                  关注榜
+                </button>
+              </div>
+              <div className="space-y-1">
+                {RANKING_DATA[activeTab].slice(0, 4).map((product, index) => (
+                  <div key={product.id} className="flex items-center gap-2 py-1">
+                    <span className={cn(
+                      "w-4 h-4 rounded flex items-center justify-center text-xs font-bold",
+                      index < 3 ? "bg-red-500 text-white" : "bg-gray-200 text-gray-500"
+                    )}>
+                      {index + 1}
+                    </span>
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-8 h-8 rounded-lg object-cover bg-gray-100"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-800 truncate">{product.name}</p>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-red-500 font-medium text-xs">¥{product.price.toFixed(2)}</span>
+                        <span className="text-xs text-gray-400">
+                          {'sales' in product ? `售${product.sales}` : `关${product.attention}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 底部导航栏 */}
@@ -422,7 +556,7 @@ export default function MiniStorePreview() {
               key={tab.id}
               className={cn(
                 "flex flex-col items-center gap-0.5 py-0.5 px-2",
-                tab.active ? "text-red-500" : "text-gray-500"
+                tab.active ? style.primaryColor : "text-gray-500"
               )}
             >
               <div className="relative text-lg">{tab.icon}</div>
@@ -434,3 +568,6 @@ export default function MiniStorePreview() {
     </div>
   );
 }
+
+// 导出模板供外部使用
+export { TEMPLATES };
