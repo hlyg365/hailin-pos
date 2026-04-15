@@ -84,6 +84,17 @@ const TAB_BAR = [
   { id: 4, icon: '👤', title: '我的', active: false },
 ];
 
+// 附近门店数据
+const NEARBY_STORES = [
+  { id: 1, name: '海邻到家(星火路店)', distance: '350m', address: '星火路128号一层106室' },
+  { id: 2, name: '海邻到家(科技园店)', distance: '680m', address: '科技园南区A栋104室' },
+  { id: 3, name: '海邻到家(步行街店)', distance: '1.2km', address: '步行街商业广场B1层' },
+  { id: 4, name: '海邻到家(地铁站店)', distance: '1.5km', address: '地铁站C出口商业街' },
+];
+
+// 当前选中门店
+const DEFAULT_STORE = NEARBY_STORES[0];
+
 // 店铺头图轮播组件
 function StoreBannerSwiper({ current, setCurrent }: { current: number; setCurrent: React.Dispatch<React.SetStateAction<number>> }) {
   useEffect(() => {
@@ -133,6 +144,13 @@ function StoreBannerSwiper({ current, setCurrent }: { current: number; setCurren
 export default function MiniStorePreview() {
   const [current, setCurrent] = useState(0);
   const [activeTab, setActiveTab] = useState<'sales' | 'attention'>('sales');
+  const [showStoreSelector, setShowStoreSelector] = useState(false);
+  const [currentStore, setCurrentStore] = useState(DEFAULT_STORE);
+
+  const handleStoreSelect = (store: typeof NEARBY_STORES[0]) => {
+    setCurrentStore(store);
+    setShowStoreSelector(false);
+  };
 
   return (
     <div className="w-[320px] h-[650px] bg-gray-50 rounded-[40px] overflow-hidden border-4 border-gray-800 shadow-2xl relative">
@@ -160,6 +178,103 @@ export default function MiniStorePreview() {
 
       {/* 内容区域 */}
       <div className="h-[calc(100%-120px)] overflow-y-auto">
+        {/* 门店定位选择 */}
+        <div className="px-3 py-2 bg-white border-b border-gray-100">
+          <button 
+            onClick={() => setShowStoreSelector(true)}
+            className="w-full flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl px-3 py-2.5 active:bg-orange-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-400 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">📍</span>
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-gray-800 text-sm">{currentStore.name}</span>
+                  <span className="text-orange-500 text-xs">▾</span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-gray-500 text-xs">{currentStore.distance}</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="text-gray-400 text-xs truncate max-w-[120px]">{currentStore.address}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-orange-500 bg-orange-100 px-1.5 py-0.5 rounded">切换门店</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 门店选择弹窗 */}
+        {showStoreSelector && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+            <div className="w-[320px] bg-white rounded-t-3xl p-4 pb-8 animate-slide-up">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-800">选择门店</h3>
+                <button 
+                  onClick={() => setShowStoreSelector(false)}
+                  className="w-6 h-6 flex items-center justify-center text-gray-400"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-2">
+                {NEARBY_STORES.map((store) => (
+                  <button
+                    key={store.id}
+                    onClick={() => handleStoreSelect(store)}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 rounded-xl transition-all",
+                      currentStore.id === store.id 
+                        ? "bg-orange-50 border-2 border-orange-400" 
+                        : "bg-gray-50 border-2 border-transparent active:bg-gray-100"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-lg flex items-center justify-center",
+                      currentStore.id === store.id 
+                        ? "bg-orange-400" 
+                        : "bg-gray-200"
+                    )}>
+                      <span className="text-lg">🏪</span>
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="flex items-center gap-1">
+                        <span className={cn(
+                          "font-medium text-sm",
+                          currentStore.id === store.id ? "text-orange-700" : "text-gray-800"
+                        )}>
+                          {store.name}
+                        </span>
+                        {currentStore.id === store.id && (
+                          <span className="text-xs text-orange-500 bg-orange-100 px-1 rounded">当前</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">{store.address}</div>
+                    </div>
+                    <div className="text-right">
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded-full",
+                        currentStore.id === store.id 
+                          ? "bg-orange-400 text-white" 
+                          : "bg-gray-200 text-gray-600"
+                      )}>
+                        {store.distance}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <button className="w-full py-2 text-center text-sm text-orange-500 active:text-orange-600">
+                  🗺️ 查看全部门店地图
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 店铺头图轮播 */}
         <StoreBannerSwiper current={current} setCurrent={setCurrent} />
 
