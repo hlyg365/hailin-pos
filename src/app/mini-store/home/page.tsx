@@ -83,7 +83,8 @@ const TAB_BAR = [
   { id: 1, icon: '🏠', title: '首页', active: true, href: '/mini-store/home' },
   { id: 2, icon: '📋', title: '全部分类', active: false, href: '/mini-store/categories' },
   { id: 3, icon: '🛒', title: '购物车', active: false, badge: 0, href: '/mini-store/cart' },
-  { id: 4, icon: '👤', title: '我的', active: false, href: '/mini-store/profile' },
+  { id: 4, icon: '🎁', title: '积分商城', active: false, href: '/mini-store/points' },
+  { id: 5, icon: '👤', title: '我的', active: false, href: '/mini-store/profile' },
 ];
 
 // 附近门店数据
