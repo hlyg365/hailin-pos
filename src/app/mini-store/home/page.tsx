@@ -33,7 +33,7 @@ const FUNCTION_BUTTONS = [
     title: '同城配送',
     subtitle: '省心到家',
     color: 'bg-blue-500',
-    href: '#delivery',
+    href: '/mini-store/delivery',
   },
   {
     id: 2,
@@ -41,18 +41,18 @@ const FUNCTION_BUTTONS = [
     title: '到店自提',
     subtitle: '方便快捷',
     color: 'bg-green-500',
-    href: '#pickup',
+    href: '/mini-store/pickup',
   },
 ];
 
 // 快捷入口数据
 const QUICK_ENTRIES = [
-  { id: 1, icon: '💳', title: '在线充值', color: '#8E24AA', href: '#recharge' },
-  { id: 2, icon: '👥', title: '会员中心', color: '#F57C00', href: '#member' },
-  { id: 3, icon: '🎁', title: '邀请有奖', color: '#D32F2F', href: '#invite' },
-  { id: 4, icon: '📦', title: '我的订单', color: '#1976D2', href: '#orders' },
-  { id: 5, icon: '💰', title: '我的积分', color: '#388E3C', href: '#points' },
-  { id: 6, icon: '🎟️', title: '优惠券', color: '#C2185B', href: '#coupons' },
+  { id: 1, icon: '💳', title: '在线充值', color: '#8E24AA', href: '/mini-store/recharge' },
+  { id: 2, icon: '👥', title: '会员中心', color: '#F57C00', href: '/mini-store/member' },
+  { id: 3, icon: '🎁', title: '邀请有奖', color: '#D32F2F', href: '/mini-store/invite' },
+  { id: 4, icon: '📦', title: '我的订单', color: '#1976D2', href: '/mini-store/orders' },
+  { id: 5, icon: '💰', title: '我的积分', color: '#388E3C', href: '/mini-store/points' },
+  { id: 6, icon: '🎟️', title: '优惠券', color: '#C2185B', href: '/mini-store/coupons' },
 ];
 
 // 商品分类数据
@@ -83,10 +83,10 @@ const RANKING_DATA = {
 
 // 底部导航数据
 const TAB_BAR = [
-  { id: 1, icon: '🏠', title: '首页', active: true, href: '#home' },
-  { id: 2, icon: '📋', title: '分类', active: false, href: '#categories' },
-  { id: 3, icon: '🛒', title: '购物车', active: false, href: '#cart' },
-  { id: 4, icon: '👤', title: '我的', active: false, href: '#profile' },
+  { id: 1, icon: '🏠', title: '首页', active: true, href: '/mini-home' },
+  { id: 2, icon: '📋', title: '分类', active: false, href: '/mini-store/categories' },
+  { id: 3, icon: '🛒', title: '购物车', active: false, href: '/mini-store/cart' },
+  { id: 4, icon: '👤', title: '我的', active: false, href: '/mini-store/profile' },
 ];
 
 // 商品项组件
@@ -255,7 +255,7 @@ function CategoryGrid() {
     <div className="px-4 py-3">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-bold text-gray-900">商品分类</h3>
-        <a href="#categories" className="text-sm text-orange-500 flex items-center gap-1">
+        <a href="/mini-store/categories" className="text-sm text-orange-500 flex items-center gap-1">
           查看全部
           <span className="text-xs">›</span>
         </a>
@@ -264,7 +264,7 @@ function CategoryGrid() {
         {CATEGORIES.slice(0, 8).map((cat) => (
           <a
             key={cat.id}
-            href={`#category-${cat.id}`}
+            href={`/mini-store/categories/${cat.id}`}
             className="flex flex-col items-center gap-1"
           >
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center text-2xl shadow-sm">
@@ -367,7 +367,7 @@ function RankingSection() {
             <span className="text-lg">🏆</span>
             <span className="font-bold text-green-700">排行榜</span>
           </div>
-          <a href="#ranking" className="text-xs text-green-600 flex items-center">
+          <a href="/mini-store/ranking" className="text-xs text-green-600 flex items-center">
             更多
             <span>›</span>
           </a>
@@ -429,7 +429,7 @@ function RecommendedProducts() {
         {products.map((product) => (
           <a
             key={product.id}
-            href={`#product-${product.id}`}
+            href={`/mini-store/product/${product.id}`}
             className="bg-white rounded-xl overflow-hidden shadow-sm"
           >
             <div className="relative">
@@ -459,7 +459,7 @@ function RecommendedProducts() {
 
 // 底部导航栏组件
 function TabBar() {
-  const [activeTab, setActiveTab] = useState('#home');
+  const [activeTab, setActiveTab] = useState('/mini-home');
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-pb z-50">
@@ -479,6 +479,8 @@ function TabBar() {
           </a>
         ))}
       </div>
+      {/* iPhone安全区域 */}
+      <div className="h-safe-area-inset-bottom bg-white" />
     </div>
   );
 }
