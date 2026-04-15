@@ -86,6 +86,17 @@ const TAB_BAR = [
   { id: 4, icon: '👤', title: '我的', active: false, href: '/mini-store/profile' },
 ];
 
+// 附近门店数据
+const NEARBY_STORES = [
+  { id: 1, name: '海邻到家(星火路店)', distance: '350m', address: '星火路128号一层106室', phone: '0755-12345678' },
+  { id: 2, name: '海邻到家(科技园店)', distance: '680m', address: '科技园南区A栋104室', phone: '0755-23456789' },
+  { id: 3, name: '海邻到家(步行街店)', distance: '1.2km', address: '步行街商业广场B1层', phone: '0755-34567890' },
+  { id: 4, name: '海邻到家(地铁站店)', distance: '1.5km', address: '地铁站C出口商业街', phone: '0755-45678901' },
+];
+
+// 默认选中门店
+const DEFAULT_STORE = NEARBY_STORES[0];
+
 // 店铺头图轮播组件
 function StoreBannerSwiper() {
   const [current, setCurrent] = useState(0);
@@ -363,11 +374,137 @@ function MiniAppHeader() {
   );
 }
 
+// 门店选择器组件
+function StoreLocator() {
+  const [showSelector, setShowSelector] = useState(false);
+  const [currentStore, setCurrentStore] = useState(DEFAULT_STORE);
+
+  const handleSelectStore = (store: typeof NEARBY_STORES[0]) => {
+    setCurrentStore(store);
+    setShowSelector(false);
+  };
+
+  return (
+    <>
+      {/* 门店定位栏 */}
+      <div className="bg-white px-4 py-3 border-b border-gray-100">
+        <button 
+          onClick={() => setShowSelector(true)}
+          className="w-full flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl px-4 py-3 active:bg-orange-100 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-400 rounded-xl flex items-center justify-center shadow-sm">
+              <span className="text-white text-lg">📍</span>
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-gray-800 text-sm">{currentStore.name}</span>
+                <span className="text-orange-500 text-xs">▾</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-gray-500 text-xs">{currentStore.distance}</span>
+                <span className="text-gray-300">|</span>
+                <span className="text-gray-400 text-xs truncate max-w-[140px]">{currentStore.address}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full font-medium">切换门店</span>
+          </div>
+        </button>
+      </div>
+
+      {/* 门店选择弹窗 */}
+      {showSelector && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-end"
+          onClick={() => setShowSelector(false)}
+        >
+          <div 
+            className="w-full bg-white rounded-t-3xl max-h-[70vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 弹窗头部 */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 text-lg">选择门店</h3>
+              <button 
+                onClick={() => setShowSelector(false)}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* 门店列表 */}
+            <div className="px-5 py-3 space-y-3 max-h-[50vh] overflow-y-auto">
+              {NEARBY_STORES.map((store) => (
+                <button
+                  key={store.id}
+                  onClick={() => handleSelectStore(store)}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-4 rounded-2xl transition-all",
+                    currentStore.id === store.id 
+                      ? "bg-orange-50 border-2 border-orange-400" 
+                      : "bg-gray-50 border-2 border-transparent active:bg-gray-100"
+                  )}
+                >
+                  <div className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center",
+                    currentStore.id === store.id 
+                      ? "bg-orange-400" 
+                      : "bg-gray-200"
+                  )}>
+                    <span className="text-2xl">🏪</span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        "font-semibold text-sm",
+                        currentStore.id === store.id ? "text-orange-700" : "text-gray-800"
+                      )}>
+                        {store.name}
+                      </span>
+                      {currentStore.id === store.id && (
+                        <span className="text-xs text-orange-500 bg-orange-100 px-1.5 py-0.5 rounded">当前</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">{store.address}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">{store.phone}</div>
+                  </div>
+                  <div className="text-right">
+                    <span className={cn(
+                      "text-sm px-3 py-1 rounded-full font-medium",
+                      currentStore.id === store.id 
+                        ? "bg-orange-400 text-white" 
+                        : "bg-gray-200 text-gray-600"
+                    )}>
+                      {store.distance}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            {/* 底部操作 */}
+            <div className="px-5 py-4 border-t border-gray-100">
+              <button className="w-full py-3 text-center text-sm text-orange-500 hover:text-orange-600 font-medium flex items-center justify-center gap-2">
+                <span>🗺️</span>
+                <span>查看全部门店地图</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // 主页面组件
 export default function MiniStoreHomePage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
       <MiniAppHeader />
+      <StoreLocator />
       <StoreBannerSwiper />
       <SearchBar />
       <ServiceCards />
