@@ -1,0 +1,17 @@
+# 海邻到家 - AI 服务依赖
+
+# 核心依赖
+ultralytics>=8.0.0        # YOLOv8 目标检测
+flask>=2.3.0              # Web 服务框架
+flask-cors>=4.0.0         # 跨域支持
+
+# 硬件通信
+pyserial>=3.5             # 串口通信
+opencv-python>=4.8.0      # 图像处理
+
+# HTTP 请求
+requests>=2.31.0          # HTTP 客户端
+
+# 模拟和开发
+numpy>=1.24.0             # 数值计算
+Pillow>=10.0.0            # 图像处理
