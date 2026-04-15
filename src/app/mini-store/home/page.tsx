@@ -52,14 +52,14 @@ const QUICK_SERVICES = [
   { id: 3, icon: '礼', iconBg: 'bg-red-500', title: '邀请有奖', color: 'text-orange-500', href: '/mini-store/invite' },
 ];
 
-// 商品分类
+// 商品分类（与系统分类同步）
 const CATEGORIES = [
-  { id: 1, icon: '🗂️', name: '生活日用', desc: '收纳清洁' },
-  { id: 2, icon: '🍳', name: '家居厨具', desc: '锅碗瓢盆' },
-  { id: 3, icon: '🍲', name: '熟食速食', desc: '即食美味' },
-  { id: 4, icon: '🥤', name: '夏日饮品', desc: '清凉一夏' },
-  { id: 5, icon: '🔧', name: '五金文具', desc: '工具用品' },
-  { id: 6, icon: '🧴', name: '个人护理', desc: '护肤洗护' },
+  { id: 'drinks', icon: '🥤', name: '饮品', desc: '饮料矿泉水' },
+  { id: 'fruits', icon: '🍎', name: '水果', desc: '新鲜水果' },
+  { id: 'vegetables', icon: '🥬', name: '蔬菜', desc: '新鲜蔬菜' },
+  { id: 'snacks', icon: '🍪', name: '零食', desc: '休闲零食' },
+  { id: 'fresh', icon: '🥩', name: '生鲜', desc: '生鲜烘焙' },
+  { id: 'daily', icon: '🏠', name: '日用品', desc: '生活用品' },
 ];
 
 // 排行榜数据
