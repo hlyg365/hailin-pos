@@ -168,7 +168,16 @@ export class AIServiceClient {
       } else {
         // 文件数据
         const formData = new FormData();
-        formData.append('image', imageData, 'image.jpg');
+        
+        // 转换 ArrayBuffer 为 Blob
+        let blob: Blob;
+        if (imageData instanceof ArrayBuffer) {
+          blob = new Blob([imageData], { type: 'image/jpeg' });
+        } else {
+          blob = imageData;
+        }
+        
+        formData.append('image', blob, 'image.jpg');
         formData.append('confidence', String(options?.confidence ?? this.confidence));
         
         if (options?.weight) {

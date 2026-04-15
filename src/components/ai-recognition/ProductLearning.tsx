@@ -20,7 +20,7 @@ import {
   Camera, Trash2, Check, AlertCircle, Image as ImageIcon, 
   RotateCcw, ChevronLeft, ChevronRight 
 } from 'lucide-react';
-import { ProductSample, useAIRecognition } from '@/hooks/useAIRecognition';
+import { ProductSample, AIRecognitionSettings, useAIRecognition } from '@/hooks/useAIRecognition';
 
 interface Product {
   id: string;
@@ -38,10 +38,10 @@ interface ProductLearningProps {
 
 const ANGLES = [
   { value: 'front', label: '正面', description: '商品正面照片' },
-  { value: 'back', label: '反面', description: '商品反面照片' },
-  { value: 'side', label: '侧面', description: '商品侧面照片' },
+  { value: 'left', label: '左面', description: '商品左侧面照片' },
+  { value: 'right', label: '右面', description: '商品右侧面照片' },
   { value: 'top', label: '顶部', description: '商品顶部照片' },
-  { value: 'other', label: '其他', description: '其他角度照片' },
+  { value: 'back', label: '背面', description: '商品背面照片' },
 ] as const;
 
 export function ProductLearning({
@@ -50,9 +50,18 @@ export function ProductLearning({
   onClose,
   className,
 }: ProductLearningProps) {
-  const [selectedAngle, setSelectedAngle] = useState<ProductSample['angle']>('front');
+  const [selectedAngle, setSelectedAngle] = useState<'front' | 'left' | 'right' | 'top' | 'back'>('front');
   const [isLearning, setIsLearning] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
+  
+  // AI识别设置（简化版，不需要真实配置）
+  const aiSettings: AIRecognitionSettings = {
+    enabled: false,
+    brand: 'custom',
+    triggerWeight: 100,
+    triggerMode: 'stable',
+    similarityThreshold: 75,
+  };
   
   const {
     learnProductSample,
@@ -60,7 +69,8 @@ export function ProductLearning({
     deleteProductSample,
     error,
     clearError,
-  } = useAIRecognition();
+    captureImage,
+  } = useAIRecognition({ settings: aiSettings });
 
   const samples = product ? getProductSamples(product.id) : [];
   const sampleCount = samples.length;
@@ -74,19 +84,30 @@ export function ProductLearning({
     setIsLearning(true);
     clearError();
     
-    const sample = await learnProductSample(product.id, selectedAngle);
-    
-    if (sample && onLearn) {
-      onLearn(sample);
+    try {
+      // 拍照获取图片
+      const imageData = await captureImage();
+      if (!imageData) {
+        setIsLearning(false);
+        return;
+      }
+      
+      // 保存样本
+      const sample = learnProductSample(product.id, product.name, imageData, selectedAngle);
+      
+      if (sample && onLearn) {
+        onLearn(sample);
+      }
+    } catch (e) {
+      console.error('Failed to learn sample:', e);
+    } finally {
+      setIsLearning(false);
     }
-    
-    setIsLearning(false);
   };
 
   // 删除样本
   const handleDeleteSample = (sampleId: string) => {
-    if (!product) return;
-    deleteProductSample(product.id, sampleId);
+    deleteProductSample(sampleId);
   };
 
   // 角度分组统计
@@ -116,7 +137,7 @@ export function ProductLearning({
               为 {product.name} 拍摄多角度照片，提高识别准确率
             </CardDescription>
           </div>
-          <Badge variant={sampleCount >= targetCount ? 'success' : 'secondary'}>
+          <Badge variant={sampleCount >= targetCount ? 'secondary' : 'outline'} className={sampleCount >= targetCount ? 'bg-green-500 text-white' : 'text-gray-500'}>
             {sampleCount}/{targetCount}
           </Badge>
         </div>
@@ -137,7 +158,7 @@ export function ProductLearning({
             {angleGroups.map(angle => (
               <button
                 key={angle.value}
-                onClick={() => setSelectedAngle(angle.value)}
+                onClick={() => setSelectedAngle(angle.value as 'front' | 'left' | 'right' | 'top' | 'back')}
                 className={cn(
                   'flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all',
                   selectedAngle === angle.value
@@ -154,48 +175,55 @@ export function ProductLearning({
           </div>
         </div>
 
+        {/* 操作按钮 */}
+        <div className="flex gap-2">
+          <Button
+            onClick={handleLearn}
+            disabled={isLearning}
+            className="flex-1"
+          >
+            {isLearning ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                拍摄中...
+              </>
+            ) : (
+              <>
+                <Camera className="w-4 h-4 mr-2" />
+                拍照学习
+              </>
+            )}
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={() => setShowSamples(true)}
+            disabled={samples.length === 0}
+          >
+            <ImageIcon className="w-4 h-4 mr-2" />
+            查看样本 ({samples.length})
+          </Button>
+        </div>
+
         {/* 错误提示 */}
         {error && (
-          <div className="flex items-center text-red-600 text-sm bg-red-50 p-3 rounded-lg">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            {error}
+          <div className="flex items-center gap-2 text-red-600 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            <span>{error}</span>
+            <Button variant="ghost" size="sm" onClick={clearError} className="ml-auto h-auto p-1">
+              <span className="sr-only">关闭</span>
+              <span>×</span>
+            </Button>
           </div>
         )}
 
-        {/* 操作按钮 */}
-        <div className="flex gap-2">
-          <Button 
-            onClick={handleLearn} 
-            disabled={isLearning}
-            className="flex-1 gap-2"
-          >
-            <Camera className="w-4 h-4" />
-            {isLearning ? '学习中...' : '拍照学习'}
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => setShowSamples(true)}
-            className="gap-2"
-          >
-            <ImageIcon className="w-4 h-4" />
-            查看样本
-          </Button>
-        </div>
-
         {/* 学习提示 */}
-        <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-          <p className="font-medium mb-2">💡 学习建议：</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>每个角度建议拍摄3-5张照片</li>
-            <li>覆盖带包装/不带包装状态</li>
-            <li>覆盖装袋/不装袋状态</li>
-            <li>不同光线条件下拍摄</li>
-            <li>避免过度曝光或模糊</li>
-          </ul>
+        <div className="text-sm text-gray-500">
+          <p>提示：建议每个角度拍摄 4-5 张照片，覆盖不同光照和角度</p>
         </div>
       </CardContent>
 
-      {/* 样本查看对话框 */}
+      {/* 样本查看弹窗 */}
       <Dialog open={showSamples} onOpenChange={setShowSamples}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -209,7 +237,7 @@ export function ProductLearning({
             {samples.map(sample => (
               <div key={sample.id} className="relative group">
                 <img
-                  src={sample.imagePath}
+                  src={`data:image/jpeg;base64,${sample.imageData}`}
                   alt={`${ANGLES.find(a => a.value === sample.angle)?.label}照片`}
                   className="w-full aspect-square object-cover rounded-lg"
                 />

@@ -141,7 +141,7 @@ export function CameraPreview({
             <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold">{lastResult.productName}</span>
-                <Badge variant={lastResult.confidence > 80 ? 'success' : 'warning'}>
+                <Badge variant={lastResult.confidence > 80 ? 'secondary' : 'outline'} className={lastResult.confidence > 80 ? 'bg-green-500 text-white' : 'text-yellow-500 border-yellow-500'}>
                   {lastResult.confidence}% 匹配
                 </Badge>
               </div>

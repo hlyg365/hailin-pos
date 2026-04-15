@@ -137,6 +137,9 @@ function LoginAuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// 用于检测组件是否已挂载（客户端）
+let isMounted = false;
+
 export function HqAuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   
@@ -145,10 +148,20 @@ export function HqAuthProvider({ children }: { children: ReactNode }) {
     return <LoginAuthProvider>{children}</LoginAuthProvider>;
   }
 
-  // 初始化时同步获取用户状态，避免闪烁
-  const [user, setUser] = useState<HqUser | null>(() => getStoredUser());
-  const [loading, setLoading] = useState(false); // 改为 false，因为已同步获取
+  // 初始化状态 - 始终使用 null 作为初始值，确保服务端和客户端首次渲染一致
+  // 挂载后 useEffect 会更新为实际的用户状态
+  const [user, setUser] = useState<HqUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  // 挂载后从 localStorage 读取用户状态
+  useEffect(() => {
+    setMounted(true);
+    const storedUser = getStoredUser();
+    setUser(storedUser);
+    setLoading(false);
+  }, []);
 
   // 页面可见性变化时检查登录状态（处理标签页切换等）
   useEffect(() => {

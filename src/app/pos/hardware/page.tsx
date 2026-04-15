@@ -139,6 +139,17 @@ export default function HardwarePage() {
     openCashbox,
   } = useHardware();
 
+  // AI识别设置状态
+  const [aiSettingsState, setAiSettingsState] = useState<AIRecognitionSettings>({
+    enabled: false,
+    brand: 'custom',
+    triggerWeight: 100,
+    triggerMode: 'stable',
+    similarityThreshold: 75,
+    customApiUrl: '',
+    customApiKey: '',
+  });
+
   // AI识别Hook
   const {
     settings: aiSettings,
@@ -149,7 +160,7 @@ export default function HardwarePage() {
     captureImage,
     recognizeProduct,
     clearError: clearAIError,
-  } = useAIRecognition();
+  } = useAIRecognition({ settings: aiSettingsState });
   
   // 当前选中的设备类型
   const [activeDevice, setActiveDevice] = useState<string>('printer');
