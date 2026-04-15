@@ -235,6 +235,22 @@ export default function PosPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isFractionRemoved, setIsFractionRemoved] = useState(false); // 抹分状态
   
+  // 组合支付相关状态
+  const [showCombinedPayment, setShowCombinedPayment] = useState(false);
+  const [combinedPayments, setCombinedPayments] = useState<Array<{
+    id: string;
+    type: 'scan' | 'cash' | 'coupon' | 'points';
+    amount: number;
+    name: string;
+    icon: string;
+  }>>([]);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponAmount, setCouponAmount] = useState(0);
+  const [couponVerified, setCouponVerified] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState(0);
+  const [scanAmount, setScanAmount] = useState('');
+  const [cashAmount, setCashAmount] = useState('');
+  
   // 挂单相关状态
   const [suspendedOrders, setSuspendedOrders] = useState<SuspendedOrder[]>([]);
   const [showSuspendedOrders, setShowSuspendedOrders] = useState(false);
@@ -6155,11 +6171,10 @@ export default function PosPage() {
 
                 {/* 其他支付 */}
                 {paymentTab === 'other' && (
-                  <div className="grid grid-cols-3 gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4 py-4">
                     {[
                       { id: 'qrcode', name: '二维码支付', icon: '🔲', color: 'bg-red-500' },
                       { id: 'member_balance', name: '会员余额支付', icon: '✅', color: 'bg-orange-500' },
-                      { id: 'combined', name: '组合支付', icon: '➕', color: 'bg-blue-500' },
                     ].map((item) => (
                       <div key={item.id} className="text-center">
                         <div className={`w-16 h-16 mx-auto rounded-lg ${item.color} flex items-center justify-center text-2xl text-white mb-2`}>
@@ -6179,10 +6194,355 @@ export default function PosPage() {
                         </Button>
                       </div>
                     ))}
+                    {/* 组合支付 - 打开组合支付弹窗 */}
+                    <div className="text-center">
+                      <div className="w-16 h-16 mx-auto rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl text-white mb-2">
+                        ⚡
+                      </div>
+                      <p className="text-sm font-medium mb-2">组合支付</p>
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                        onClick={() => {
+                          // 重置组合支付状态
+                          setCombinedPayments([]);
+                          setCouponCode('');
+                          setCouponAmount(0);
+                          setCouponVerified(false);
+                          setPointsToUse(member?.points || 0);
+                          setScanAmount('');
+                          setCashAmount('');
+                          setShowCombinedPayment(true);
+                        }}
+                      >
+                        选择组合
+                      </Button>
+                    </div>
                   </div>
                 )}
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 组合支付弹窗 */}
+      <Dialog open={showCombinedPayment} onOpenChange={setShowCombinedPayment}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-xl">⚡</span>
+              组合支付
+            </DialogTitle>
+            <DialogDescription>
+              订单金额：<span className="font-bold text-orange-500">¥{getFinalAmount().toFixed(2)}</span>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* 已添加的支付方式 */}
+            {combinedPayments.length > 0 && (
+              <div className="bg-slate-50 rounded-lg p-3">
+                <p className="text-sm font-medium text-slate-600 mb-2">已选择支付方式：</p>
+                <div className="flex flex-wrap gap-2">
+                  {combinedPayments.map((payment) => (
+                    <Badge key={payment.id} variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                      <span>{payment.icon}</span>
+                      <span>{payment.name}</span>
+                      <span className="font-bold">¥{payment.amount.toFixed(2)}</span>
+                      <button 
+                        onClick={() => {
+                          setCombinedPayments(prev => prev.filter(p => p.id !== payment.id));
+                          // 重置对应输入
+                          if (payment.type === 'scan') setScanAmount('');
+                          if (payment.type === 'cash') setCashAmount('');
+                        }}
+                        className="ml-1 text-red-500 hover:text-red-700"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 剩余应付金额 */}
+            <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg border border-orange-200">
+              <span className="text-slate-600">还需支付：</span>
+              <span className="text-2xl font-bold text-orange-500">
+                ¥{Math.max(0, getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0)).toFixed(2)}
+              </span>
+            </div>
+
+            {/* 支付方式选择 */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* 扫码支付 */}
+              <div className="border rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📱</span>
+                    <span className="font-medium">扫码支付</span>
+                  </div>
+                  <Switch 
+                    checked={combinedPayments.some(p => p.type === 'scan')}
+                    onCheckedChange={(checked) => {
+                      if (checked && !scanAmount) {
+                        // 自动填入剩余金额
+                        const remaining = getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0);
+                        setScanAmount(Math.max(0, remaining).toFixed(2));
+                      } else if (!checked) {
+                        setCombinedPayments(prev => prev.filter(p => p.type !== 'scan'));
+                      }
+                    }}
+                  />
+                </div>
+                {combinedPayments.some(p => p.type === 'scan') && (
+                  <div className="mt-2">
+                    <Input
+                      type="number"
+                      placeholder="输入金额"
+                      value={scanAmount}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setScanAmount(e.target.value);
+                        setCombinedPayments(prev => {
+                          const existing = prev.find(p => p.type === 'scan');
+                          if (existing) {
+                            return prev.map(p => p.type === 'scan' ? { ...p, amount: value } : p);
+                          }
+                          return [...prev, { id: 'scan_' + Date.now(), type: 'scan', amount: value, name: '扫码支付', icon: '📱' }];
+                        });
+                      }}
+                      className="text-right"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 现金支付 */}
+              <div className="border rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">💵</span>
+                    <span className="font-medium">现金</span>
+                  </div>
+                  <Switch 
+                    checked={combinedPayments.some(p => p.type === 'cash')}
+                    onCheckedChange={(checked) => {
+                      if (checked && !cashAmount) {
+                        const remaining = getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0);
+                        setCashAmount(Math.max(0, remaining).toFixed(2));
+                      } else if (!checked) {
+                        setCombinedPayments(prev => prev.filter(p => p.type !== 'cash'));
+                      }
+                    }}
+                  />
+                </div>
+                {combinedPayments.some(p => p.type === 'cash') && (
+                  <div className="mt-2">
+                    <Input
+                      type="number"
+                      placeholder="输入金额"
+                      value={cashAmount}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setCashAmount(e.target.value);
+                        setCombinedPayments(prev => {
+                          const existing = prev.find(p => p.type === 'cash');
+                          if (existing) {
+                            return prev.map(p => p.type === 'cash' ? { ...p, amount: value } : p);
+                          }
+                          return [...prev, { id: 'cash_' + Date.now(), type: 'cash', amount: value, name: '现金', icon: '💵' }];
+                        });
+                      }}
+                      className="text-right"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 购物券 */}
+              <div className="border rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🎫</span>
+                    <span className="font-medium">购物券</span>
+                  </div>
+                  <Switch 
+                    checked={combinedPayments.some(p => p.type === 'coupon')}
+                    onCheckedChange={(checked) => {
+                      if (!checked) {
+                        setCombinedPayments(prev => prev.filter(p => p.type !== 'coupon'));
+                        setCouponCode('');
+                        setCouponAmount(0);
+                        setCouponVerified(false);
+                      }
+                    }}
+                  />
+                </div>
+                {combinedPayments.some(p => p.type === 'coupon') && (
+                  <div className="mt-2 space-y-2">
+                    <Input
+                      placeholder="输入券码"
+                      value={couponCode}
+                      onChange={(e) => {
+                        setCouponCode(e.target.value);
+                        setCouponVerified(false);
+                      }}
+                    />
+                    {!couponVerified ? (
+                      <Button 
+                        size="sm" 
+                        className="w-full" 
+                        disabled={!couponCode}
+                        onClick={() => {
+                          // 模拟验证券码
+                          if (couponCode.length >= 6) {
+                            const mockDiscount = Math.min(20, getFinalAmount() * 0.2);
+                            setCouponAmount(mockDiscount);
+                            setCouponVerified(true);
+                            setCombinedPayments(prev => {
+                              const existing = prev.find(p => p.type === 'coupon');
+                              if (existing) {
+                                return prev.map(p => p.type === 'coupon' ? { ...p, amount: mockDiscount, name: `券(${couponCode.slice(-4)})` } : p);
+                              }
+                              return [...prev, { id: 'coupon_' + Date.now(), type: 'coupon', amount: mockDiscount, name: `券(${couponCode.slice(-4)})`, icon: '🎫' }];
+                            });
+                          }
+                        }}
+                      >
+                        验证
+                      </Button>
+                    ) : (
+                      <div className="text-center text-green-600 text-sm">
+                        <span className="font-bold">-¥{couponAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 积分抵扣 */}
+              <div className="border rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⭐</span>
+                    <span className="font-medium">积分</span>
+                  </div>
+                  <Switch 
+                    checked={combinedPayments.some(p => p.type === 'points')}
+                    onCheckedChange={(checked) => {
+                      if (!checked) {
+                        setCombinedPayments(prev => prev.filter(p => p.type !== 'points'));
+                        setPointsToUse(0);
+                      }
+                    }}
+                  />
+                </div>
+                {combinedPayments.some(p => p.type === 'points') && (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-xs text-slate-500">
+                      可用积分：{member?.points || 0}（100积分=¥1）
+                    </p>
+                    <Input
+                      type="number"
+                      placeholder="使用积分"
+                      value={pointsToUse > 0 ? pointsToUse.toString() : ''}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 0;
+                        const maxPoints = Math.min(member?.points || 0, (getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0)) * 100);
+                        setPointsToUse(Math.min(value, maxPoints));
+                        const amount = Math.min(value / 100, getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0) - couponAmount);
+                        setCombinedPayments(prev => {
+                          const existing = prev.find(p => p.type === 'points');
+                          if (existing) {
+                            return prev.map(p => p.type === 'points' ? { ...p, amount: Math.max(0, amount) } : p);
+                          }
+                          return [...prev, { id: 'points_' + Date.now(), type: 'points', amount: Math.max(0, amount), name: `积分(${value})`, icon: '⭐' }];
+                        });
+                      }}
+                    />
+                    <p className="text-xs text-orange-500">
+                      抵扣：¥{(pointsToUse / 100).toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 快捷金额按钮 */}
+            <div className="flex gap-2 flex-wrap">
+              <span className="text-sm text-slate-500">快捷填入：</span>
+              {[50, 100, 200, 500].map(amount => (
+                <Button 
+                  key={amount}
+                  variant="outline" 
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    const remaining = getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0);
+                    const fillAmount = Math.min(amount, Math.max(0, remaining));
+                    // 默认添加到扫码支付
+                    setScanAmount(fillAmount.toFixed(2));
+                    setCombinedPayments(prev => {
+                      const existing = prev.find(p => p.type === 'scan');
+                      if (existing) {
+                        return prev.map(p => p.type === 'scan' ? { ...p, amount: fillAmount } : p);
+                      }
+                      return [...prev, { id: 'scan_' + Date.now(), type: 'scan', amount: fillAmount, name: '扫码支付', icon: '📱' }];
+                    });
+                  }}
+                >
+                  ¥{amount}
+                </Button>
+              ))}
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  const remaining = getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0);
+                  const fillAmount = Math.max(0, remaining);
+                  setScanAmount(fillAmount.toFixed(2));
+                  setCombinedPayments(prev => {
+                    const existing = prev.find(p => p.type === 'scan');
+                    if (existing) {
+                      return prev.map(p => p.type === 'scan' ? { ...p, amount: fillAmount } : p);
+                    }
+                    return [...prev, { id: 'scan_' + Date.now(), type: 'scan', amount: fillAmount, name: '扫码支付', icon: '📱' }];
+                  });
+                }}
+              >
+                剩余金额
+              </Button>
+            </div>
+
+            {/* 确认按钮 */}
+            <div className="pt-4 border-t">
+              <Button 
+                className="w-full h-12 text-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                disabled={combinedPayments.length === 0 || combinedPayments.reduce((sum, p) => sum + p.amount, 0) < getFinalAmount()}
+                onClick={() => {
+                  // 计算最终支付金额
+                  const totalPaid = combinedPayments.reduce((sum, p) => sum + p.amount, 0);
+                  if (totalPaid >= getFinalAmount()) {
+                    setShowCombinedPayment(false);
+                    setShowPayment(false);
+                    // 使用组合支付完成订单
+                    confirmPayment();
+                  }
+                }}
+              >
+                确认支付 ¥{combinedPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+              </Button>
+              {combinedPayments.reduce((sum, p) => sum + p.amount, 0) < getFinalAmount() && (
+                <p className="text-center text-xs text-red-500 mt-2">
+                  支付金额不足，还差 ¥{(getFinalAmount() - combinedPayments.reduce((sum, p) => sum + p.amount, 0)).toFixed(2)}
+                </p>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
