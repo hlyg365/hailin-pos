@@ -1,0 +1,321 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+
+// 轮播图数据
+const STORE_BANNERS = [
+  {
+    id: 1,
+    image: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=750&h=400&fit=crop',
+    title: '多多生活馆',
+    subtitle: '社区便利 就近选择',
+  },
+  {
+    id: 2,
+    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=750&h=400&fit=crop',
+    title: '新鲜水果',
+    subtitle: '时令水果 每日配送',
+  },
+  {
+    id: 3,
+    image: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=750&h=400&fit=crop',
+    title: '优惠活动',
+    subtitle: '限时特惠 满50减10',
+  },
+];
+
+// 功能按钮数据
+const SERVICE_CARDS = [
+  {
+    id: 1,
+    title: '同城配送',
+    subtitle: '省心到家',
+    gradient: 'from-cyan-500 to-teal-400',
+    icon: '🛵',
+  },
+  {
+    id: 2,
+    title: '到店自提',
+    subtitle: '方便快捷',
+    gradient: 'from-cyan-400 to-blue-400',
+    icon: '📦',
+  },
+];
+
+// 快捷服务入口
+const QUICK_SERVICES = [
+  { id: 1, icon: '充', iconBg: 'bg-purple-500', title: '在线充值', color: 'text-orange-500' },
+  { id: 2, icon: '✓', iconBg: 'bg-orange-500', title: '会员中心', color: 'text-orange-500' },
+  { id: 3, icon: '礼', iconBg: 'bg-red-500', title: '邀请有奖', color: 'text-orange-500' },
+];
+
+// 商品分类
+const CATEGORIES = [
+  { id: 1, icon: '🗂️', name: '生活日用' },
+  { id: 2, icon: '🍳', name: '家居厨具' },
+  { id: 3, icon: '🍲', name: '熟食速食' },
+  { id: 4, icon: '🥤', name: '夏日饮品' },
+  { id: 5, icon: '🔧', name: '五金文具' },
+  { id: 6, icon: '🧴', name: '个人护理' },
+];
+
+// 排行榜数据
+const RANKING_DATA = {
+  sales: [
+    { id: 1, name: '农夫山泉550ml', price: 2.00, sales: 1568, image: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=100&h=100&fit=crop' },
+    { id: 2, name: '康师傅红烧牛肉面', price: 4.50, sales: 1234, image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=100&h=100&fit=crop' },
+    { id: 3, name: '维达抽纸超韧系列', price: 12.80, sales: 986, image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=100&h=100&fit=crop' },
+    { id: 4, name: '可口可乐330ml', price: 2.50, sales: 876, image: 'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=100&h=100&fit=crop' },
+  ],
+  attention: [
+    { id: 1, name: '元气森林气泡水', price: 5.00, attention: 2568, image: 'https://images.unsplash.com/photo-1527960471264-932f39eb5846?w=100&h=100&fit=crop' },
+    { id: 2, name: '三只松鼠坚果礼盒', price: 68.00, attention: 1890, image: 'https://images.unsplash.com/photo-1594901852083-c83b4f1ed8c3?w=100&h=100&fit=crop' },
+    { id: 3, name: '蒙牛纯牛奶24盒装', price: 45.90, attention: 1456, image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=100&h=100&fit=crop' },
+    { id: 4, name: '奥利奥夹心饼干', price: 8.90, attention: 1234, image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=100&h=100&fit=crop' },
+  ],
+};
+
+// 底部导航数据
+const TAB_BAR = [
+  { id: 1, icon: '🏠', title: '首页', active: true },
+  { id: 2, icon: '📋', title: '全部分类', active: false },
+  { id: 3, icon: '🛒', title: '购物车', active: false, badge: 0 },
+  { id: 4, icon: '👤', title: '我的', active: false },
+];
+
+// 店铺头图轮播组件
+function StoreBannerSwiper({ current, setCurrent }: { current: number; setCurrent: React.Dispatch<React.SetStateAction<number>> }) {
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrent(prev => (prev + 1) % STORE_BANNERS.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [setCurrent]);
+
+  return (
+    <div className="relative w-full h-44 overflow-hidden">
+      <div 
+        className="flex transition-transform duration-500 h-full"
+        style={{ transform: `translateX(-${current * 100}%)` }}
+      >
+        {STORE_BANNERS.map((banner) => (
+          <div key={banner.id} className="relative flex-shrink-0 w-full h-full">
+            <img
+              src={banner.image}
+              alt={banner.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+            <div className="absolute bottom-4 left-4">
+              <h2 className="text-white font-bold text-lg">{banner.title}</h2>
+              <p className="text-white/80 text-xs">{banner.subtitle}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+        {STORE_BANNERS.map((_, index) => (
+          <div
+            key={index}
+            className={cn(
+              "w-2 h-2 rounded-full transition-all",
+              current === index ? "bg-white" : "bg-white/50"
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 主页面组件
+export default function MiniStorePreview() {
+  const [current, setCurrent] = useState(0);
+  const [activeTab, setActiveTab] = useState<'sales' | 'attention'>('sales');
+
+  return (
+    <div className="w-[320px] h-[650px] bg-gray-50 rounded-[40px] overflow-hidden border-4 border-gray-800 shadow-2xl relative">
+      {/* 手机状态栏 */}
+      <div className="h-7 bg-gray-900 flex items-center justify-between px-4 text-white text-xs">
+        <span>9:41</span>
+        <div className="flex items-center gap-1">
+          <span>📶</span>
+          <span>📡</span>
+          <span>🔋 100%</span>
+        </div>
+      </div>
+      
+      {/* 小程序头部 */}
+      <div className="bg-white">
+        <div className="flex items-center justify-between px-4 py-2.5">
+          <div className="w-6" />
+          <h1 className="text-base font-bold text-gray-900">首页</h1>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 flex items-center justify-center text-gray-500">⋯</div>
+            <div className="w-6 h-6 flex items-center justify-center text-gray-500">⏺</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 内容区域 */}
+      <div className="h-[calc(100%-120px)] overflow-y-auto">
+        {/* 店铺头图轮播 */}
+        <StoreBannerSwiper current={current} setCurrent={setCurrent} />
+
+        {/* 搜索栏 */}
+        <div className="px-3 py-2 bg-white">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
+            <span className="text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              placeholder="搜索"
+              className="flex-1 bg-transparent outline-none text-sm text-gray-700"
+            />
+            <button className="text-gray-400 text-sm">搜索</button>
+          </div>
+        </div>
+
+        {/* 服务卡片 */}
+        <div className="px-3 py-2 bg-white">
+          <div className="flex gap-2">
+            {SERVICE_CARDS.map((card) => (
+              <div
+                key={card.id}
+                className={cn(
+                  "flex-1 relative overflow-hidden rounded-xl p-3 bg-gradient-to-br",
+                  card.gradient
+                )}
+              >
+                <div className="relative z-10">
+                  <h3 className="text-white font-bold text-sm">{card.title}</h3>
+                  <p className="text-white/80 text-xs">{card.subtitle}</p>
+                </div>
+                <div className="absolute right-1 bottom-1 text-3xl opacity-30">{card.icon}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 分隔线 */}
+        <div className="h-2 bg-gray-100" />
+
+        {/* 快捷服务 */}
+        <div className="px-3 py-2 bg-white">
+          <div className="flex justify-around">
+            {QUICK_SERVICES.map((service) => (
+              <div key={service.id} className="flex flex-col items-center gap-1">
+                <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold", service.iconBg)}>
+                  {service.icon}
+                </div>
+                <span className={cn("text-xs font-medium", service.color)}>{service.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 分隔线 */}
+        <div className="h-2 bg-gray-100" />
+
+        {/* 商品分类 */}
+        <div className="px-3 py-2 bg-white">
+          <div className="grid grid-cols-3 gap-2">
+            {CATEGORIES.map((cat) => (
+              <div key={cat.id} className="flex flex-col items-center gap-0.5 py-1">
+                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-xl">
+                  {cat.icon}
+                </div>
+                <span className="text-xs text-gray-700 font-medium">{cat.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 分隔线 */}
+        <div className="h-2 bg-gray-100" />
+
+        {/* 排行榜 */}
+        <div className="px-3 py-2">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-400 rounded-t-xl p-2">
+            <div className="flex items-center justify-between">
+              <span className="text-white font-bold text-sm">排行榜</span>
+              <span className="text-white/80 text-xs">更多 ›</span>
+            </div>
+          </div>
+          <div className="bg-white rounded-b-xl px-2 pb-2">
+            <div className="flex gap-1 py-2">
+              <button
+                onClick={() => setActiveTab('sales')}
+                className={cn(
+                  "flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all",
+                  activeTab === 'sales' 
+                    ? "bg-white text-gray-800 shadow-sm border border-gray-200" 
+                    : "bg-gray-100 text-gray-500"
+                )}
+              >
+                {activeTab === 'sales' && <span className="text-red-500">🔥</span>}
+                销量榜
+              </button>
+              <button
+                onClick={() => setActiveTab('attention')}
+                className={cn(
+                  "flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all",
+                  activeTab === 'attention' 
+                    ? "bg-white text-gray-800 shadow-sm border border-gray-200" 
+                    : "bg-gray-100 text-gray-500"
+                )}
+              >
+                {activeTab === 'attention' && <span className="text-red-500">🔥</span>}
+                关注榜
+              </button>
+            </div>
+            <div className="space-y-1">
+              {RANKING_DATA[activeTab].slice(0, 4).map((product, index) => (
+                <div key={product.id} className="flex items-center gap-2 py-1">
+                  <span className={cn(
+                    "w-4 h-4 rounded flex items-center justify-center text-xs font-bold",
+                    index < 3 ? "bg-red-500 text-white" : "bg-gray-200 text-gray-500"
+                  )}>
+                    {index + 1}
+                  </span>
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-8 h-8 rounded-lg object-cover bg-gray-100"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-800 truncate">{product.name}</p>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-red-500 font-medium text-xs">¥{product.price.toFixed(2)}</span>
+                      <span className="text-xs text-gray-400">
+                        {'sales' in product ? `售${product.sales}` : `关${product.attention}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 底部导航栏 */}
+      <div className="absolute bottom-0 left-0 right-0 h-14 bg-white border-t border-gray-200">
+        <div className="flex justify-around py-1.5">
+          {TAB_BAR.map((tab) => (
+            <div
+              key={tab.id}
+              className={cn(
+                "flex flex-col items-center gap-0.5 py-0.5 px-2",
+                tab.active ? "text-red-500" : "text-gray-500"
+              )}
+            >
+              <div className="relative text-lg">{tab.icon}</div>
+              <span className="text-xs">{tab.title}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
