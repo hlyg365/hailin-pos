@@ -1,7 +1,7 @@
 'use client';
 
 import { AppSidebar } from '@/components/app-sidebar';
-import { HqAuthProvider, useHqAuth } from '@/contexts/HqAuthContext';
+import { HqAuthProviderWrapper, useHqAuth } from '@/components/providers/hq-auth-provider-wrapper';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -86,8 +86,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <HqAuthProvider>
+    <HqAuthProviderWrapper>
       <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </HqAuthProvider>
+    </HqAuthProviderWrapper>
   );
 }

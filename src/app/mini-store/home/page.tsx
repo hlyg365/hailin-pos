@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 const STORE_BANNERS = [
   {
     id: 1,
-    image: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=750&h=400&fit=crop',
-    title: '多多生活馆',
-    subtitle: '社区便利 就近选择',
+    image: '/images/hailin-store.jpg',
+    title: '海邻到家',
+    subtitle: '新鲜到家 实惠到家',
   },
   {
     id: 2,
