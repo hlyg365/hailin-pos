@@ -566,6 +566,29 @@ export default function MiniStorePage() {
     });
   };
 
+  // 模板转换为预览组件需要的格式
+  const previewTemplate = {
+    id: currentTemplate.id,
+    name: currentTemplate.name,
+    style: {
+      primaryColor: currentTemplate.style.primaryColor.replace('bg-', 'text-'),
+      secondaryColor: currentTemplate.style.secondaryColor,
+      gradientFrom: currentTemplate.style.gradientFrom,
+      gradientTo: currentTemplate.style.gradientTo,
+      accentColor: currentTemplate.style.primaryColor.replace('bg-', 'text-'),
+      accentBg: currentTemplate.style.primaryColor,
+    },
+    config: {
+      showStoreLocation: currentTemplate.config.showStoreLocation,
+      showSearchBar: currentTemplate.config.showSearchBar,
+      showBanner: currentTemplate.config.showBanner,
+      showServiceTags: currentTemplate.config.showServiceTags,
+      showQuickServices: currentTemplate.config.showQuickCategories,
+      showCategories: true,
+      showRankings: true,
+    },
+  };
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader title="小程序商城" description="配置和管理社区便利店小程序商城首页模板">
@@ -598,7 +621,7 @@ export default function MiniStorePage() {
               <CardContent>
                 {/* 手机模拟器 */}
                 <div className="flex justify-center">
-                  <MiniStorePreview />
+                  <MiniStorePreview template={previewTemplate} />
                 </div>
 
                 {/* 操作按钮 */}
