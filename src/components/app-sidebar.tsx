@@ -184,18 +184,22 @@ export function AppSidebar() {
   const [expandedItems, setExpandedItems] = useState<string[]>(defaultExpandedItems);
   const [mounted, setMounted] = useState(false);
 
-  // 仅在客户端初始化
+  // 仅在客户端初始化 - 使用mounted防止水合错误
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 获取当前路径是否匹配
+  // 获取当前路径是否匹配 - 使用可选链防止null错误
   const getIsActive = (href: string) => {
     return pathname === href;
   };
 
   // 检查菜单是否展开
   const isExpanded = (title: string) => {
+    // 服务端或未挂载时使用默认值
+    if (!mounted) {
+      return defaultExpandedItems.includes(title);
+    }
     return expandedItems.includes(title);
   };
 

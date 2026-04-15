@@ -6,7 +6,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 // 判断是否为登录页面路径
-function isLoginPath(pathname: string): boolean {
+function isLoginPath(pathname: string | null): boolean {
+  if (!pathname) return false;
   return pathname.startsWith('/auth/login');
 }
 
@@ -22,6 +23,7 @@ function DashboardLayoutContent({
   
   // 用于修复水合错误 - 确保首次渲染与服务端一致
   const [mounted, setMounted] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   useEffect(() => {
     setMounted(true);
@@ -36,8 +38,9 @@ function DashboardLayoutContent({
     );
   }
 
-  // 未挂载前显示一致的加载状态（与服务端一致）
-  if (!mounted) {
+  // SSR和首次渲染时显示一致的加载状态
+  // 这样可以避免hydration mismatch
+  if (!mounted || loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -60,12 +63,11 @@ function DashboardLayoutContent({
     );
   }
 
-  // 未登录状态 - 重定向到登录页
-  useEffect(() => {
-    if (!loading && !isAuthenticated && !isLoginPath(pathname)) {
-      router.replace('/auth/login');
-    }
-  }, [loading, isAuthenticated, pathname, router]);
+  // 未登录且不在登录页，重定向
+  if (!isRedirecting) {
+    setIsRedirecting(true);
+    router.replace('/auth/login');
+  }
 
   // 显示加载状态（等待重定向）
   return (
