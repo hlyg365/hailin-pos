@@ -1,0 +1,35 @@
+{
+  "name": "hailin-unified",
+  "version": "2.0.0",
+  "description": "海邻到家统一跨端架构",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:miniapp": "taro build --watch --type weapp",
+    "dev:pos": "taro build --watch --type rn",
+    "dev:web": "next dev",
+    "dev:h5": "taro build --watch --type h5",
+    "build:miniapp": "taro build --type weapp",
+    "build:pos": "taro build --type rn",
+    "build:web": "next build",
+    "build:h5": "taro build --type h5",
+    "build:all": "npm run build:miniapp && npm run build:pos && npm run build:h5",
+    "lint": "eslint packages apps --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@tarojs/cli": "^4.0.0",
+    "@tarojs/webpack5-runner": "^4.0.0",
+    "@tarojs/parser": "^4.0.0",
+    "@tarojs/taro": "^4.0.0",
+    "@tarojs/react": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

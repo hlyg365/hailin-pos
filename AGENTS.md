@@ -691,3 +691,64 @@ A: USB扫码枪应自动识别，检查是否作为键盘设备连接。
 ## 联系方式
 
 如有问题，请联系开发团队或查看项目文档。
+
+---
+
+# V2.0 架构重构方案（规划中）
+
+## 当前架构问题
+
+| 问题 | 表现 | 影响 |
+|------|------|------|
+| 代码重复 | 收银台、小程序、管理后台各自独立代码 | 维护成本高 |
+| 升级困难 | 各端独立升级，风险高 | 线上问题修复慢 |
+| 硬件集成复杂 | APP和H5行为不一致 | 用户体验差 |
+
+## 新架构设计
+
+### 技术选型
+
+- **跨端框架**: Taro 4.0（React语法）
+- **编译目标**: 微信小程序 + H5 + React Native APP
+- **状态管理**: 统一状态层（@hailin/cart等packages）
+- **API层**: 统一API客户端（@hailin/core）
+
+### 项目结构（monorepo）
+
+```
+hailin-unified/
+├── packages/           # 核心业务包（各端共享）
+│   ├── core/          # API客户端、类型定义
+│   ├── product/       # 商品模块
+│   ├── cart/          # 购物车模块
+│   ├── order/         # 订单模块
+│   ├── member/        # 会员模块
+│   ├── payment/       # 支付模块
+│   ├── promotion/     # 促销模块
+│   └── hardware/      # 硬件模块（收银台专用）
+├── apps/              # 各端应用入口
+│   ├── miniapp/       # 微信小程序
+│   ├── pos/           # 收银台APP
+│   ├── web/           # Web/PWA
+│   └── admin/         # 管理后台
+└── server/            # 后端服务
+```
+
+### 模块使用示例
+
+```tsx
+// 购物车 - 跨端复用
+import { useCart } from '@hailin/cart';
+
+// 硬件 - 收银台专用
+import { usePrinter, useScanner } from '@hailin/hardware';
+```
+
+### 迁移策略
+
+1. **阶段1**: 搭建基础架构（packages/core, packages/cart）
+2. **阶段2**: 迁移小程序（Taro重写）
+3. **阶段3**: 迁移收银台（Taro + RN）
+4. **阶段4**: 迁移管理后台（Next.js）
+
+详细方案见：`docs/ARCHITECTURE_V2.md`
