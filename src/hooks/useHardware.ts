@@ -1,263 +1,447 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  HardwareService, 
-  HardwareDevice, 
+import { useState, useEffect, useCallback } from 'react';
+import {
+  hardwareService,
+  scalePlugin,
+  printerPlugin,
+  cashboxPlugin,
+  dualScreenPlugin,
+  ScaleReading,
   PrinterStatus,
-  ReceiptData,
-  ScannerType,
-  PrinterType 
-} from '@/lib/hardware-service';
+  CashboxStatus,
+} from '@/lib/hardware';
 
 /**
- * 硬件设备管理 Hook
- * 提供扫码枪、打印机、钱箱的统一管理接口
+ * 硬件设备连接状态
+ */
+export interface HardwareStatus {
+  initialized: boolean;
+  scale: {
+    connected: boolean;
+    deviceId: string | null;
+    lastReading: ScaleReading | null;
+  };
+  printer: {
+    connected: boolean;
+    status: PrinterStatus;
+  };
+  cashbox: {
+    connected: boolean;
+    status: CashboxStatus;
+  };
+  dualScreen: {
+    active: boolean;
+    screen: string;
+  };
+}
+
+/**
+ * 硬件管理Hook
  */
 export function useHardware() {
-  const hardwareService = HardwareService.getInstance();
-  
-  // 设备状态
-  const [scanner, setScanner] = useState<HardwareDevice | null>(null);
-  const [printer, setPrinter] = useState<HardwareDevice | null>(null);
-  const [printerStatus, setPrinterStatus] = useState<PrinterStatus>('disconnected');
-  const [cashboxStatus, setCahboxStatus] = useState<'closed' | 'open'>('closed');
-  
-  // 连接状态
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [status, setStatus] = useState<HardwareStatus>({
+    initialized: false,
+    scale: {
+      connected: false,
+      deviceId: null,
+      lastReading: null,
+    },
+    printer: {
+      connected: false,
+      status: 'idle',
+    },
+    cashbox: {
+      connected: false,
+      status: 'closed',
+    },
+    dualScreen: {
+      active: false,
+      screen: 'customer',
+    },
+  });
+
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // 清理函数引用
-  const scannerCleanupRef = useRef<(() => void) | null>(null);
 
-  // 扫码回调
-  const [onBarcodeScanned, setOnBarcodeScanned] = useState<((barcode: string) => void) | null>(null);
-
-  // 更新设备状态
-  const updateDeviceStatus = useCallback(() => {
-    const status = hardwareService.getDevicesStatus();
-    setScanner(status.scanner);
-    setPrinter(status.printer);
-    setPrinterStatus(status.printerStatus);
-    setCahboxStatus(status.cashbox);
-  }, [hardwareService]);
-
-  // 初始化硬件设备
-  useEffect(() => {
-    updateDeviceStatus();
-    
-    return () => {
-      // 清理所有设备连接
-      if (scannerCleanupRef.current) {
-        scannerCleanupRef.current();
-      }
-    };
-  }, [updateDeviceStatus]);
-
-  // 启用扫码枪监听
-  const enableScanner = useCallback((type: ScannerType, callback: (barcode: string) => void): (() => void) | undefined => {
-    setOnBarcodeScanned(() => callback);
-    
-    if (type === 'usb') {
-      // 清理旧的监听器
-      if (scannerCleanupRef.current) {
-        scannerCleanupRef.current();
-      }
-      
-      // 启用 USB 扫码枪
-      scannerCleanupRef.current = hardwareService.enableUsbScanner((barcode) => {
-        console.log('[useHardware] Barcode scanned:', barcode);
-        callback(barcode);
-      });
-      
-      setScanner({
-        id: 'usb-scanner',
-        name: 'USB 扫码枪',
-        type: 'usb',
-        status: 'connected',
-      });
-      
-      // 返回清理函数
-      return () => {
-        if (scannerCleanupRef.current) {
-          scannerCleanupRef.current();
-          scannerCleanupRef.current = null;
-        }
-        setScanner(null);
-      };
-    }
-    
-    return undefined;
-  }, [hardwareService]);
-
-  // 禁用扫码枪
-  const disableScanner = useCallback(() => {
-    if (scannerCleanupRef.current) {
-      scannerCleanupRef.current();
-      scannerCleanupRef.current = null;
-    }
-    setScanner(null);
-    setOnBarcodeScanned(null);
-  }, []);
-
-  // 连接打印机
-  const connectPrinter = useCallback(async (type: PrinterType, config?: { ipAddress?: string; port?: number }) => {
-    setIsConnecting(true);
+  // 初始化所有硬件
+  const initialize = useCallback(async () => {
+    setLoading(true);
     setError(null);
 
     try {
-      let device: HardwareDevice | null = null;
-
-      switch (type) {
-        case 'usb':
-          device = await hardwareService.connectUsbPrinter();
-          break;
-        case 'bluetooth':
-          device = await hardwareService.connectBluetoothPrinter();
-          break;
-        case 'network':
-          if (!config?.ipAddress) {
-            throw new Error('网络打印机需要提供IP地址');
-          }
-          device = await hardwareService.connectNetworkPrinter(config.ipAddress, config.port || 9100);
-          break;
-      }
-
-      if (device) {
-        setPrinter(device);
-        setPrinterStatus('connected');
-      }
-
-      return device;
+      const result = await hardwareService.initializeAll();
+      
+      setStatus(prev => ({
+        ...prev,
+        initialized: true,
+        scale: {
+          ...prev.scale,
+          connected: result.scale,
+          deviceId: scalePlugin.getStatus().deviceId,
+        },
+        printer: {
+          connected: result.printer,
+          status: printerPlugin.getStatus(),
+        },
+        cashbox: {
+          connected: result.cashbox,
+          status: cashboxPlugin.getStatus(),
+        },
+        dualScreen: {
+          active: result.dualScreen,
+          screen: dualScreenPlugin.getCurrentScreen(),
+        },
+      }));
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '连接失败';
-      setError(errorMsg);
-      setPrinterStatus('error');
-      return null;
+      setError((err as Error).message);
     } finally {
-      setIsConnecting(false);
+      setLoading(false);
     }
-  }, [hardwareService]);
+  }, []);
+
+  // 连接电子秤
+  const connectScale = useCallback(async (deviceId?: string) => {
+    try {
+      const result = await scalePlugin.connect(deviceId);
+      
+      setStatus(prev => ({
+        ...prev,
+        scale: {
+          ...prev.scale,
+          connected: result,
+          deviceId: scalePlugin.getStatus().deviceId,
+        },
+      }));
+
+      return result;
+    } catch (err) {
+      setError((err as Error).message);
+      return false;
+    }
+  }, []);
+
+  // 断开电子秤
+  const disconnectScale = useCallback(async () => {
+    await scalePlugin.disconnect();
+    
+    setStatus(prev => ({
+      ...prev,
+      scale: {
+        ...prev.scale,
+        connected: false,
+        deviceId: null,
+        lastReading: null,
+      },
+    }));
+  }, []);
+
+  // 读取电子秤重量
+  const readScale = useCallback(async () => {
+    if (!status.scale.connected) {
+      return null;
+    }
+
+    try {
+      const reading = await scalePlugin.getWeight();
+      
+      setStatus(prev => ({
+        ...prev,
+        scale: {
+          ...prev.scale,
+          lastReading: reading,
+        },
+      }));
+
+      return reading;
+    } catch (err) {
+      console.error('Failed to read scale:', err);
+      return null;
+    }
+  }, [status.scale.connected]);
+
+  // 连接打印机
+  const connectPrinter = useCallback(async (deviceId?: string) => {
+    try {
+      const result = await printerPlugin.connect(deviceId);
+      
+      setStatus(prev => ({
+        ...prev,
+        printer: {
+          connected: result,
+          status: printerPlugin.getStatus(),
+        },
+      }));
+
+      return result;
+    } catch (err) {
+      setError((err as Error).message);
+      return false;
+    }
+  }, []);
 
   // 断开打印机
   const disconnectPrinter = useCallback(async () => {
-    await hardwareService.disconnectPrinter();
-    setPrinter(null);
-    setPrinterStatus('disconnected');
-  }, [hardwareService]);
+    await printerPlugin.disconnect();
+    
+    setStatus(prev => ({
+      ...prev,
+      printer: {
+        connected: false,
+        status: 'idle',
+      },
+    }));
+  }, []);
 
   // 打印小票
-  const printReceipt = useCallback(async (data: ReceiptData): Promise<boolean> => {
-    try {
-      const result = await hardwareService.printReceipt(data);
-      if (result) {
-        updateDeviceStatus();
-      }
-      return result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '打印失败');
-      return false;
+  const printReceipt = useCallback(async (receiptData: Parameters<typeof printerPlugin.printReceipt>[0]) => {
+    if (!status.printer.connected) {
+      throw new Error('Printer not connected');
     }
-  }, [hardwareService, updateDeviceStatus]);
 
-  // 测试打印
-  const testPrint = useCallback(async (): Promise<boolean> => {
+    setStatus(prev => ({
+      ...prev,
+      printer: {
+        ...prev.printer,
+        status: 'printing',
+      },
+    }));
+
     try {
-      const result = await hardwareService.testPrint();
-      updateDeviceStatus();
+      const result = await printerPlugin.printReceipt(receiptData);
+      
+      setStatus(prev => ({
+        ...prev,
+        printer: {
+          ...prev.printer,
+          status: result ? 'idle' : 'error',
+        },
+      }));
+
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '测试打印失败');
-      return false;
+      setStatus(prev => ({
+        ...prev,
+        printer: {
+          ...prev.printer,
+          status: 'error',
+        },
+      }));
+      throw err;
     }
-  }, [hardwareService, updateDeviceStatus]);
+  }, [status.printer.connected]);
 
   // 打开钱箱
-  const openCashbox = useCallback(async (): Promise<boolean> => {
+  const openCashbox = useCallback(async () => {
     try {
-      const result = await hardwareService.openCashbox();
-      if (result) {
-        setCahboxStatus('open');
-        // 1秒后自动恢复为关闭状态
-        setTimeout(() => setCahboxStatus('closed'), 1000);
-      }
+      const result = await cashboxPlugin.open();
+      
+      setStatus(prev => ({
+        ...prev,
+        cashbox: {
+          ...prev.cashbox,
+          status: result ? 'open' : 'error',
+        },
+      }));
+
       return result;
     } catch (err) {
-      setError(err instanceof Error ? err.message : '打开钱箱失败');
+      setStatus(prev => ({
+        ...prev,
+        cashbox: {
+          ...prev.cashbox,
+          status: 'error',
+        },
+      }));
       return false;
     }
-  }, [hardwareService]);
+  }, []);
 
-  // 设备自检
-  const selfTest = useCallback(async () => {
-    return await hardwareService.selfTest();
-  }, [hardwareService]);
+  // 打开客显屏
+  const openDualScreen = useCallback(async () => {
+    try {
+      const window = await dualScreenPlugin.openScreen();
+      
+      setStatus(prev => ({
+        ...prev,
+        dualScreen: {
+          active: !!window,
+          screen: dualScreenPlugin.getCurrentScreen(),
+        },
+      }));
 
-  // 断开所有设备
-  const disconnectAll = useCallback(async () => {
-    disableScanner();
-    await disconnectPrinter();
-    setCahboxStatus('closed');
-  }, [disableScanner, disconnectPrinter]);
+      return !!window;
+    } catch (err) {
+      console.error('Failed to open dual screen:', err);
+      return false;
+    }
+  }, []);
+
+  // 显示欢迎信息
+  const showWelcome = useCallback(async () => {
+    if (!status.dualScreen.active) return;
+    await dualScreenPlugin.showWelcome();
+  }, [status.dualScreen.active]);
+
+  // 显示商品信息
+  const showProduct = useCallback(async (name: string, price: number) => {
+    if (!status.dualScreen.active) return;
+    await dualScreenPlugin.showProduct(name, price);
+  }, [status.dualScreen.active]);
+
+  // 显示价格
+  const showPrice = useCallback(async (amount: number, change?: number) => {
+    if (!status.dualScreen.active) return;
+    await dualScreenPlugin.showPrice(amount, change);
+  }, [status.dualScreen.active]);
+
+  // 显示二维码
+  const showQRCode = useCallback(async (data: string, title?: string) => {
+    if (!status.dualScreen.active) return;
+    await dualScreenPlugin.showQRCode(data, title);
+  }, [status.dualScreen.active]);
+
+  // 显示闲置画面
+  const showIdle = useCallback(async () => {
+    if (!status.dualScreen.active) return;
+    await dualScreenPlugin.showIdle();
+  }, [status.dualScreen.active]);
+
+  // 初始化
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  // 状态更新
+  const updateDeviceStatus = useCallback((updates: Partial<typeof status>) => {
+    setStatus(prev => ({ ...prev, ...updates }));
+  }, []);
 
   return {
-    // 设备状态
-    scanner,
-    printer,
-    printerStatus,
-    cashboxStatus,
+    // 兼容属性（旧API）
+    scanner: { connected: status.scale.connected },
+    printer: printerPlugin,
+    printerStatus: status.printer.status,
+    enableScanner: (type: string, callback: (barcode: string) => void) => {
+      // 返回清理函数
+      const { startListening, stopListening } = useScanner(callback);
+      startListening();
+      return () => stopListening();
+    },
     
-    // 连接状态
-    isConnecting,
+    // 状态
+    status,
+    loading,
     error,
     
-    // 扫码枪操作
-    enableScanner,
-    disableScanner,
+    // 电子秤
+    connectScale,
+    disconnectScale,
+    readScale,
     
-    // 打印机操作
+    // 打印机
     connectPrinter,
     disconnectPrinter,
     printReceipt,
-    testPrint,
     
-    // 钱箱操作
+    // 钱箱
     openCashbox,
     
-    // 工具方法
-    selfTest,
-    disconnectAll,
+    // 双屏
+    openDualScreen,
+    showWelcome,
+    showProduct,
+    showPrice,
+    showQRCode,
+    showIdle,
+    
+    // 通用
+    initialize,
     updateDeviceStatus,
   };
 }
 
 /**
- * 检查是否在支持硬件的环境（原生App或HTTPS）
+ * 扫码枪Hook
+ * 使用键盘输入监听实现扫码枪支持
  */
-export function isHardwareSupported(): boolean {
-  // 检查是否在安全上下文（HTTPS 或 localhost）
-  const isSecureContext = window.isSecureContext;
-  
-  // 检查是否支持 Web Serial（USB 设备）
-  const hasSerial = 'serial' in navigator;
-  
-  // 检查是否支持 Web Bluetooth
-  const hasBluetooth = 'bluetooth' in navigator;
-  
-  return isSecureContext && (hasSerial || hasBluetooth);
-}
+export function useScanner(onScan: (barcode: string) => void, onError?: (error: Error) => void) {
+  const [isListening, setIsListening] = useState(false);
+  const bufferRef = { current: '' };
+  const timeoutRef: { current: number | null } = { current: null };
 
-/**
- * 获取支持的硬件特性
- */
-export function getSupportedHardwareFeatures(): {
-  usb: boolean;
-  bluetooth: boolean;
-  camera: boolean;
-} {
+  const startListening = useCallback(() => {
+    if (isListening) return;
+
+    setIsListening(true);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 如果是回车键，扫码结束
+      if (event.key === 'Enter') {
+        if (bufferRef.current.length > 0) {
+          const barcode = bufferRef.current;
+          bufferRef.current = '';
+          
+          // 清除超时
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+          
+          // 触发扫码回调
+          try {
+            onScan(barcode);
+          } catch (err) {
+            onError?.(err as Error);
+          }
+        }
+        return;
+      }
+
+      // 只接收数字
+      if (/^\d$/.test(event.key)) {
+        bufferRef.current += event.key;
+
+        // 设置超时，防止扫码中断
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        timeoutRef.current = window.setTimeout(() => {
+          bufferRef.current = '';
+        }, 100); // 100ms内没有新输入则清空
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    // 返回清理函数
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      setIsListening(false);
+    };
+  }, [isListening, onScan, onError]);
+
+  const stopListening = useCallback(() => {
+    setIsListening(false);
+    bufferRef.current = '';
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
   return {
-    usb: 'serial' in navigator,
-    bluetooth: 'bluetooth' in navigator,
-    camera: !!navigator.mediaDevices?.getUserMedia,
+    isListening,
+    startListening,
+    stopListening,
   };
 }

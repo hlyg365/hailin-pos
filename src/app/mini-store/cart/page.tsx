@@ -68,10 +68,10 @@ function CartItem({ item, onQuantityChange, onCheckedChange, onDelete }: {
 }
 
 function TabBar({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
-  const tabs = [
+  const tabs: Array<{ id: string; icon: string; title: string; href: string; badge?: number }> = [
     { id: 'home', icon: '🏠', title: '首页', href: '/mini-store/home' },
     { id: 'categories', icon: '📋', title: '分类', href: '/mini-store/categories' },
-    { id: 'cart', icon: '🛒', title: '购物车', href: '/mini-store/cart' },
+    { id: 'cart', icon: '🛒', title: '购物车', href: '/mini-store/cart', badge: 3 },
     { id: 'points', icon: '🎁', title: '积分', href: '/mini-store/points' },
     { id: 'profile', icon: '👤', title: '我的', href: '/mini-store/profile' },
   ];

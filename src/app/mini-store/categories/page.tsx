@@ -80,7 +80,7 @@ function ProductCard({ product }: { product: {id: number; name: string; price: n
 }
 
 function TabBar({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
-  const tabs = [
+  const tabs: Array<{ id: string; icon: string; title: string; href: string; badge?: number }> = [
     { id: 'home', icon: '🏠', title: '首页', href: '/mini-store/home' },
     { id: 'categories', icon: '📋', title: '分类', href: '/mini-store/categories' },
     { id: 'cart', icon: '🛒', title: '购物车', href: '/mini-store/cart', badge: 3 },
