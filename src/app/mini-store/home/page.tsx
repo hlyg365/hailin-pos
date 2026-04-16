@@ -1,521 +1,287 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-// 轮播图/店铺头图数据
-const STORE_BANNERS = [
-  {
-    id: 1,
-    image: '/images/hailin-store.jpg',
-    title: '海邻到家',
-    subtitle: '新鲜到家 实惠到家',
-  },
-  {
-    id: 2,
-    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=750&h=400&fit=crop',
-    title: '新鲜水果',
-    subtitle: '时令水果 每日配送',
-  },
-  {
-    id: 3,
-    image: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=750&h=400&fit=crop',
-    title: '优惠活动',
-    subtitle: '限时特惠 满50减10',
-  },
-];
-
-// 功能按钮数据
-const SERVICE_CARDS = [
-  {
-    id: 1,
-    title: '同城配送',
-    subtitle: '省心到家',
-    gradient: 'from-cyan-500 to-teal-400',
-    icon: '🛵',
-    href: '/mini-store/delivery',
-  },
-  {
-    id: 2,
-    title: '到店自提',
-    subtitle: '方便快捷',
-    gradient: 'from-cyan-400 to-blue-400',
-    icon: '📦',
-    href: '/mini-store/pickup',
-  },
-];
-
-// 快捷服务入口
-const QUICK_SERVICES = [
-  { id: 1, icon: '充', iconBg: 'bg-purple-500', title: '在线充值', color: 'text-orange-500', href: '/mini-store/recharge' },
-  { id: 2, icon: '✓', iconBg: 'bg-orange-500', title: '会员中心', color: 'text-orange-500', href: '/mini-store/member' },
-  { id: 3, icon: '礼', iconBg: 'bg-red-500', title: '邀请有奖', color: 'text-orange-500', href: '/mini-store/invite' },
-];
-
-// 商品分类（与系统分类同步）
-const CATEGORIES = [
-  { id: 'drinks', icon: '🥤', name: '饮品', desc: '饮料矿泉水' },
-  { id: 'fruits', icon: '🍎', name: '水果', desc: '新鲜水果' },
-  { id: 'vegetables', icon: '🥬', name: '蔬菜', desc: '新鲜蔬菜' },
-  { id: 'snacks', icon: '🍪', name: '零食', desc: '休闲零食' },
-  { id: 'fresh', icon: '🥩', name: '生鲜', desc: '生鲜烘焙' },
-  { id: 'daily', icon: '🏠', name: '日用品', desc: '生活用品' },
-];
-
-// 排行榜数据
-const RANKING_DATA = {
-  sales: [
-    { id: 1, name: '农夫山泉550ml', price: 2.00, sales: 1568, image: 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=100&h=100&fit=crop' },
-    { id: 2, name: '康师傅红烧牛肉面', price: 4.50, sales: 1234, image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=100&h=100&fit=crop' },
-    { id: 3, name: '维达抽纸超韧系列', price: 12.80, sales: 986, image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=100&h=100&fit=crop' },
-    { id: 4, name: '可口可乐330ml', price: 2.50, sales: 876, image: 'https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=100&h=100&fit=crop' },
-  ],
-  attention: [
-    { id: 1, name: '元气森林气泡水', price: 5.00, attention: 2568, image: 'https://images.unsplash.com/photo-1527960471264-932f39eb5846?w=100&h=100&fit=crop' },
-    { id: 2, name: '三只松鼠坚果礼盒', price: 68.00, attention: 1890, image: 'https://images.unsplash.com/photo-1594901852083-c83b4f1ed8c3?w=100&h=100&fit=crop' },
-    { id: 3, name: '蒙牛纯牛奶24盒装', price: 45.90, attention: 1456, image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=100&h=100&fit=crop' },
-    { id: 4, name: '奥利奥夹心饼干', price: 8.90, attention: 1234, image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=100&h=100&fit=crop' },
-  ],
+// 门店信息
+const STORE_INFO = {
+  name: '海邻到家·星火路店',
+  distance: '350m',
+  address: '星火路128号',
+  openTime: '07:00-23:00',
 };
 
-// 底部导航数据
-const TAB_BAR = [
-  { id: 1, icon: '🏠', title: '首页', active: true, href: '/mini-store/home' },
-  { id: 2, icon: '📋', title: '全部分类', active: false, href: '/mini-store/categories' },
-  { id: 3, icon: '🛒', title: '购物车', active: false, badge: 0, href: '/mini-store/cart' },
-  { id: 4, icon: '🎁', title: '积分商城', active: false, href: '/mini-store/points' },
-  { id: 5, icon: '👤', title: '我的', active: false, href: '/mini-store/profile' },
+// 商品分类
+const CATEGORIES = [
+  { id: 'fruit', name: '鲜果蔬菜', icon: '🍎', bgColor: 'bg-green-50' },
+  { id: 'drinks', name: '烟酒饮料', icon: '🍺', bgColor: 'bg-orange-50' },
+  { id: 'snacks', name: '零食冰品', icon: '🍿', bgColor: 'bg-yellow-50' },
+  { id: 'daily', name: '日用百货', icon: '🧴', bgColor: 'bg-emerald-50' },
 ];
 
-// 附近门店数据
-const NEARBY_STORES = [
-  { id: 1, name: '海邻到家(星火路店)', distance: '350m', address: '星火路128号一层106室', phone: '0755-12345678' },
-  { id: 2, name: '海邻到家(科技园店)', distance: '680m', address: '科技园南区A栋104室', phone: '0755-23456789' },
-  { id: 3, name: '海邻到家(步行街店)', distance: '1.2km', address: '步行街商业广场B1层', phone: '0755-34567890' },
-  { id: 4, name: '海邻到家(地铁站店)', distance: '1.5km', address: '地铁站C出口商业街', phone: '0755-45678901' },
+// 便民服务
+const SERVICES = [
+  { id: 'express', name: '快递', icon: '📦', color: '#4CAF50' },
+  { id: 'recharge', name: '充值', icon: '📱', color: '#2196F3' },
+  { id: 'utility', name: '缴费', icon: '💡', color: '#FF9800' },
+  { id: 'laundry', name: '洗衣', icon: '👕', color: '#9C27B0' },
 ];
 
-// 默认选中门店
-const DEFAULT_STORE = NEARBY_STORES[0];
+// 秒杀商品
+const FLASH_SALE_PRODUCTS = [
+  { id: 1, name: '可乐500ml', price: 2.5, originalPrice: 3.5, sales: 67, category: '烟酒饮料' },
+  { id: 2, name: '康师傅红烧牛肉面', price: 3.9, originalPrice: 4.5, sales: 82, category: '零食冰品' },
+  { id: 3, name: '农夫山泉550ml', price: 1.5, originalPrice: 2.0, sales: 45, category: '烟酒饮料' },
+  { id: 4, name: '苹果500g', price: 5.9, originalPrice: 6.8, sales: 56, category: '鲜果蔬菜' },
+];
 
-// 店铺头图轮播组件
-function StoreBannerSwiper() {
-  const [current, setCurrent] = useState(0);
+// 热门推荐商品
+const RECOMMEND_PRODUCTS = [
+  { id: 1, name: '可乐500ml', price: 3.5, sales: 1280, category: '烟酒饮料' },
+  { id: 2, name: '薯片大包装', price: 9.9, sales: 856, category: '零食冰品' },
+  { id: 3, name: '康师傅方便面', price: 4.5, sales: 2100, category: '零食冰品' },
+  { id: 4, name: '农夫山泉550ml', price: 2.0, sales: 3200, category: '烟酒饮料' },
+  { id: 5, name: '苹果500g', price: 6.8, sales: 680, category: '鲜果蔬菜' },
+  { id: 6, name: '维达抽纸10包', price: 29.9, sales: 450, category: '日用百货' },
+];
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % STORE_BANNERS.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
+// 轮播图
+const BANNERS = [
+  { id: 1, image: '/images/hailin-store.jpg', title: '海邻到家便利店' },
+  { id: 2, image: '/images/hailin-store.jpg', title: '新鲜水果' },
+];
 
+function StoreHeader({ deliveryMode, onDeliveryChange }: { deliveryMode: string; onDeliveryChange: (mode: string) => void }) {
   return (
-    <div className="relative w-full h-44 overflow-hidden">
-      <div 
-        className="flex transition-transform duration-500 h-full"
-        style={{ transform: `translateX(-${current * 100}%)` }}
-      >
-        {STORE_BANNERS.map((banner) => (
-          <div key={banner.id} className="relative flex-shrink-0 w-full h-full">
-            <img
-              src={banner.image}
-              alt={banner.title}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-            <div className="absolute bottom-4 left-4">
-              <h2 className="text-white font-bold text-lg">{banner.title}</h2>
-              <p className="text-white/80 text-xs">{banner.subtitle}</p>
+    <div className="bg-gradient-to-r from-orange-50 to-amber-50 px-4 py-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-orange-500 text-lg">📍</span>
+          <div className="flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-gray-800 text-sm">{STORE_INFO.name}</span>
+              <span className="text-orange-500 text-xs">▼</span>
             </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+              <span>{STORE_INFO.distance}</span>
+              <span className="text-gray-300">|</span>
+              <span>{STORE_INFO.address}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => onDeliveryChange('delivery')}
+            className={cn("px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1",
+              deliveryMode === 'delivery' ? "bg-orange-500 text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200")}>
+            <span>🚴</span><span>配送</span>
+          </button>
+          <button onClick={() => onDeliveryChange('pickup')}
+            className={cn("px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1",
+              deliveryMode === 'pickup' ? "bg-orange-500 text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200")}>
+            <span>🏪</span><span>自提</span>
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 mt-1.5 pl-6">
+        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+        <span className="text-xs text-green-600 font-medium">营业中</span>
+        <span className="text-xs text-gray-400">{STORE_INFO.openTime}</span>
+      </div>
+    </div>
+  );
+}
+
+function BannerCarousel() {
+  const [current, setCurrent] = useState(0);
+  return (
+    <div className="relative h-44 overflow-hidden">
+      <div className="flex transition-transform duration-500" style={{ transform: `translateX(-${current * 100}%)` }}>
+        {BANNERS.map((banner) => (
+          <div key={banner.id} className="w-full flex-shrink-0">
+            <img src={banner.image} alt={banner.title} className="w-full h-44 object-cover" />
           </div>
         ))}
       </div>
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-        {STORE_BANNERS.map((_, index) => (
-          <div
-            key={index}
-            className={cn(
-              "w-2 h-2 rounded-full transition-all",
-              current === index ? "bg-white" : "bg-white/50"
-            )}
-          />
+        {BANNERS.map((_, idx) => (
+          <span key={idx} className={cn("w-2 h-2 rounded-full transition-all", idx === current ? "bg-white w-4" : "bg-white/50")} />
         ))}
       </div>
     </div>
   );
 }
 
-// 搜索栏组件
 function SearchBar() {
   return (
     <div className="px-4 py-3 bg-white">
-      <div className="flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2">
-        <span className="text-gray-400">🔍</span>
-        <input
-          type="text"
-          placeholder="搜索"
-          className="flex-1 bg-transparent outline-none text-sm text-gray-700"
-        />
-        <button className="text-gray-400 text-sm">搜索</button>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2.5">
+          <span className="text-gray-400">🔍</span>
+          <input type="text" placeholder="搜索商品" className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400" />
+        </div>
+        <button className="px-4 py-2.5 bg-orange-500 text-white rounded-full text-sm font-medium">搜索</button>
       </div>
     </div>
   );
 }
 
-// 服务卡片组件
-function ServiceCards() {
+function CategoryNav() {
   return (
-    <div className="px-4 py-3 bg-white">
-      <div className="flex gap-3">
-        {SERVICE_CARDS.map((card) => (
-          <a
-            key={card.id}
-            href={card.href}
-            className={cn(
-              "flex-1 relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br",
-              card.gradient
-            )}
-          >
-            <div className="relative z-10">
-              <h3 className="text-white font-bold text-base">{card.title}</h3>
-              <p className="text-white/80 text-xs mt-0.5">{card.subtitle}</p>
-            </div>
-            <div className="absolute right-2 bottom-2 text-5xl opacity-30">
-              {card.icon}
-            </div>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// 快捷服务入口
-function QuickServices() {
-  return (
-    <div className="px-4 py-3 bg-white">
-      <div className="flex justify-around">
-        {QUICK_SERVICES.map((service) => (
-          <a
-            key={service.id}
-            href={service.href}
-            className="flex flex-col items-center gap-1.5"
-          >
-            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold", service.iconBg)}>
-              {service.icon}
-            </div>
-            <span className={cn("text-xs font-medium", service.color)}>{service.title}</span>
-          </a>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// 商品分类网格
-function CategoryGrid() {
-  return (
-    <div className="px-4 py-3 bg-white">
-      <div className="grid grid-cols-3 gap-4">
+    <div className="px-4 py-4 bg-white">
+      <div className="grid grid-cols-4 gap-3">
         {CATEGORIES.map((cat) => (
-          <a
-            key={cat.id}
-            href={`/mini-store/category/${cat.id}`}
-            className="flex flex-col items-center gap-1"
-          >
-            <div className="w-14 h-14 rounded-xl bg-gray-50 flex items-center justify-center text-2xl">
-              {cat.icon}
+          <button key={cat.id} className="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-transform active:scale-95">
+            <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", cat.bgColor)}>
+              <span className="text-2xl">{cat.icon}</span>
             </div>
             <span className="text-xs text-gray-700 font-medium">{cat.name}</span>
-          </a>
+          </button>
         ))}
       </div>
     </div>
   );
 }
 
-// 排行榜商品项
-function RankingItem({ product, rank }: { product: any; rank: number }) {
+function ServiceEntry() {
   return (
-    <div className="flex items-center gap-2 py-2">
-      <span className={cn(
-        "w-5 h-5 rounded flex items-center justify-center text-xs font-bold",
-        rank <= 3 ? "bg-red-500 text-white" : "bg-gray-200 text-gray-500"
-      )}>
-        {rank}
-      </span>
-      <img
-        src={product.image}
-        alt={product.name}
-        className="w-10 h-10 rounded-lg object-cover bg-gray-100"
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-800 truncate">{product.name}</p>
-        <div className="flex items-baseline gap-1">
-          <span className="text-red-500 font-medium text-sm">¥{product.price.toFixed(2)}</span>
-          {product.sales && <span className="text-xs text-gray-400">已售{product.sales}</span>}
-          {product.attention && <span className="text-xs text-gray-400">关注{product.attention}</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 排行榜组件
-function RankingSection() {
-  const [activeTab, setActiveTab] = useState<'sales' | 'attention'>('sales');
-
-  return (
-    <div className="px-4 py-3">
-      <div className="bg-gradient-to-r from-green-500 to-emerald-400 rounded-t-xl p-3">
-        <div className="flex items-center justify-between">
-          <span className="text-white font-bold text-base">排行榜</span>
-          <a href="/mini-store/ranking" className="text-white/80 text-xs flex items-center gap-0.5">
-            更多 <span>›</span>
-          </a>
-        </div>
-      </div>
-      <div className="bg-white rounded-b-xl px-3 pb-3">
-        <div className="flex gap-2 py-3">
-          <button
-            onClick={() => setActiveTab('sales')}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all",
-              activeTab === 'sales' 
-                ? "bg-white text-gray-800 shadow-sm border border-gray-200" 
-                : "bg-gray-100 text-gray-500"
-            )}
-          >
-            {activeTab === 'sales' && <span className="text-red-500">🔥</span>}
-            销量榜
-          </button>
-          <button
-            onClick={() => setActiveTab('attention')}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all",
-              activeTab === 'attention' 
-                ? "bg-white text-gray-800 shadow-sm border border-gray-200" 
-                : "bg-gray-100 text-gray-500"
-            )}
-          >
-            {activeTab === 'attention' && <span className="text-red-500">🔥</span>}
-            关注榜
-          </button>
-        </div>
-        <div className="space-y-1">
-          {RANKING_DATA[activeTab].slice(0, 4).map((product, index) => (
-            <RankingItem key={product.id} product={product} rank={index + 1} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 底部导航栏
-function TabBar() {
-  const [activeTab, setActiveTab] = useState('/mini-store/home');
-  const [cartCount] = useState(0);
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-      <div className="flex justify-around py-2">
-        {TAB_BAR.map((tab) => (
-          <a
-            key={tab.id}
-            href={tab.href}
-            onClick={() => setActiveTab(tab.href)}
-            className={cn(
-              "flex flex-col items-center gap-0.5 py-1 px-4",
-              activeTab === tab.href ? "text-red-500" : "text-gray-500"
-            )}
-          >
-            <div className="relative">
-              <span className="text-xl">{tab.icon}</span>
-              {tab.id === 3 && cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">
-                  {cartCount}
-                </span>
-              )}
-            </div>
-            <span className="text-xs">{tab.title}</span>
-          </a>
-        ))}
-      </div>
-      <div className="h-safe-area-inset-bottom bg-white" />
-    </div>
-  );
-}
-
-// 微信小程序头部
-function MiniAppHeader() {
-  return (
-    <div className="bg-white sticky top-0 z-40">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
-        <div className="flex items-center gap-4">
-          <button className="w-6 h-6 flex items-center justify-center">
-            <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="5" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="12" cy="19" r="2" />
-            </svg>
-          </button>
-        </div>
-        <h1 className="text-base font-bold text-gray-900 absolute left-1/2 -translate-x-1/2">首页</h1>
+    <div className="px-4 pb-4 bg-white">
+      <a href="/mini-store/services" className="flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-100">
         <div className="flex items-center gap-3">
-          <button className="w-6 h-6 flex items-center justify-center">
-            <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="3" fill="currentColor" />
-            </svg>
-          </button>
+          <span className="text-2xl">📦</span>
+          <div>
+            <span className="font-bold text-gray-800">便民服务</span>
+            <p className="text-xs text-gray-500 mt-0.5">快递·充值·缴费·洗衣</p>
+          </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// 门店选择器组件
-function StoreLocator() {
-  const [showSelector, setShowSelector] = useState(false);
-  const [currentStore, setCurrentStore] = useState(DEFAULT_STORE);
-
-  const handleSelectStore = (store: typeof NEARBY_STORES[0]) => {
-    setCurrentStore(store);
-    setShowSelector(false);
-  };
-
-  return (
-    <>
-      {/* 门店定位栏 */}
-      <div className="bg-white px-4 py-3 border-b border-gray-100">
-        <button 
-          onClick={() => setShowSelector(true)}
-          className="w-full flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl px-4 py-3 active:bg-orange-100 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-400 rounded-xl flex items-center justify-center shadow-sm">
-              <span className="text-white text-lg">📍</span>
+        <span className="text-orange-500 text-lg">›</span>
+      </a>
+      <div className="flex justify-around mt-3">
+        {SERVICES.map((service) => (
+          <button key={service.id} className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${service.color}15` }}>
+              <span className="text-xl">{service.icon}</span>
             </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-gray-800 text-sm">{currentStore.name}</span>
-                <span className="text-orange-500 text-xs">▾</span>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-gray-500 text-xs">{currentStore.distance}</span>
-                <span className="text-gray-300">|</span>
-                <span className="text-gray-400 text-xs truncate max-w-[140px]">{currentStore.address}</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full font-medium">切换门店</span>
-          </div>
+            <span className="text-xs text-gray-600">{service.name}</span>
+          </button>
+        ))}
+        <button className="flex flex-col items-center gap-1">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gray-100"><span className="text-xl">➕</span></div>
+          <span className="text-xs text-gray-600">更多</span>
         </button>
       </div>
-
-      {/* 门店选择弹窗 */}
-      {showSelector && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-50 flex items-end"
-          onClick={() => setShowSelector(false)}
-        >
-          <div 
-            className="w-full bg-white rounded-t-3xl max-h-[70vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 弹窗头部 */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="font-bold text-gray-800 text-lg">选择门店</h3>
-              <button 
-                onClick={() => setShowSelector(false)}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-            
-            {/* 门店列表 */}
-            <div className="px-5 py-3 space-y-3 max-h-[50vh] overflow-y-auto">
-              {NEARBY_STORES.map((store) => (
-                <button
-                  key={store.id}
-                  onClick={() => handleSelectStore(store)}
-                  className={cn(
-                    "w-full flex items-center gap-3 p-4 rounded-2xl transition-all",
-                    currentStore.id === store.id 
-                      ? "bg-orange-50 border-2 border-orange-400" 
-                      : "bg-gray-50 border-2 border-transparent active:bg-gray-100"
-                  )}
-                >
-                  <div className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center",
-                    currentStore.id === store.id 
-                      ? "bg-orange-400" 
-                      : "bg-gray-200"
-                  )}>
-                    <span className="text-2xl">🏪</span>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "font-semibold text-sm",
-                        currentStore.id === store.id ? "text-orange-700" : "text-gray-800"
-                      )}>
-                        {store.name}
-                      </span>
-                      {currentStore.id === store.id && (
-                        <span className="text-xs text-orange-500 bg-orange-100 px-1.5 py-0.5 rounded">当前</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">{store.address}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{store.phone}</div>
-                  </div>
-                  <div className="text-right">
-                    <span className={cn(
-                      "text-sm px-3 py-1 rounded-full font-medium",
-                      currentStore.id === store.id 
-                        ? "bg-orange-400 text-white" 
-                        : "bg-gray-200 text-gray-600"
-                    )}>
-                      {store.distance}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            
-            {/* 底部操作 */}
-            <div className="px-5 py-4 border-t border-gray-100">
-              <button className="w-full py-3 text-center text-sm text-orange-500 hover:text-orange-600 font-medium flex items-center justify-center gap-2">
-                <span>🗺️</span>
-                <span>查看全部门店地图</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
-// 主页面组件
-export default function MiniStoreHomePage() {
+function FlashSale() {
+  const [timeLeft] = useState({ hours: 2, minutes: 30, seconds: 45 });
+  return (
+    <div className="px-4 pb-4 bg-white">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2"><span className="text-xl">🔥</span><span className="font-bold text-gray-800">限时秒杀</span></div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-xs">
+            <span className="bg-red-500 text-white px-1.5 py-0.5 rounded font-mono">{String(timeLeft.hours).padStart(2, '0')}</span>
+            <span className="text-gray-400">:</span>
+            <span className="bg-red-500 text-white px-1.5 py-0.5 rounded font-mono">{String(timeLeft.minutes).padStart(2, '0')}</span>
+            <span className="text-gray-400">:</span>
+            <span className="bg-red-500 text-white px-1.5 py-0.5 rounded font-mono">{String(timeLeft.seconds).padStart(2, '0')}</span>
+          </div>
+          <span className="text-gray-400 text-xs">更多 ›</span>
+        </div>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4">
+        {FLASH_SALE_PRODUCTS.map((product) => (
+          <div key={product.id} className="flex-shrink-0 w-28">
+            <div className="bg-gray-50 rounded-xl overflow-hidden">
+              <div className="h-28 bg-gray-100 flex items-center justify-center">
+                <span className="text-4xl">{product.category === '鲜果蔬菜' ? '🍎' : product.category === '零食冰品' ? '🍿' : '🥤'}</span>
+              </div>
+              <div className="p-2">
+                <p className="text-xs text-gray-700 truncate font-medium">{product.name}</p>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-red-500 font-bold text-sm">¥{product.price.toFixed(1)}</span>
+                  <span className="text-xs text-gray-400 line-through">¥{product.originalPrice.toFixed(1)}</span>
+                </div>
+                <div className="mt-1.5">
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-orange-400 to-red-400 rounded-full" style={{ width: `${product.sales}%` }} />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-0.5">已抢{product.sales}%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HotRecommend() {
+  return (
+    <div className="px-4 pb-4 bg-white">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2"><span className="text-xl">⭐</span><span className="font-bold text-gray-800">热门推荐</span></div>
+        <span className="text-gray-400 text-xs">更多 ›</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {RECOMMEND_PRODUCTS.map((product) => (
+          <div key={product.id} className="bg-gray-50 rounded-xl overflow-hidden">
+            <div className="h-32 bg-gray-100 flex items-center justify-center">
+              <span className="text-5xl">{product.category === '鲜果蔬菜' ? '🍎' : product.category === '零食冰品' ? '🍿' : '🥤'}</span>
+            </div>
+            <div className="p-2.5">
+              <p className="text-sm text-gray-800 font-medium line-clamp-2 leading-tight">{product.name}</p>
+              <div className="flex items-baseline gap-1 mt-1.5"><span className="text-orange-500 font-bold">¥{product.price.toFixed(1)}</span></div>
+              <p className="text-xs text-gray-400 mt-1">月销{product.sales}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TabBar({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
+  const tabs = [
+    { id: 'home', icon: '🏠', title: '首页', href: '/mini-store/home' },
+    { id: 'categories', icon: '📋', title: '分类', href: '/mini-store/categories' },
+    { id: 'cart', icon: '🛒', title: '购物车', href: '/mini-store/cart', badge: 3 },
+    { id: 'points', icon: '🎁', title: '积分', href: '/mini-store/points' },
+    { id: 'profile', icon: '👤', title: '我的', href: '/mini-store/profile' },
+  ];
+  return (
+    <div className="bg-white border-t border-gray-200">
+      <div className="flex justify-around py-2">
+        {tabs.map((tab) => (
+          <a key={tab.id} href={tab.href} onClick={(e) => { e.preventDefault(); onTabChange(tab.id); }}
+            className={cn("flex flex-col items-center gap-0.5 py-1 px-3 relative", tab.id === activeTab ? "text-orange-500" : "text-gray-500")}>
+            <span className="text-xl relative">
+              {tab.icon}
+              {tab.badge && <span className="absolute -top-1 -right-2 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center">{tab.badge}</span>}
+            </span>
+            <span className="text-[10px]">{tab.title}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function HomePage() {
+  const [activeTab, setActiveTab] = useState('home');
+  const [deliveryMode, setDeliveryMode] = useState('delivery');
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
-      <MiniAppHeader />
-      <StoreLocator />
-      <StoreBannerSwiper />
+      <StoreHeader deliveryMode={deliveryMode} onDeliveryChange={setDeliveryMode} />
+      <BannerCarousel />
       <SearchBar />
-      <ServiceCards />
-      <div className="h-2 bg-gray-100" />
-      <QuickServices />
-      <div className="h-2 bg-gray-100" />
-      <CategoryGrid />
-      <div className="h-2 bg-gray-100" />
-      <RankingSection />
-      <TabBar />
+      <CategoryNav />
+      <ServiceEntry />
+      <FlashSale />
+      <HotRecommend />
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }
