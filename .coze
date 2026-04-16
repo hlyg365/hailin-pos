@@ -1,12 +1,10 @@
 [project]
-requires = ["nodejs-24"]
+requires = ["nodejs-18"]
 
 [dev]
-build = ["bash", "./scripts/prepare.sh"]
-run = ["bash", "./scripts/dev.sh"]
-deps = ["git"] # -> apt install git
+build = ["pnpm", "install"]
+run = ["pnpm", "--filter", "@hailin/pos-app", "dev"]
 
 [deploy]
-build = ["bash","./scripts/build.sh"]
-run = ["bash","./scripts/start.sh"]
-deps = ["git"] # -> apt install git
+build = ["pnpm", "install", "&&", "pnpm", "build"]
+run = ["pnpm", "--filter", "@hailin/pos-app", "start"]

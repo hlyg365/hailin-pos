@@ -2,29 +2,36 @@
 
 ## 项目概览
 
-海邻到家是一个面向社区便利店的智能收银与营销管理系统，采用 **Monorepo 统一架构**，实现代码最大复用。
+海邻到家是一个面向社区便利店的智能收银与营销管理系统，采用 **Monorepo 统一架构**，实现代码最大复用。系统包含四个核心终端：
 
-### 架构特点
+| 终端 | 路由 | 技术栈 | 功能定位 |
+|------|------|--------|----------|
+| 收银台APP | `/pos/*` | React + Vite | 门店快速收银、硬件集成 |
+| 小程序商城 | `/mini/*` | Taro + React | 商品浏览、团购接龙、线上销售 |
+| 总部管理后台 | `/dashboard/*` | Next.js | 多门店管理、数据分析 |
+| 店长助手 | `/assistant/*` | Next.js PWA | 移动端管理、库存盘点 |
+
+## 架构特点
 
 - **统一代码库**：所有端共享核心业务逻辑
 - **跨端框架**：使用 Taro/React 编译到多平台
 - **独立部署**：各端可独立构建和部署
 - **状态共享**：统一的认证、购物车、会员状态
 
-### 技术栈
+## 技术栈
 
 | 模块 | 技术选型 |
 |------|----------|
-| 核心包 | TypeScript, React |
+| 核心包 | TypeScript, React, Zustand |
 | 收银台 | React + Vite + Tailwind |
-| 小程序 | Taro + React |
-| 管理后台 | Next.js 16 |
-| 店长助手 | Next.js PWA |
+| 小程序 | Taro + React (编译到微信/H5) |
+| 管理后台 | Next.js 14 (App Router) |
+| 店长助手 | Next.js 14 PWA |
 
 ## 目录结构
 
 ```
-hailin-pos/
+/workspace/projects/
 ├── packages/              # 核心业务包（共享）
 │   ├── core/             # API客户端、类型、状态管理
 │   ├── cart/             # 购物车服务
@@ -34,11 +41,12 @@ hailin-pos/
 │   ├── promotion/        # 促销服务
 │   └── hardware/         # 硬件服务
 ├── apps/                 # 各端应用入口
-│   ├── pos-app/          # 收银台 APP
+│   ├── pos-app/          # 收银台 APP (端口5000)
 │   ├── mini-store/       # 小程序商城
 │   ├── dashboard/        # 总部管理后台
-│   └── assistant/        # 店长助手 PWA
-└── docs/                 # 文档
+│   └── assistant/        # 店长助手 PWA (端口5001)
+├── package.json          # Monorepo 根配置
+└── pnpm-workspace.yaml   # 工作区配置
 ```
 
 ## 核心包说明
@@ -51,32 +59,12 @@ hailin-pos/
 - 工具函数
 - 类型定义
 
-```typescript
-import { apiClient, useAuthStore, useStoreInfo } from '@hailin/core';
-
-// API 调用
-const response = await apiClient.get('/api/products');
-
-// 认证
-const { isAuthenticated, login, logout } = useAuthStore();
-
-// 店铺信息
-const { store, operator } = useStoreInfo();
-```
-
 ### @hailin/cart
 购物车状态与服务：
 - 购物车状态管理
 - 商品添加/删除/修改
 - 价格计算（含促销）
 - 离线持久化
-
-```typescript
-import { useCart, useCartActions } from '@hailin/cart';
-
-const { cartItems, subtotal, discount, finalAmount } = useCart();
-const { addItem, removeItem, updateQuantity, clearCart } = useCartActions();
-```
 
 ### @hailin/order
 订单全生命周期管理：
@@ -85,141 +73,99 @@ const { addItem, removeItem, updateQuantity, clearCart } = useCartActions();
 - 退款处理
 - 订单统计
 
-```typescript
-import { useOrders, useCurrentOrder } from '@hailin/order';
-
-const { orders, loading, create, pay, cancel } = useOrders();
-const { createOrder, payOrder } = useCurrentOrder();
-```
-
 ### @hailin/member
 会员服务体系：
 - 会员注册/登录
-- 等级折扣计算
+- 等级折扣计算（普通/银卡/金卡/钻石）
 - 积分管理
 - 会员权益
 
-```typescript
-import { useMember, useMemberDiscount } from '@hailin/member';
-
-const { currentMember, login, logout } = useMember();
-const { discountRate, levelName, calculatePoints } = useMemberDiscount();
-```
-
 ### @hailin/payment
 支付服务：
-- 多支付渠道
+- 多支付渠道（现金/微信/支付宝/会员卡）
 - 现金找零计算
 - 退款处理
 - 日结对账
-
-```typescript
-import { usePayment, useCashPayment } from '@hailin/payment';
-
-const { status, qrcode, startPayment } = usePayment();
-const { received, change, calculateChange } = useCashPayment();
-```
 
 ### @hailin/promotion
 促销管理：
 - 促销规则引擎
 - 满减/折扣计算
-- 晚8点清货
+- **晚8点清货**：20:00-23:00 自动8折
 - 促销统计
-
-```typescript
-import { usePromotionCalculator, useClearanceMode } from '@hailin/promotion';
-
-const { results, getTotalDiscount } = usePromotionCalculator();
-const { isClearanceMode, calculateClearancePrice } = useClearanceMode();
-```
 
 ### @hailin/hardware
 硬件设备服务：
 - 打印机服务（ESC/POS）
-- 扫码枪服务
+- 扫码枪服务（USB/蓝牙）
 - 钱箱控制
 - 电子秤服务
 
-```typescript
-import { useHardware, usePrinter, useScanner, useCashbox, useScale } from '@hailin/hardware';
+## 各端详情
 
-const { printerConnected, scannerConnected } = useHardware();
-const { status, print } = usePrinter();
-const { startListening, stopListening } = useScanner();
-```
+### 收银台 APP (pos-app)
 
-## 收银台应用 (pos-app)
+**访问路径**: `http://localhost:5000`
 
-### 主要页面
+**页面**:
+- `/login` - 店铺/操作员认证
+- `/cashier` - 商品选购、购物车、结算
+- `/member` - 扫码/手机号识别会员
+- `/suspended` - 查看/取回挂单
+- `/settings` - 硬件配置、网络状态
 
-| 页面 | 路由 | 功能 |
-|------|------|------|
-| 登录 | `/login` | 店铺/操作员认证 |
-| 收银台 | `/cashier` | 商品选购、购物车、结算 |
-| 会员识别 | `/member` | 扫码/手机号识别会员 |
-| 挂单列表 | `/suspended` | 查看/取回挂单 |
-| 设置 | `/settings` | 硬件配置、网络状态 |
+**核心功能**:
+1. 商品展示：分类筛选、搜索、扫码添加
+2. 购物车：数量修改、删除、清空
+3. 会员折扣：自动计算会员等级折扣
+4. 晚8点清货：20:00-23:00 自动8折
+5. 多种支付：现金、微信、支付宝
+6. 离线支持：订单本地保存，网络恢复同步
 
-### 核心功能
+### 小程序商城 (mini-store)
 
-1. **商品展示**：支持分类筛选、搜索、扫码添加
-2. **购物车**：数量修改、删除、清空
-3. **会员折扣**：自动计算会员等级折扣
-4. **晚8点清货**：20:00-23:00 自动8折
-5. **多种支付**：现金、微信、支付宝
-6. **离线支持**：订单本地保存，网络恢复同步
+**页面**:
+- 首页 - 商品列表、搜索、分类
+- 购物车 - 商品管理、结算
+- 我的 - 会员中心、订单
+- **团购接龙** - 团长发起、参与者加入
 
-### 硬件集成
+**团购接龙功能**:
+- 团长发起团购，设置人数、价格、截止时间
+- 生成分享链接/海报
+- 实时显示已参与人数
+- 拼团成功后到店核销
 
-```typescript
-// 初始化硬件
-import { initializeHardware } from '@hailin/hardware';
-await initializeHardware();
+### 总部管理后台 (dashboard)
 
-// 打印小票
-await print({
-  storeName: '海邻到家',
-  orderNo: 'POS20240115001',
-  items: [...],
-  subtotal: 100,
-  discount: 10,
-  finalAmount: 90,
-});
+**访问路径**: `http://localhost:5000/dashboard`
 
-// 打开钱箱
-await openCashbox();
-```
+**页面**:
+- `/` - 工作台（统计概览、销售趋势）
+- `/stores` - 门店管理（新增、编辑、状态）
+- `/products` - 商品管理（新增、编辑、调价）
+- `/orders` - 订单管理（查询、退款）
+- `/members` - 会员管理（等级、积分）
+- `/promotions` - 促销管理（创建、审核）
+- `/reports` - 数据报表（销售、库存）
+- `/settings` - 系统设置
 
-## 小程序商城 (mini-store)
+### 店长助手 PWA (assistant)
 
-待实现功能：
-- 商品浏览与搜索
-- 购物车
-- 会员登录
-- 在线支付
-- 优惠券核销
-- 订单管理
+**访问路径**: `http://localhost:5001`
 
-## 总部管理后台 (dashboard)
+**页面**:
+- `/` - 首页（今日统计、待处理提醒、库存预警）
+- `/inventory` - 库存管理（查看、调整、补货）
+- `/inventory/check` - 库存盘点
+- `/report` - 数据报表（销售趋势、热销商品）
+- `/settings` - 设置
 
-待实现功能：
-- 多门店管理
-- 商品管理
-- 库存管理
-- 会员管理
-- 促销管理
-- 财务报表
-- 系统设置
-
-## 店长助手 PWA (assistant)
-
-待实现功能：
-- 移动收银
-- 库存盘点
-- 数据报表
-- 采购申请
-- 促销申请
+**PWA特性**:
+- 可添加到主屏幕
+- 离线访问
+- 推送通知
+- 移动端优化
 
 ## 开发指南
 
@@ -254,6 +200,8 @@ pnpm build
 
 # 构建指定应用
 pnpm build:pos
+pnpm build:dashboard
+pnpm build:assistant
 ```
 
 ## API 接口
@@ -289,6 +237,15 @@ pnpm build:pos
 - `GET /api/promotions` - 促销列表
 - `GET /api/promotions/available` - 可用促销
 - `POST /api/promotions/calculate` - 计算优惠
+
+## 会员等级
+
+| 等级 | 折扣 | 积分倍率 | 升级门槛 |
+|------|------|----------|----------|
+| 普通会员 | 原价 | 1倍 | 0元 |
+| 银卡会员 | 98折 | 1.2倍 | 1000元 |
+| 金卡会员 | 95折 | 1.5倍 | 5000元 |
+| 钻石会员 | 9折 | 2倍 | 20000元 |
 
 ## 硬件协议
 
@@ -326,3 +283,5 @@ text                           // 文本
 - 各端共享统一状态管理
 - 完善的硬件抽象层
 - 支持离线模式
+- 新增团购接龙功能
+- PWA 店长助手
