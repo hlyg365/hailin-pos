@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   hardwareService,
   scalePlugin,
@@ -37,6 +37,97 @@ export interface HardwareStatus {
 }
 
 /**
+ * 扫码枪Hook
+ * 使用键盘输入监听实现扫码枪支持
+ */
+export function useScanner(onScan: (barcode: string) => void, onError?: (error: Error) => void) {
+  const [isListening, setIsListening] = useState(false);
+  const bufferRef = useRef('');
+  const timeoutRef = useRef<number | null>(null);
+
+  const startListening = useCallback(() => {
+    if (isListening) return;
+
+    setIsListening(true);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 如果是回车键，扫码结束
+      if (event.key === 'Enter') {
+        if (bufferRef.current.length > 0) {
+          const barcode = bufferRef.current;
+          bufferRef.current = '';
+          
+          // 清除超时
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          
+          // 触发扫码回调
+          try {
+            onScan(barcode);
+          } catch (err) {
+            onError?.(err as Error);
+          }
+        }
+        return;
+      }
+
+      // 只接收数字
+      if (/^\d$/.test(event.key)) {
+        // 清除之前的超时
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        
+        // 添加到缓冲区
+        bufferRef.current += event.key;
+        
+        // 设置超时清除缓冲区（300ms无输入则清除）
+        timeoutRef.current = window.setTimeout(() => {
+          bufferRef.current = '';
+        }, 300);
+      }
+    };
+
+    // 添加事件监听
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // 返回清理函数
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      bufferRef.current = '';
+    };
+  }, [isListening, onScan, onError]);
+
+  const stopListening = useCallback(() => {
+    setIsListening(false);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    bufferRef.current = '';
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return {
+    isListening,
+    startListening,
+    stopListening,
+  };
+}
+
+/**
  * 硬件管理Hook
  */
 export function useHardware() {
@@ -63,6 +154,53 @@ export function useHardware() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // 扫码监听 refs
+  const scannerCallbackRef = useRef<(barcode: string) => void>(() => {});
+  const bufferRef = useRef('');
+  const timeoutRef = useRef<number | null>(null);
+  const isListeningRef = useRef(false);
+
+  // 扫码事件处理
+  const handleScanKeyDown = useCallback((event: KeyboardEvent) => {
+    // 如果是回车键，扫码结束
+    if (event.key === 'Enter') {
+      if (bufferRef.current.length > 0) {
+        const barcode = bufferRef.current;
+        bufferRef.current = '';
+        
+        // 清除超时
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+        
+        // 触发扫码回调
+        try {
+          scannerCallbackRef.current(barcode);
+        } catch (err) {
+          console.error('Scan callback error:', err);
+        }
+      }
+      return;
+    }
+
+    // 只接收数字
+    if (/^\d$/.test(event.key)) {
+      // 清除之前的超时
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // 添加到缓冲区
+      bufferRef.current += event.key;
+      
+      // 设置超时清除缓冲区（300ms无输入则清除）
+      timeoutRef.current = window.setTimeout(() => {
+        bufferRef.current = '';
+      }, 300);
+    }
+  }, []);
 
   // 初始化所有硬件
   const initialize = useCallback(async () => {
@@ -260,17 +398,17 @@ export function useHardware() {
   // 打开客显屏
   const openDualScreen = useCallback(async () => {
     try {
-      const window = await dualScreenPlugin.openScreen();
+      const dualWindow = await dualScreenPlugin.openScreen();
       
       setStatus(prev => ({
         ...prev,
         dualScreen: {
-          active: !!window,
+          active: !!dualWindow,
           screen: dualScreenPlugin.getCurrentScreen(),
         },
       }));
 
-      return !!window;
+      return !!dualWindow;
     } catch (err) {
       console.error('Failed to open dual screen:', err);
       return false;
@@ -307,13 +445,54 @@ export function useHardware() {
     await dualScreenPlugin.showIdle();
   }, [status.dualScreen.active]);
 
+  // 启用扫码枪
+  const enableScanner = useCallback((type: string, callback: (barcode: string) => void) => {
+    // 存储回调
+    scannerCallbackRef.current = callback;
+    
+    // 如果已经在监听，不需要重复添加
+    if (isListeningRef.current) {
+      // 返回清理函数
+      return () => {
+        scannerCallbackRef.current = () => {};
+      };
+    }
+    
+    // 开始监听
+    isListeningRef.current = true;
+    window.addEventListener('keydown', handleScanKeyDown);
+    
+    // 返回清理函数
+    return () => {
+      isListeningRef.current = false;
+      window.removeEventListener('keydown', handleScanKeyDown);
+      scannerCallbackRef.current = () => {};
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      bufferRef.current = '';
+    };
+  }, [handleScanKeyDown]);
+
   // 初始化
   useEffect(() => {
     initialize();
-  }, [initialize]);
+    
+    return () => {
+      // 清理扫码监听
+      if (isListeningRef.current) {
+        window.removeEventListener('keydown', handleScanKeyDown);
+        isListeningRef.current = false;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [initialize, handleScanKeyDown]);
 
   // 状态更新
-  const updateDeviceStatus = useCallback((updates: Partial<typeof status>) => {
+  const updateDeviceStatus = useCallback((updates: Partial<HardwareStatus>) => {
     setStatus(prev => ({ ...prev, ...updates }));
   }, []);
 
@@ -322,12 +501,7 @@ export function useHardware() {
     scanner: { connected: status.scale.connected },
     printer: printerPlugin,
     printerStatus: status.printer.status,
-    enableScanner: (type: string, callback: (barcode: string) => void) => {
-      // 返回清理函数
-      const { startListening, stopListening } = useScanner(callback);
-      startListening();
-      return () => stopListening();
-    },
+    enableScanner,
     
     // 状态
     status,
@@ -358,90 +532,5 @@ export function useHardware() {
     // 通用
     initialize,
     updateDeviceStatus,
-  };
-}
-
-/**
- * 扫码枪Hook
- * 使用键盘输入监听实现扫码枪支持
- */
-export function useScanner(onScan: (barcode: string) => void, onError?: (error: Error) => void) {
-  const [isListening, setIsListening] = useState(false);
-  const bufferRef = { current: '' };
-  const timeoutRef: { current: number | null } = { current: null };
-
-  const startListening = useCallback(() => {
-    if (isListening) return;
-
-    setIsListening(true);
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // 如果是回车键，扫码结束
-      if (event.key === 'Enter') {
-        if (bufferRef.current.length > 0) {
-          const barcode = bufferRef.current;
-          bufferRef.current = '';
-          
-          // 清除超时
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-          
-          // 触发扫码回调
-          try {
-            onScan(barcode);
-          } catch (err) {
-            onError?.(err as Error);
-          }
-        }
-        return;
-      }
-
-      // 只接收数字
-      if (/^\d$/.test(event.key)) {
-        bufferRef.current += event.key;
-
-        // 设置超时，防止扫码中断
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-        timeoutRef.current = window.setTimeout(() => {
-          bufferRef.current = '';
-        }, 100); // 100ms内没有新输入则清空
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-
-    // 返回清理函数
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      setIsListening(false);
-    };
-  }, [isListening, onScan, onError]);
-
-  const stopListening = useCallback(() => {
-    setIsListening(false);
-    bufferRef.current = '';
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  return {
-    isListening,
-    startListening,
-    stopListening,
   };
 }
