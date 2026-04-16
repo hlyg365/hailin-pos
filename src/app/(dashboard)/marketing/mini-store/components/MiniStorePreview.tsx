@@ -426,128 +426,149 @@ function CartPage({ template }: { template: Template }) {
 }
 
 // 我的页面
+// 我的页面 - 优化版
 function ProfilePage({ template }: { template: Template }) {
   const { style } = template;
   
   const menuItems = [
-    { icon: '📋', title: '我的订单', sub: '查看全部订单', color: 'text-blue-500' },
-    { icon: '🎫', title: '优惠券', sub: `${MEMBER_INFO.coupons}张可用`, color: 'text-red-500' },
-    { icon: '⭐', title: '我的收藏', sub: '收藏的商品', color: 'text-yellow-500' },
-    { icon: '📍', title: '收货地址', sub: '管理收货地址', color: 'text-green-500' },
-    { icon: '💰', title: '余额', sub: `¥${MEMBER_INFO.balance.toFixed(2)}`, color: 'text-purple-500' },
-    { icon: '🎁', title: '积分', sub: `${MEMBER_INFO.points}积分`, color: 'text-orange-500' },
+    { icon: '📋', title: '我的订单', sub: '查看全部订单' },
+    { icon: '🎫', title: '优惠券', sub: `${MEMBER_INFO.coupons}张可用` },
+    { icon: '⭐', title: '我的收藏', sub: '收藏的商品' },
+    { icon: '📍', title: '收货地址', sub: '管理收货地址' },
+    { icon: '💰', title: '余额', sub: `¥${MEMBER_INFO.balance.toFixed(2)}` },
+    { icon: '🎁', title: '积分', sub: `${MEMBER_INFO.points}积分` },
   ];
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* 用户信息卡片 - 优化布局 */}
-      <div className={cn("p-5", style.gradientFrom, style.gradientTo)}>
-        <div className="bg-white rounded-2xl p-4 shadow-lg">
+    <div className="flex flex-col h-full bg-gray-100">
+      {/* 顶部渐变背景+装饰 */}
+      <div className={cn("relative overflow-hidden px-4 pt-4 pb-12", style.gradientFrom, style.gradientTo)}>
+        {/* 装饰圆形 */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute top-8 right-8 w-16 h-16 bg-white/10 rounded-full"></div>
+        <div className="absolute bottom-4 left-4 w-20 h-20 bg-white/5 rounded-full"></div>
+        
+        {/* 会员等级标识 */}
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="px-3 py-1 bg-gradient-to-r from-yellow-300 to-yellow-500 rounded-full text-xs font-medium text-yellow-900 shadow-sm flex items-center gap-1">
+            <span className="text-sm">👑</span>
+            <span>金卡会员</span>
+          </div>
+        </div>
+
+        {/* 浮动用户卡片 */}
+        <div className="relative z-10 bg-white rounded-2xl p-4 shadow-xl -mt-2">
           <div className="flex items-center gap-4">
             {/* 头像区域 */}
             <div className="relative">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center text-3xl border-2 border-white shadow-md">
-                {MEMBER_INFO.avatar}
+              <div className="w-18 h-18 rounded-full bg-gradient-to-br from-yellow-100 to-amber-100 flex items-center justify-center border-4 border-white shadow-lg">
+                <span className="text-4xl">{MEMBER_INFO.avatar}</span>
               </div>
-              {/* 在线状态标识 */}
-              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
+              {/* VIP标识 */}
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center border-2 border-white">
+                <span className="text-white text-xs font-bold">V</span>
+              </div>
             </div>
             
             {/* 用户信息 */}
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-gray-800 font-bold text-lg">{MEMBER_INFO.name}</span>
-                <span className={cn("text-xs px-2 py-0.5 rounded-full text-white font-medium", style.accentBg)}>
-                  {MEMBER_INFO.level}
-                </span>
               </div>
-              <p className="text-gray-500 text-xs mt-1">{MEMBER_INFO.phone}</p>
-              
-              {/* 会员权益入口 */}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
-                  享专属折扣
-                </span>
-                <span className="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
-                  积分加倍
-                </span>
-              </div>
+              <p className="text-gray-500 text-xs mt-0.5">{MEMBER_INFO.phone}</p>
             </div>
             
             {/* 设置入口 */}
-            <button className="flex flex-col items-center gap-1">
-              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                <span className="text-xl">⚙️</span>
-              </div>
-              <span className="text-xs text-gray-500">设置</span>
+            <button className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center">
+              <span className="text-xl">⚙️</span>
             </button>
           </div>
           
-          {/* 会员资产概览 */}
+          {/* 会员资产数据可视化 */}
           <div className="flex justify-around mt-4 pt-4 border-t border-gray-100">
-            <div className="text-center">
-              <p className="text-lg font-bold text-gray-800">{MEMBER_INFO.balance.toFixed(2)}</p>
-              <p className="text-xs text-gray-500">余额(元)</p>
+            <div className="text-center flex-1">
+              <div className="w-10 h-10 mx-auto mb-1 bg-blue-50 rounded-xl flex items-center justify-center">
+                <span className="text-xl">💰</span>
+              </div>
+              <p className="text-lg font-bold text-gray-800">¥{MEMBER_INFO.balance.toFixed(2)}</p>
+              <p className="text-xs text-gray-400">余额</p>
             </div>
-            <div className="w-px bg-gray-200"></div>
-            <div className="text-center">
+            <div className="w-px bg-gray-100"></div>
+            <div className="text-center flex-1">
+              <div className="w-10 h-10 mx-auto mb-1 bg-orange-50 rounded-xl flex items-center justify-center">
+                <span className="text-xl">🎫</span>
+              </div>
               <p className="text-lg font-bold text-orange-500">{MEMBER_INFO.points}</p>
-              <p className="text-xs text-gray-500">积分</p>
+              <p className="text-xs text-gray-400">积分</p>
             </div>
-            <div className="w-px bg-gray-200"></div>
-            <div className="text-center">
+            <div className="w-px bg-gray-100"></div>
+            <div className="text-center flex-1">
+              <div className="w-10 h-10 mx-auto mb-1 bg-red-50 rounded-xl flex items-center justify-center">
+                <span className="text-xl">🎟️</span>
+              </div>
               <p className="text-lg font-bold text-gray-800">{MEMBER_INFO.coupons}</p>
-              <p className="text-xs text-gray-500">优惠券</p>
+              <p className="text-xs text-gray-400">优惠券</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 订单统计 */}
-      <div className="bg-white mx-3 -mt-2 rounded-xl p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-gray-800">我的订单</span>
-          <span className="text-gray-400 text-xs">全部订单 ›</span>
-        </div>
-        <div className="flex justify-around mt-4">
-          {[
-            { icon: '💳', title: '待支付', count: 0 },
-            { icon: '📦', title: '待发货', count: 1 },
-            { icon: '🚚', title: '待收货', count: 2 },
-            { icon: '⭐', title: '待评价', count: 3 },
-          ].map((item, idx) => (
-            <div key={idx} className="flex flex-col items-center gap-1">
-              <div className="relative">
-                <span className="text-2xl">{item.icon}</span>
-                {item.count > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{item.count}</span>
-                )}
-              </div>
-              <span className="text-xs text-gray-600">{item.title}</span>
+      {/* 订单统计 - 精修版 */}
+      <div className="px-4 -mt-6 relative z-20">
+        <div className="bg-white rounded-2xl p-4 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📦</span>
+              <span className="font-bold text-gray-800">我的订单</span>
             </div>
-          ))}
+            <span className="text-gray-400 text-xs flex items-center gap-1">
+              查看全部 <span>›</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { icon: '💳', title: '待支付', count: 0, color: 'bg-blue-50 text-blue-500' },
+              { icon: '📦', title: '待发货', count: 1, color: 'bg-orange-50 text-orange-500' },
+              { icon: '🚚', title: '待收货', count: 2, color: 'bg-green-50 text-green-500' },
+              { icon: '⭐', title: '待评价', count: 3, color: 'bg-purple-50 text-purple-500' },
+            ].map((item, idx) => (
+              <button key={idx} className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center relative", item.color)}>
+                  <span className="text-2xl">{item.icon}</span>
+                  {item.count > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                      {item.count}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">{item.title}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* 功能菜单 */}
-      <div className="flex-1 overflow-y-auto p-3">
-        <div className="bg-white rounded-xl overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
           {menuItems.map((item, idx) => (
-            <div key={idx} className={cn("flex items-center gap-3 p-4", idx < menuItems.length - 1 && "border-b border-gray-100")}>
-              <span className="text-xl">{item.icon}</span>
+            <div key={idx} className={cn("flex items-center gap-4 p-4", idx < menuItems.length - 1 && "border-b border-gray-50")}>
+              <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">
+                <span className="text-lg">{item.icon}</span>
+              </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-800 font-medium">{item.title}</p>
                 <p className="text-xs text-gray-400">{item.sub}</p>
               </div>
-              <span className="text-gray-400">›</span>
+              <span className="text-gray-300">›</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* 联系客服 */}
-      <div className="bg-white p-4 border-t">
-        <button className="w-full py-3 bg-gray-50 rounded-xl text-gray-600 text-sm flex items-center justify-center gap-2">
+      <div className="px-4 pb-4">
+        <button className="w-full py-3 bg-white rounded-xl text-gray-600 text-sm flex items-center justify-center gap-2 shadow-sm">
           <span>📞</span>
           <span>联系客服</span>
         </button>
