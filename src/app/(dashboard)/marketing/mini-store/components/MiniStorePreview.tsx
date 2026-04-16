@@ -440,23 +440,71 @@ function ProfilePage({ template }: { template: Template }) {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* 用户信息卡片 */}
-      <div className={cn("bg-gradient-to-r p-5 pb-8", style.gradientFrom, style.gradientTo)}>
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-3xl">{MEMBER_INFO.avatar}</div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-lg">{MEMBER_INFO.name}</span>
-              <span className="bg-white/30 text-white text-xs px-2 py-0.5 rounded-full">{MEMBER_INFO.level}</span>
+      {/* 用户信息卡片 - 优化布局 */}
+      <div className={cn("p-5", style.gradientFrom, style.gradientTo)}>
+        <div className="bg-white rounded-2xl p-4 shadow-lg">
+          <div className="flex items-center gap-4">
+            {/* 头像区域 */}
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center text-3xl border-2 border-white shadow-md">
+                {MEMBER_INFO.avatar}
+              </div>
+              {/* 在线状态标识 */}
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
             </div>
-            <p className="text-white/80 text-xs mt-1">{MEMBER_INFO.phone}</p>
+            
+            {/* 用户信息 */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-800 font-bold text-lg">{MEMBER_INFO.name}</span>
+                <span className={cn("text-xs px-2 py-0.5 rounded-full text-white font-medium", style.accentBg)}>
+                  {MEMBER_INFO.level}
+                </span>
+              </div>
+              <p className="text-gray-500 text-xs mt-1">{MEMBER_INFO.phone}</p>
+              
+              {/* 会员权益入口 */}
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
+                  享专属折扣
+                </span>
+                <span className="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
+                  积分加倍
+                </span>
+              </div>
+            </div>
+            
+            {/* 设置入口 */}
+            <button className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                <span className="text-xl">⚙️</span>
+              </div>
+              <span className="text-xs text-gray-500">设置</span>
+            </button>
           </div>
-          <button className="text-white/80 text-sm">设置 ›</button>
+          
+          {/* 会员资产概览 */}
+          <div className="flex justify-around mt-4 pt-4 border-t border-gray-100">
+            <div className="text-center">
+              <p className="text-lg font-bold text-gray-800">{MEMBER_INFO.balance.toFixed(2)}</p>
+              <p className="text-xs text-gray-500">余额(元)</p>
+            </div>
+            <div className="w-px bg-gray-200"></div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-orange-500">{MEMBER_INFO.points}</p>
+              <p className="text-xs text-gray-500">积分</p>
+            </div>
+            <div className="w-px bg-gray-200"></div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-gray-800">{MEMBER_INFO.coupons}</p>
+              <p className="text-xs text-gray-500">优惠券</p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 订单统计 */}
-      <div className="bg-white mx-3 -mt-4 rounded-xl p-4 shadow-sm">
+      <div className="bg-white mx-3 -mt-2 rounded-xl p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <span className="font-bold text-gray-800">我的订单</span>
           <span className="text-gray-400 text-xs">全部订单 ›</span>
