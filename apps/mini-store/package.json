@@ -1,0 +1,38 @@
+{
+  "name": "@hailin/mini-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "海邻到家 - 小程序商城",
+  "scripts": {
+    "dev:h5": "taro build --type h5",
+    "dev:weapp": "taro build --type weapp",
+    "build:h5": "taro build --type h5",
+    "build:weapp": "taro build --type weapp"
+  },
+  "dependencies": {
+    "@hailin/core": "workspace:*",
+    "@hailin/cart": "workspace:*",
+    "@hailin/order": "workspace:*",
+    "@hailin/member": "workspace:*",
+    "@hailin/payment": "workspace:*",
+    "@hailin/promotion": "workspace:*",
+    "@tarojs/taro": "^4.0.0",
+    "@tarojs/plugin-framework-react": "^4.0.0",
+    "@tarojs/plugin-platform-weapp": "^4.0.0",
+    "@tarojs/plugin-react": "^4.0.0",
+    "@tarojs/helper": "^4.0.0",
+    "@tarojs/runtime": "^4.0.0",
+    "@tarojs/webpack5-runner": "^4.0.0",
+    "react": "^18.2.0",
+    "zustand": "^4.4.0",
+    "react-router-dom": "^6.20.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@tarojs/compiler-sfc": "^4.0.0",
+    "@types/react": "^18.2.0",
+    "babel-preset-taro": "^4.0.0",
+    "typescript": "^5.3.0",
+    "webpack": "^5.89.0"
+  }
+}
