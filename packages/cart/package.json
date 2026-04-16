@@ -1,0 +1,14 @@
+{
+  "name": "@hailin/cart",
+  "version": "1.0.0",
+  "description": "海邻到家购物车模块",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@hailin/core": "workspace:*",
+    "@tarojs/taro": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
