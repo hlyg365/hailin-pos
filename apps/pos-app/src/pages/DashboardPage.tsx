@@ -465,6 +465,193 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* 商品管理 */}
+        {activeTab === 'products' && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold">商品管理</h2>
+              <div className="flex gap-2">
+                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                  <span>➕</span> 新增商品
+                </button>
+                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                  <span>📥</span> 批量导入
+                </button>
+              </div>
+            </div>
+
+            {/* 商品统计概览 */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {[
+                { label: '商品总数', value: '1,256', icon: '📦', color: 'blue' },
+                { label: '在售商品', value: '1,180', icon: '✅', color: 'green' },
+                { label: '待上架', value: '52', icon: '⏳', color: 'yellow' },
+                { label: '已停售', value: '24', icon: '❌', color: 'gray' },
+                { label: '库存预警', value: '38', icon: '⚠️', color: 'red' },
+              ].map((item, i) => (
+                <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-sm text-gray-500">{item.label}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-800">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* 搜索和筛选 */}
+            <div className="bg-white rounded-xl p-4 shadow-sm">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <input
+                    type="text"
+                    placeholder="搜索商品名称/条码/助记码..."
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <select className="px-4 py-2 border rounded-lg">
+                  <option value="">全部分类</option>
+                  <option value="drinks">饮料</option>
+                  <option value="food">食品</option>
+                  <option value="snacks">零食</option>
+                  <option value="dairy">奶制品</option>
+                  <option value="fresh">生鲜</option>
+                  <option value="bakery">烘焙</option>
+                </select>
+                <select className="px-4 py-2 border rounded-lg">
+                  <option value="">全部状态</option>
+                  <option value="active">在售</option>
+                  <option value="pending">待上架</option>
+                  <option value="inactive">已停售</option>
+                </select>
+                <select className="px-4 py-2 border rounded-lg">
+                  <option value="">全部类型</option>
+                  <option value="standard">标品</option>
+                  <option value="nonstandard">非标品</option>
+                </select>
+                <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  搜索
+                </button>
+              </div>
+            </div>
+
+            {/* 商品分类管理 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">商品分类</h3>
+                <button className="text-blue-600 hover:underline text-sm">管理分类</button>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { name: '饮料', count: 186, color: 'blue' },
+                  { name: '食品', count: 245, color: 'orange' },
+                  { name: '零食', count: 198, color: 'pink' },
+                  { name: '奶制品', count: 92, color: 'purple' },
+                  { name: '生鲜', count: 68, color: 'green' },
+                  { name: '烘焙', count: 45, color: 'yellow' },
+                  { name: '日用品', count: 156, color: 'gray' },
+                  { name: '酒类', count: 78, color: 'red' },
+                ].map((cat, i) => (
+                  <button
+                    key={i}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition-colors flex items-center gap-2"
+                  >
+                    <span>{cat.name}</span>
+                    <span className="bg-white px-2 py-0.5 rounded text-xs">{cat.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 商品列表 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h3 className="font-semibold mb-4">商品列表</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left text-sm text-gray-500">
+                      <th className="pb-3">商品信息</th>
+                      <th className="pb-3">分类</th>
+                      <th className="pb-3">进价</th>
+                      <th className="pb-3">售价</th>
+                      <th className="pb-3">库存</th>
+                      <th className="pb-3">状态</th>
+                      <th className="pb-3">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { id: 'p001', barcode: '6921166466888', name: '农夫山泉550ml', category: '饮料', cost: 1.5, price: 2, stock: 120, status: 'active', isStandard: true },
+                      { id: 'p002', barcode: '6921234567890', name: '可口可乐330ml', category: '饮料', cost: 2.2, price: 3, stock: 85, status: 'active', isStandard: true },
+                      { id: 'p003', barcode: '6922345678901', name: '康师傅方便面', category: '食品', cost: 3.5, price: 4.5, stock: 200, status: 'active', isStandard: true },
+                      { id: 'p004', barcode: '6923456789012', name: '双汇火腿肠', category: '食品', cost: 3.8, price: 5, stock: 150, status: 'active', isStandard: true },
+                      { id: 'p005', barcode: '6924567890123', name: '绿箭口香糖', category: '零食', cost: 4.5, price: 6, stock: 80, status: 'active', isStandard: true },
+                      { id: 'p006', barcode: '6925678901234', name: '奥利奥饼干', category: '零食', cost: 6.5, price: 8.5, stock: 65, status: 'active', isStandard: true },
+                      { id: 'p007', barcode: '6926789012345', name: '伊利纯牛奶', category: '奶制品', cost: 9, price: 12, stock: 45, status: 'active', isStandard: true },
+                      { id: 'p008', barcode: '6927890123456', name: '蒙牛酸奶', category: '奶制品', cost: 5, price: 6.5, stock: 72, status: 'active', isStandard: true },
+                      { id: 'p009', barcode: '', name: '红富士苹果', category: '生鲜', cost: 6, price: 9.9, stock: 15, status: 'active', isStandard: false },
+                      { id: 'p010', barcode: '', name: '散装面包', category: '烘焙', cost: 15, price: 25, stock: 5, status: 'warning', isStandard: false },
+                    ].map(product => (
+                      <tr key={product.id} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-2xl">
+                              {product.isStandard ? '📦' : '🍎'}
+                            </div>
+                            <div>
+                              <p className="font-medium">{product.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {product.barcode || '非标品'}
+                                {!product.isStandard && <span className="ml-2 text-orange-500">非标品</span>}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3">
+                          <span className="px-2 py-1 bg-gray-100 rounded text-sm">{product.category}</span>
+                        </td>
+                        <td className="py-3 text-gray-600">¥{product.cost.toFixed(2)}</td>
+                        <td className="py-3 font-medium text-green-600">¥{product.price.toFixed(2)}</td>
+                        <td className="py-3">
+                          <span className={product.stock < 20 ? 'text-red-600 font-medium' : ''}>
+                            {product.stock}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            product.status === 'active' ? 'bg-green-100 text-green-600' :
+                            product.status === 'warning' ? 'bg-red-100 text-red-600' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {product.status === 'active' ? '在售' : product.status === 'warning' ? '库存预警' : '已停售'}
+                          </span>
+                        </td>
+                        <td className="py-3">
+                          <button className="text-blue-600 hover:underline text-sm mr-2">编辑</button>
+                          <button className="text-gray-600 hover:underline text-sm mr-2">调价</button>
+                          <button className="text-red-600 hover:underline text-sm">停售</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* 分页 */}
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-sm text-gray-500">共 10 条记录，每页显示 20 条</p>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1 border rounded hover:bg-gray-50" disabled>上一页</button>
+                  <button className="px-3 py-1 bg-blue-600 text-white rounded">1</button>
+                  <button className="px-3 py-1 border rounded hover:bg-gray-50">2</button>
+                  <button className="px-3 py-1 border rounded hover:bg-gray-50">3</button>
+                  <button className="px-3 py-1 border rounded hover:bg-gray-50">下一页</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 供应链 */}
         {activeTab === 'supply' && (
           <div className="space-y-6">
