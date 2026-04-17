@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
 import ClearanceModeIndicator from '../components/ClearanceModeIndicator';
 import OfflineIndicator from '../components/OfflineIndicator';
+import { DeviceStatusPanel } from '../components/DeviceStatusPanel';
+import { deviceManager } from '../services/posDevices';
 import type { Product } from '../types';
 
 // 检查清货模式
@@ -108,6 +110,25 @@ export default function CashierPage() {
 
   // 客显屏状态
   const [showCustomerDisplay, setShowCustomerDisplay] = useState(false);
+
+  // 设备管理面板
+  const [showDevicePanel, setShowDevicePanel] = useState(false);
+
+  // 打开钱箱
+  const handleOpenDrawer = useCallback(async () => {
+    try {
+      await deviceManager.cashDrawer.open();
+    } catch (error) {
+      console.error('打开钱箱失败:', error);
+    }
+  }, []);
+
+  // 打开客显屏
+  const handleOpenCustomerDisplay = useCallback(async () => {
+    await deviceManager.customerDisplay.connect();
+    deviceManager.customerDisplay.showWelcome();
+    setShowCustomerDisplay(true);
+  }, []);
 
 
 
@@ -502,7 +523,7 @@ export default function CashierPage() {
             </div>
             {/* 客显屏按钮 */}
             <button
-              onClick={() => setShowCustomerDisplay(!showCustomerDisplay)}
+              onClick={handleOpenCustomerDisplay}
               className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
                 showCustomerDisplay 
                   ? 'bg-blue-600 text-white' 
@@ -517,6 +538,27 @@ export default function CashierPage() {
               {showCustomerDisplay && (
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
               )}
+            </button>
+            {/* 设备管理按钮 */}
+            <button
+              onClick={() => setShowDevicePanel(true)}
+              className="px-4 py-2 rounded-lg bg-white text-gray-700 hover:bg-gray-100 border flex items-center gap-2 transition-all"
+              title="设备管理"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="hidden md:inline">设备</span>
+            </button>
+            {/* 钱箱按钮 */}
+            <button
+              onClick={handleOpenDrawer}
+              className="px-4 py-2 rounded-lg bg-white text-gray-700 hover:bg-gray-100 border flex items-center gap-2 transition-all"
+              title="打开钱箱"
+            >
+              <span className="text-lg">💰</span>
+              <span className="hidden md:inline">钱箱</span>
             </button>
           </div>
 
@@ -894,6 +936,15 @@ export default function CashierPage() {
         currentMember={currentMember}
       />
 
+      {/* 设备管理面板 */}
+      <DeviceStatusPanel
+        isOpen={showDevicePanel}
+        onClose={() => setShowDevicePanel(false)}
+        deviceManager={deviceManager}
+        onOpenDrawer={handleOpenDrawer}
+        onOpenCustomerDisplay={handleOpenCustomerDisplay}
+      />
+
       {/* 支付弹窗 */}
       {showPayModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -958,13 +1009,54 @@ export default function CashierPage() {
       {showSuccess && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl w-80 p-8 text-center">
-            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             </div>
             <h3 className="text-xl font-semibold text-green-600">支付成功</h3>
-            <p className="text-gray-500 mt-2">¥{totals.total.toFixed(2)}</p>
+            <p className="text-gray-500 mt-2 text-2xl font-bold">¥{totals.total.toFixed(2)}</p>
+            <p className="text-sm text-gray-400 mt-1">{payMethod === 'cash' ? '现金' : payMethod === 'wechat' ? '微信' : payMethod === 'alipay' ? '支付宝' : payMethod === 'member' ? '会员卡' : payMethod}</p>
+            <div className="mt-6 flex gap-2">
+              <button
+                onClick={async () => {
+                  // 打印小票
+                  try {
+                    await deviceManager.receiptPrinter.printReceipt({
+                      orderNo: `ORD${Date.now()}`,
+                      storeName: currentStore?.name || '海邻到家',
+                      items: items.map(i => ({ name: i.product.name, qty: i.quantity, price: totals.isClearanceMode ? i.product.clearancePrice || i.product.price : i.product.price })),
+                      total: totals.total,
+                      payMethod: payMethod === 'cash' ? '现金' : payMethod === 'wechat' ? '微信支付' : payMethod === 'alipay' ? '支付宝' : payMethod === 'member' ? '会员卡' : payMethod,
+                      cashier: '收银员',
+                      time: new Date().toLocaleString('zh-CN'),
+                    });
+                  } catch (error) {
+                    console.error('打印失败:', error);
+                  }
+                  // 打开客显屏显示
+                  deviceManager.customerDisplay.showPaid(totals.total);
+                  // 打开钱箱（现金支付时）
+                  if (payMethod === 'cash') {
+                    deviceManager.cashDrawer.open();
+                  }
+                }}
+                className="flex-1 py-2 px-4 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition"
+              >
+                🧾 打印小票
+              </button>
+              <button
+                onClick={() => {
+                  deviceManager.customerDisplay.showPaid(totals.total);
+                  if (payMethod === 'cash') {
+                    deviceManager.cashDrawer.open();
+                  }
+                }}
+                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+              >
+                完成
+              </button>
+            </div>
           </div>
         </div>
       )}
