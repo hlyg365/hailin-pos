@@ -392,7 +392,7 @@ export default function CashierPage() {
           {/* 侧边栏头部 */}
           <div className="p-2 border-b border-gray-700">
             <div className="flex flex-col items-center">
-              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" />
+              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto rounded" style={{ background: 'rgba(255,255,255,0.1)', padding: '2px' }} />
               <p className="text-xs mt-1 truncate max-w-full text-center leading-tight">{currentStore?.name || '门店'}</p>
             </div>
           </div>

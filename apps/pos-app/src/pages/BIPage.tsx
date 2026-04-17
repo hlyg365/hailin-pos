@@ -222,7 +222,7 @@ function TechDashboard({ data, onExit }: { data: any; onExit: () => void }) {
       <div className="relative z-10 bg-gradient-to-r from-blue-900/80 via-purple-900/80 to-blue-900/80 border-b border-blue-500/30 py-4">
         <div className="container mx-auto px-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="海邻到家" className="h-12 w-auto" />
+            <img src="/logo.png" alt="海邻到家" className="h-12 w-auto" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
             <h1 className="text-2xl font-bold text-white tracking-wider">
               · 智慧门店数据中心
             </h1>
@@ -573,7 +573,7 @@ export default function BIPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
-              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" />
+              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }} />
               <h1 className="text-xl font-bold text-gray-800">BI 数据分析中心</h1>
             </div>
             <div className="flex items-center gap-4">

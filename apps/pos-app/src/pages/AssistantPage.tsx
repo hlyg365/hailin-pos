@@ -450,7 +450,7 @@ export default function AssistantPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
-              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" />
+              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }} />
               <div>
                 <h1 className="font-semibold">店长助手</h1>
                 <p className="text-sm text-blue-100">{currentStore?.name}</p>
