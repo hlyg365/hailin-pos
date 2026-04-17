@@ -142,7 +142,7 @@ export default function CashierPage() {
     const aiConfig = useAiConfigStore.getState();
     const result = await aiConfig.aiScanByBarcode(barcode);
     
-    if (result.success && result.name) {
+    if (result.success && result.name && result.retailPrice) {
       // AI识别成功，显示识别结果
       const aiProduct: Product = {
         id: `ai_${Date.now()}`,
@@ -163,6 +163,7 @@ export default function CashierPage() {
       });
     } else {
       // AI识别失败，显示扫码结果让用户手动输入
+      console.log('[AI识别失败]', result);
       setAiScanResult({ 
         barcode, 
         candidates: [],
