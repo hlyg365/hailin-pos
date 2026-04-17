@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
 import type { Product } from '../types';
@@ -7,6 +7,47 @@ import type { Product } from '../types';
 const isClearanceMode = (): boolean => {
   const hour = new Date().getHours();
   return hour >= 20 && hour < 23;
+};
+
+// AI 服务配置
+const AI_SERVICE_URL = 'http://127.0.0.1:5000';
+
+// AI条码识别
+const aiBarcodeLookup = async (barcode: string): Promise<{ success: boolean; product?: Product; candidates?: Product[] }> => {
+  const products = useProductStore.getState().products;
+  // 优先本地商品库
+  const exact = products.find(p => p.barcode === barcode);
+  if (exact) return { success: true, product: exact };
+  // 模拟模糊匹配
+  const similar = products.filter(p => p.barcode.includes(barcode.slice(-6)));
+  return { success: false, candidates: similar.slice(0, 3) };
+};
+
+// AI视觉识别（模拟）
+const aiVisionRecognize = async (): Promise<{ name: string; confidence: number; estimatedWeight?: number }[]> => {
+  await new Promise(r => setTimeout(r, 500));
+  return [
+    { name: '红富士苹果', confidence: 0.95, estimatedWeight: 0.8 },
+    { name: '黄元帅苹果', confidence: 0.72, estimatedWeight: 0.75 },
+  ];
+};
+
+// 电子秤服务（模拟）
+const scaleService = {
+  startListeningSimulate: (callback: (reading: { weight: number }) => void) => {
+    let weight = 0;
+    const interval = setInterval(() => {
+      // 模拟秤读数，偶尔有重量变化
+      if (Math.random() > 0.98) {
+        weight = Math.random() * 2 + 0.1;
+      } else if (Math.random() > 0.95) {
+        weight = 0;
+      }
+      callback({ weight });
+    }, 1000);
+    return () => clearInterval(interval);
+  },
+  stopListening: () => {},
 };
 
 // 模块类型
@@ -30,6 +71,11 @@ export default function CashierPage() {
   // 电子秤状态
   const [scaleStatus, setScaleStatus] = useState<'idle' | 'listening' | 'triggered'>('idle');
   const [currentWeight, setCurrentWeight] = useState<number>(0);
+
+  // AI识别结果（隐藏，不显示按钮但保留功能）
+  const [aiScanResult, setAiScanResult] = useState<{ barcode?: string; loading?: boolean; product?: Product; candidates?: Product[] } | null>(null);
+  const [aiVisionResult, setAiVisionResult] = useState<{ loading?: boolean; candidates?: { name: string; confidence: number; estimatedWeight?: number }[] } | null>(null);
+
   
   // 门店模块配置
   const storeModules: { id: StoreModule; label: string; icon: string }[] = [
@@ -52,6 +98,47 @@ export default function CashierPage() {
   const { addSales } = useFinanceStore();
   const { isOnline } = useOfflineStore();
 
+
+
+  // 处理扫码识别
+  const handleScan = useCallback(async (barcode: string) => {
+    if (!barcode.trim()) return;
+    setAiScanResult({ barcode, loading: true });
+    const result = await aiBarcodeLookup(barcode);
+    if (result.success && result.product) {
+      addItem(result.product, 1);
+    }
+    setAiScanResult({ ...result, loading: false });
+  }, [addItem]);
+
+  // 处理视觉识别
+  const handleVisionRecognize = useCallback(async () => {
+    setAiVisionResult({ loading: true, candidates: [] });
+    const results = await aiVisionRecognize();
+    // 自动添加最高置信度的商品
+    if (results.length > 0 && results[0].confidence > 0.8) {
+      const matched = products.find(p => p.name.includes(results[0].name) || results[0].name.includes(p.name));
+      if (matched) {
+        addItem(matched, results[0].estimatedWeight || 0.5);
+      }
+    }
+    setAiVisionResult({ candidates: results, loading: false });
+  }, [products, addItem]);
+
+  // 电子秤监听
+  useEffect(() => {
+    const cleanup = scaleService.startListeningSimulate((reading) => {
+      setCurrentWeight(reading.weight);
+      if (reading.weight > 0.01) {
+        setScaleStatus(reading.weight > 0.01 ? 'triggered' : 'idle');
+      }
+    });
+    setScaleStatus('listening');
+    return () => {
+      cleanup();
+      scaleService.stopListening();
+    };
+  }, []);
 
   // 分类列表
   const categories = useMemo(() => {
