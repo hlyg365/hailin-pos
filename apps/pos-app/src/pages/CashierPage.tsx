@@ -35,8 +35,6 @@ export default function CashierPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [showDevicePanel, setShowDevicePanel] = useState(false);
-  const [currentWeight, setCurrentWeight] = useState<number>(0);
-  const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
   const [aiScanResult, setAiScanResult] = useState<{ barcode?: string; loading?: boolean; candidates?: Product[] } | null>(null);
   const [aiVisionResult, setAiVisionResult] = useState<{ loading?: boolean; candidates?: { name: string; confidence: number; estimatedWeight?: number }[] } | null>(null);
 
@@ -205,22 +203,6 @@ export default function CashierPage() {
           {activeModule === 'cashier' && (
             <>
               <div className="flex-1 flex flex-col overflow-hidden">
-                {currentProduct && !currentProduct.isStandard && (
-                  <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-4 mb-4 rounded-xl shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center"><span className="text-3xl">🍎</span></div>
-                        <div><p className="text-sm opacity-80">当前称重商品</p><p className="text-xl font-bold">{currentProduct.name}</p><p className="text-sm opacity-80 mt-1">零售价：<span className="font-semibold">¥{currentProduct.retailPrice.toFixed(2)}</span>/kg</p></div>
-                      </div>
-                      <div className="text-right"><p className="text-sm opacity-80">当前重量</p><p className="text-4xl font-bold">{currentWeight.toFixed(3)}</p><p className="text-sm opacity-80">kg</p></div>
-                      <div className="text-right border-l border-white/30 pl-6"><p className="text-sm opacity-80">商品金额</p><p className="text-2xl font-bold text-yellow-200">¥{(currentProduct.retailPrice * currentWeight).toFixed(2)}</p></div>
-                      <div className="flex flex-col gap-2">
-                        <button onClick={() => { if (currentWeight > 0) { addItem(currentProduct, currentWeight); setCurrentProduct(null); setCurrentWeight(0); } }} className="px-4 py-2 bg-yellow-400 text-green-800 rounded-lg font-medium hover:bg-yellow-300">加入购物车</button>
-                        <button onClick={() => { setCurrentProduct(null); setCurrentWeight(0); }} className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30">取消</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 {aiScanResult && (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
                     <p className="text-blue-700 font-medium mb-2">{aiScanResult.loading ? '正在查询商品...' : `未找到商品: ${aiScanResult.barcode}`}</p>
@@ -269,8 +251,17 @@ export default function CashierPage() {
                 <div className="flex-1 overflow-y-auto grid grid-cols-4 gap-3 p-1">
                   {filteredProducts.map(product => (
                     <button key={product.id} onClick={() => {
-                      if (!product.isStandard) { setCurrentProduct(product); setCurrentWeight(Math.random() * 2 + 0.3); }
-                      else { addItem(product, 1); deviceManager.customerDisplay?.showWaiting?.(totals.total + product.retailPrice); }
+                      if (!product.isStandard) {
+                        // 称重商品：自动获取重量并加入购物车
+                        const weight = Math.round((Math.random() * 2 + 0.3) * 1000) / 1000;
+                        addItem(product, weight);
+                        // 显示添加成功提示
+                        deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice * weight);
+                      } else {
+                        // 标准商品：直接加入购物车
+                        addItem(product, 1);
+                        deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0));
+                      }
                     }} className="bg-white rounded-xl p-3 text-left hover:shadow-md transition-shadow relative">
                       {!product.isStandard && <div className="absolute top-2 right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center"><span className="text-xs">⚖️</span></div>}
                       <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
@@ -301,14 +292,6 @@ export default function CashierPage() {
                   <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.scale?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>电子秤</span>
                   <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.customerDisplay?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>客显屏</span>
                 </div>
-                {currentProduct && !currentProduct.isStandard && (
-                  <div className="bg-orange-100 border-b border-orange-200 px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2"><span className="text-xl animate-pulse">⚖️</span><div><p className="text-sm font-medium text-orange-800">正在称重</p><p className="text-xs text-orange-600">{currentProduct.name}</p></div></div>
-                      <div className="text-right"><p className="text-lg font-bold text-orange-700">{currentWeight.toFixed(3)}kg</p><p className="text-xs text-orange-600">¥{(currentProduct.retailPrice * currentWeight).toFixed(2)}</p></div>
-                    </div>
-                  </div>
-                )}
                 <div className="flex-1 overflow-y-auto p-4">
                   {items.length === 0 ? (
                     <div className="text-center text-gray-400 py-12"><p className="text-4xl mb-4">🛒</p><p>购物车是空的</p><p className="text-sm mt-1">扫描条码添加商品</p></div>
