@@ -94,9 +94,12 @@ export default function CashierPage() {
   const { products, checkInventory, deductInventory } = useProductStore();
   const { currentStore } = useStoreStore();
   const { currentMember, scanMember, members } = useMemberStore();
-  const { createOrder, suspendOrder } = useOrderStore();
+  const { createOrder, suspendOrder, resumeOrder, suspendedOrders } = useOrderStore();
   const { addSales } = useFinanceStore();
   const { isOnline } = useOfflineStore();
+
+  // 挂单列表弹窗
+  const [showSuspendedModal, setShowSuspendedModal] = useState(false);
 
 
 
@@ -235,6 +238,22 @@ export default function CashierPage() {
     createOrder(order);
     suspendOrder(order.id);
     clearCart();
+  };
+
+  // 取单
+  const handleResumeOrder = (orderId: string) => {
+    const order = resumeOrder(orderId);
+    if (order) {
+      // 将订单商品恢复到购物车
+      clearCart();
+      order.items.forEach(item => {
+        const product = products.find(p => p.id === item.productId);
+        if (product) {
+          addItem(product, item.quantity);
+        }
+      });
+      setShowSuspendedModal(false);
+    }
   };
 
   // 支付
@@ -596,18 +615,29 @@ export default function CashierPage() {
             </div>
 
             {/* 操作按钮 */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={handleSuspend}
                 disabled={items.length === 0}
-                className="py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 挂单
               </button>
               <button
+                onClick={() => setShowSuspendedModal(true)}
+                className="py-3 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 relative text-sm"
+              >
+                取单
+                {suspendedOrders.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {suspendedOrders.length}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => setShowPayModal(true)}
                 disabled={items.length === 0}
-                className="py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 收款
               </button>
@@ -662,6 +692,90 @@ export default function CashierPage() {
               >
                 确认
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 挂单列表弹窗 */}
+      {showSuspendedModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-[480px] max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">挂单列表</h3>
+              <button
+                onClick={() => setShowSuspendedModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {suspendedOrders.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">
+                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <p>暂无挂单</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {suspendedOrders.map(order => (
+                    <div
+                      key={order.id}
+                      className="border rounded-lg p-4 hover:border-blue-400 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-500">
+                          {new Date(order.createdAt).toLocaleString('zh-CN', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        <span className="text-lg font-semibold text-red-600">
+                          ¥{order.finalAmount.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">
+                        {order.items.length} 件商品
+                        {order.items.slice(0, 2).map(item => (
+                          <span key={item.productId} className="inline-block mr-2">
+                            {item.productName}
+                          </span>
+                        ))}
+                        {order.items.length > 2 && `...`}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleResumeOrder(order.id)}
+                          disabled={items.length > 0}
+                          className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          取单
+                        </button>
+                        <button
+                          onClick={() => {
+                            const { deleteSuspendedOrder } = useOrderStore.getState();
+                            deleteSuspendedOrder(order.id);
+                          }}
+                          className="py-2 px-4 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 text-sm"
+                        >
+                          删除
+                        </button>
+                      </div>
+                      {items.length > 0 && (
+                        <p className="text-xs text-orange-500 mt-2">
+                          当前购物车有商品，请先结算或清空后再取单
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
