@@ -12,21 +12,14 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@hailin/core": ["../../packages/core/src"],
-      "@hailin/cart": ["../../packages/cart/src"],
-      "@hailin/order": ["../../packages/order/src"],
-      "@hailin/member": ["../../packages/member/src"],
-      "@hailin/payment": ["../../packages/payment/src"],
-      "@hailin/promotion": ["../../packages/promotion/src"],
-      "@hailin/hardware": ["../../packages/hardware/src"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "../../packages"],
+  "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

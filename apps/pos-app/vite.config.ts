@@ -7,18 +7,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@hailin/core': path.resolve(__dirname, '../../packages/core/src'),
-      '@hailin/cart': path.resolve(__dirname, '../../packages/cart/src'),
-      '@hailin/order': path.resolve(__dirname, '../../packages/order/src'),
-      '@hailin/member': path.resolve(__dirname, '../../packages/member/src'),
-      '@hailin/payment': path.resolve(__dirname, '../../packages/payment/src'),
-      '@hailin/promotion': path.resolve(__dirname, '../../packages/promotion/src'),
-      '@hailin/hardware': path.resolve(__dirname, '../../packages/hardware/src'),
     },
   },
   server: {
     port: 5000,
     host: true,
+    historyApiFallback: true,
   },
   build: {
     outDir: 'dist',

@@ -6,5 +6,5 @@ build = ["pnpm", "install"]
 run = ["pnpm", "--filter", "@hailin/pos-app", "dev"]
 
 [deploy]
-build = ["pnpm", "install", "&&", "pnpm", "build"]
-run = ["pnpm", "--filter", "@hailin/pos-app", "start"]
+build = ["pnpm", "install", "&&", "pnpm", "--filter", "@hailin/pos-app", "build"]
+run = ["pnpm", "--filter", "@hailin/pos-app", "preview"]
