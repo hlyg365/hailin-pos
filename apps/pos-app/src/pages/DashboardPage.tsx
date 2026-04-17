@@ -1,14 +1,73 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStoreStore, useRestockStore, useAlertStore } from '../store';
 
 type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth';
+type TimeRange = 'today' | 'week' | 'month' | 'year' | 'custom';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const { stores } = useStoreStore();
   const { requests, approveRequest, rejectRequest } = useRestockStore();
   const { lowStockAlerts, overdueAlerts } = useAlertStore();
+  
+  // 财务中心时间筛选状态
+  const [financeTimeRange, setFinanceTimeRange] = useState<TimeRange>('today');
+  const [financeDateStart, setFinanceDateStart] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [financeDateEnd, setFinanceDateEnd] = useState<string>(new Date().toISOString().split('T')[0]);
+  
+  // 计算时间范围
+  const financeRange = useMemo(() => {
+    const today = new Date();
+    let start: Date, end: Date = today;
+    
+    switch (financeTimeRange) {
+      case 'today':
+        start = today;
+        end = today;
+        break;
+      case 'week':
+        start = new Date(today);
+        start.setDate(today.getDate() - 7);
+        break;
+      case 'month':
+        start = new Date(today);
+        start.setMonth(today.getMonth() - 1);
+        break;
+      case 'year':
+        start = new Date(today);
+        start.setFullYear(today.getFullYear() - 1);
+        break;
+      case 'custom':
+        start = new Date(financeDateStart);
+        end = new Date(financeDateEnd);
+        break;
+    }
+    
+    return { start, end };
+  }, [financeTimeRange, financeDateStart, financeDateEnd]);
+  
+  // 根据时间范围计算统计数据
+  const getStoreStats = (storeId: string) => {
+    const dayCount = Math.ceil((financeRange.end.getTime() - financeRange.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const baseDaily = Math.round(Math.random() * 5000 + 3000);
+    const total = baseDaily * dayCount;
+    const cash = Math.round(total * (0.15 + Math.random() * 0.1));
+    const wechat = Math.round(total * (0.35 + Math.random() * 0.1));
+    const alipay = Math.round(total * (0.3 + Math.random() * 0.1));
+    const unionpay = Math.round(total * (0.05 + Math.random() * 0.05));
+    const member = total - cash - wechat - alipay - unionpay;
+    return { total, cash, wechat, alipay, unionpay, member, dayCount };
+  };
+  
+  const formatDateRange = () => {
+    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+    if (financeTimeRange === 'today') return '今日';
+    if (financeTimeRange === 'week') return `近7天`;
+    if (financeTimeRange === 'month') return `近30天`;
+    if (financeTimeRange === 'year') return `近1年`;
+    return `${financeRange.start.toLocaleDateString('zh-CN', opts)} ~ ${financeRange.end.toLocaleDateString('zh-CN', opts)}`;
+  };
 
   // 模拟数据
   const overviewData = {
@@ -347,7 +406,68 @@ export default function DashboardPage() {
 
             {/* 门店收银明细 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="font-semibold mb-4">门店收银明细（今日）</h3>
+              {/* 标题和时间筛选 */}
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h3 className="font-semibold">门店收银明细</h3>
+                
+                {/* 时间范围选择 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { key: 'today', label: '今日' },
+                    { key: 'week', label: '近7天' },
+                    { key: 'month', label: '近30天' },
+                    { key: 'year', label: '近1年' },
+                    { key: 'custom', label: '自定义' },
+                  ].map(item => (
+                    <button
+                      key={item.key}
+                      onClick={() => setFinanceTimeRange(item.key as TimeRange)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        financeTimeRange === item.key
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                  
+                  {/* 自定义日期选择 */}
+                  {financeTimeRange === 'custom' && (
+                    <div className="flex items-center gap-2 ml-2">
+                      <input
+                        type="date"
+                        value={financeDateStart}
+                        onChange={(e) => setFinanceDateStart(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                      />
+                      <span className="text-gray-400">至</span>
+                      <input
+                        type="date"
+                        value={financeDateEnd}
+                        onChange={(e) => setFinanceDateEnd(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* 当前时间范围提示 */}
+              <div className="mb-4 px-3 py-2 bg-blue-50 rounded-lg text-sm text-blue-700">
+                📅 当前查询：<span className="font-medium">{formatDateRange()}</span>
+                {financeTimeRange !== 'today' && financeTimeRange !== 'custom' && (
+                  <span className="ml-2 text-blue-500">
+                    ({financeRange.start.toLocaleDateString('zh-CN')} ~ {financeRange.end.toLocaleDateString('zh-CN')})
+                  </span>
+                )}
+                {financeTimeRange === 'custom' && (
+                  <span className="ml-2 text-blue-500">
+                    ({financeDateStart} ~ {financeDateEnd})
+                  </span>
+                )}
+              </div>
+              
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -364,13 +484,7 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {stores.map(store => {
-                      // 模拟各支付方式数据（实际应从订单数据统计）
-                      const total = Math.round(Math.random() * 5000 + 3000);
-                      const cash = Math.round(total * (0.15 + Math.random() * 0.1));
-                      const wechat = Math.round(total * (0.35 + Math.random() * 0.1));
-                      const alipay = Math.round(total * (0.3 + Math.random() * 0.1));
-                      const unionpay = Math.round(total * (0.05 + Math.random() * 0.05));
-                      const member = total - cash - wechat - alipay - unionpay;
+                      const stats = getStoreStats(store.id);
                       return (
                         <tr key={store.id} className="border-b last:border-0 hover:bg-gray-50">
                           <td className="py-3">
@@ -383,36 +497,36 @@ export default function DashboardPage() {
                             </div>
                           </td>
                           <td className="py-3">
-                            <span className="text-lg font-bold text-green-600">¥{total.toLocaleString()}</span>
+                            <span className="text-lg font-bold text-green-600">¥{stats.total.toLocaleString()}</span>
                           </td>
                           <td className="py-3">
                             <div className="flex items-center gap-1">
                               <span>💵</span>
-                              <span className="text-orange-600">¥{cash.toLocaleString()}</span>
+                              <span className="text-orange-600">¥{stats.cash.toLocaleString()}</span>
                             </div>
                           </td>
                           <td className="py-3">
                             <div className="flex items-center gap-1">
                               <span className="text-green-500">💚</span>
-                              <span className="text-green-600">¥{wechat.toLocaleString()}</span>
+                              <span className="text-green-600">¥{stats.wechat.toLocaleString()}</span>
                             </div>
                           </td>
                           <td className="py-3">
                             <div className="flex items-center gap-1">
                               <span className="text-blue-500">💙</span>
-                              <span className="text-blue-600">¥{alipay.toLocaleString()}</span>
+                              <span className="text-blue-600">¥{stats.alipay.toLocaleString()}</span>
                             </div>
                           </td>
                           <td className="py-3">
                             <div className="flex items-center gap-1">
                               <span className="text-red-400">💳</span>
-                              <span className="text-gray-600">¥{unionpay.toLocaleString()}</span>
+                              <span className="text-gray-600">¥{stats.unionpay.toLocaleString()}</span>
                             </div>
                           </td>
                           <td className="py-3">
                             <div className="flex items-center gap-1">
                               <span>👤</span>
-                              <span className="text-purple-600">¥{member.toLocaleString()}</span>
+                              <span className="text-purple-600">¥{stats.member.toLocaleString()}</span>
                             </div>
                           </td>
                           <td className="py-3">
@@ -423,28 +537,31 @@ export default function DashboardPage() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-gray-50 font-semibold">
-                      <td className="py-3">合计</td>
-                      <td className="py-3 text-lg text-green-600">
-                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 5000 + 3000), 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 text-orange-600">
-                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 800 + 400), 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 text-green-600">
-                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 1800 + 1200), 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 text-blue-600">
-                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 1500 + 1000), 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 text-gray-600">
-                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 300 + 150), 0).toLocaleString()}
-                      </td>
-                      <td className="py-3 text-purple-600">
-                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 200 + 100), 0).toLocaleString()}
-                      </td>
-                      <td></td>
-                    </tr>
+                    {(() => {
+                      const totals = stores.reduce((acc, store) => {
+                        const stats = getStoreStats(store.id);
+                        return {
+                          total: acc.total + stats.total,
+                          cash: acc.cash + stats.cash,
+                          wechat: acc.wechat + stats.wechat,
+                          alipay: acc.alipay + stats.alipay,
+                          unionpay: acc.unionpay + stats.unionpay,
+                          member: acc.member + stats.member,
+                        };
+                      }, { total: 0, cash: 0, wechat: 0, alipay: 0, unionpay: 0, member: 0 });
+                      return (
+                        <tr className="bg-gray-50 font-semibold">
+                          <td className="py-3">合计</td>
+                          <td className="py-3 text-lg text-green-600">¥{totals.total.toLocaleString()}</td>
+                          <td className="py-3 text-orange-600">¥{totals.cash.toLocaleString()}</td>
+                          <td className="py-3 text-green-600">¥{totals.wechat.toLocaleString()}</td>
+                          <td className="py-3 text-blue-600">¥{totals.alipay.toLocaleString()}</td>
+                          <td className="py-3 text-gray-600">¥{totals.unionpay.toLocaleString()}</td>
+                          <td className="py-3 text-purple-600">¥{totals.member.toLocaleString()}</td>
+                          <td></td>
+                        </tr>
+                      );
+                    })()}
                   </tfoot>
                 </table>
               </div>
