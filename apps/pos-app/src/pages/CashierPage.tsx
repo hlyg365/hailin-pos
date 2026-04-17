@@ -2,50 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
 import type { Product } from '../types';
-import { aiService, scaleService, VisionScaleController } from '../services/aiService';
-
-// AI 服务配置
-const AI_SERVICE_URL = 'http://127.0.0.1:5000';
-
-// AI条码识别（优先本地服务）
-const aiBarcodeLookup = async (barcode: string): Promise<{ success: boolean; product?: Product; candidates?: Product[] }> => {
-  const products = useProductStore.getState().products;
-  
-  // 优先本地AI服务
-  const result = await aiService.recognize(barcode);
-  if (result.status === 'success' && result.product) {
-    const matched = products.find(p => p.name === result.product);
-    if (matched) return { success: true, product: matched };
-  }
-  
-  // 回退到本地商品库
-  const exact = products.find(p => p.barcode === barcode);
-  if (exact) return { success: true, product: exact };
-  
-  // 模拟模糊匹配
-  const similar = products.filter(p => p.barcode.includes(barcode.slice(-6)));
-  return { success: false, candidates: similar.slice(0, 3) };
-};
-
-// AI视觉识别（优先本地服务）
-const aiVisionRecognize = async (): Promise<{ name: string; confidence: number; estimatedWeight?: number }[]> => {
-  // 优先本地AI服务
-  const result = await aiService.recognize('');
-  if (result.status === 'success' && result.all_detected) {
-    return result.all_detected.map(item => ({
-      name: item.name,
-      confidence: item.confidence,
-    }));
-  }
-  
-  // 模拟模式
-  await new Promise(r => setTimeout(r, 500));
-  return [
-    { name: '红富士苹果', confidence: 0.95, estimatedWeight: 0.8 },
-    { name: '黄元帅苹果', confidence: 0.72, estimatedWeight: 0.75 },
-    { name: '嘎啦苹果', confidence: 0.58, estimatedWeight: 0.7 },
-  ];
-};
 
 // 检查清货模式
 const isClearanceMode = (): boolean => {
@@ -66,17 +22,12 @@ export default function CashierPage() {
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberPhone, setMemberPhone] = useState('');
   const [memberError, setMemberError] = useState('');
-  const [showAIModal, setShowAIModal] = useState(false);
-  const [aiMode, setAiMode] = useState<'barcode' | 'vision'>('barcode');
-  const [aiInput, setAiInput] = useState('');
-  const [aiResult, setAiResult] = useState<any>(null);
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedPay, setSelectedPay] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   
-  // AI 服务状态
-  const [aiServiceStatus, setAiServiceStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  // 电子秤状态
   const [scaleStatus, setScaleStatus] = useState<'idle' | 'listening' | 'triggered'>('idle');
   const [currentWeight, setCurrentWeight] = useState<number>(0);
   
@@ -181,23 +132,6 @@ export default function CashierPage() {
 
   // 清货模式提示
   const clearanceMode = isClearanceMode();
-
-  // 处理扫码
-  const handleScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && aiInput) {
-      setAiResult({ barcode: aiInput, loading: true });
-      aiBarcodeLookup(aiInput).then(result => {
-        setAiResult({ ...result, loading: false });
-      });
-    }
-  };
-
-  // 处理AI视觉识别
-  const handleVisionRecognize = async () => {
-    setAiResult({ loading: true, candidates: [] });
-    const results = await aiVisionRecognize();
-    setAiResult({ candidates: results, loading: false });
-  };
 
   // 添加商品
   const handleAddProduct = (product: Product, quantity: number = 1) => {
@@ -344,15 +278,6 @@ export default function CashierPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {/* AI 服务状态 */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`w-2 h-2 rounded-full ${
-              aiServiceStatus === 'online' ? 'bg-green-500' : 
-              aiServiceStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'
-            }`}></span>
-            <span className="text-gray-500">AI {aiServiceStatus === 'online' ? '已连接' : aiServiceStatus === 'checking' ? '检测中' : '离线'}</span>
-          </div>
-          
           {/* 电子秤状态 */}
           <div className="flex items-center gap-2 text-xs px-2 py-1 bg-gray-100 rounded">
             <span className={`w-2 h-2 rounded-full ${
@@ -446,27 +371,6 @@ export default function CashierPage() {
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* 工具栏 */}
           <div className="flex items-center gap-3 mb-4">
-            {/* AI功能按钮 */}
-            <button
-              onClick={() => { setAiMode('barcode'); setShowAIModal(true); setAiInput(''); setAiResult(null); }}
-              className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-              </svg>
-              AI识码
-            </button>
-            <button
-              onClick={() => { setAiMode('vision'); setShowAIModal(true); setAiResult(null); handleVisionRecognize(); }}
-              className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              AI视觉
-            </button>
-            
             {/* 搜索框 */}
             <div className="flex-1 relative">
               <input
@@ -688,157 +592,6 @@ export default function CashierPage() {
                 确认
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI识别弹窗 */}
-      {showAIModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-[500px] p-6">
-            <h3 className="text-lg font-semibold mb-4">
-              {aiMode === 'barcode' ? 'AI 条码识别' : 'AI 视觉识别'}
-            </h3>
-            
-            {aiMode === 'barcode' ? (
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="输入或扫描条码"
-                    value={aiInput}
-                    onChange={(e) => setAiInput(e.target.value)}
-                    onKeyDown={handleScan}
-                    className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <button
-                    onClick={() => aiInput && aiBarcodeLookup(aiInput).then(r => setAiResult({ ...r, loading: false }))}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg"
-                  >
-                    识别
-                  </button>
-                </div>
-                
-                {aiResult?.loading && (
-                  <div className="text-center py-8">
-                    <div className="animate-spin w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto"></div>
-                    <p className="mt-2 text-gray-500">AI识别中...</p>
-                  </div>
-                )}
-                
-                {aiResult?.product && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="font-medium text-green-800">识别成功</p>
-                    <p className="text-green-600">{aiResult.product.name}</p>
-                    <div className="flex justify-between mt-2">
-                      <span className="text-gray-500">零售价</span>
-                      <span className="font-semibold">¥{aiResult.product.retailPrice}</span>
-                    </div>
-                    <button
-                      onClick={() => { handleAddProduct(aiResult.product); setShowAIModal(false); }}
-                      className="w-full mt-3 py-2 bg-green-600 text-white rounded-lg"
-                    >
-                      加入购物车
-                    </button>
-                  </div>
-                )}
-                
-                {aiResult?.candidates && aiResult.candidates.length > 0 && !aiResult.product && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <p className="font-medium text-yellow-800 mb-3">未找到精确匹配，以下是候选商品：</p>
-                    <div className="space-y-2">
-                      {aiResult.candidates.map((p: Product, i: number) => (
-                        <div key={i} className="flex items-center justify-between bg-white p-2 rounded">
-                          <span>{p.name}</span>
-                          <button
-                            onClick={() => handleAddProduct(p)}
-                            className="text-sm text-blue-600 hover:underline"
-                          >
-                            添加
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <svg className="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <p className="text-gray-400 mt-2">将商品置于摄像头下</p>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={handleVisionRecognize}
-                  className="w-full py-3 bg-indigo-600 text-white rounded-lg"
-                >
-                  开始识别
-                </button>
-                
-                {aiResult?.loading && (
-                  <div className="text-center py-4">
-                    <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
-                    <p className="mt-2 text-gray-500">AI视觉识别中...</p>
-                  </div>
-                )}
-                
-                {aiResult?.candidates && aiResult.candidates.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="font-medium text-blue-800 mb-3">识别结果（置信度）：</p>
-                    <div className="space-y-2">
-                      {aiResult.candidates.map((c: any, i: number) => {
-                        // 使用模糊匹配查找商品
-                        const matchedProduct = products.find(p => 
-                          p.name.includes(c.name) || c.name.includes(p.name) || 
-                          p.category === '生鲜' && c.name.includes('苹果') && p.name.includes('苹果')
-                        );
-                        return (
-                          <div key={i} className="flex items-center justify-between bg-white p-3 rounded-lg">
-                            <div>
-                              <span className="font-medium">{c.name}</span>
-                              {i === 0 && <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded">最高</span>}
-                              {c.estimatedWeight && <span className="ml-2 text-gray-500">约 {c.estimatedWeight}kg</span>}
-                              {!matchedProduct && <span className="ml-2 text-xs bg-yellow-500 text-white px-2 py-0.5 rounded">未匹配商品</span>}
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`font-semibold ${c.confidence > 0.9 ? 'text-green-600' : 'text-yellow-600'}`}>
-                                {(c.confidence * 100).toFixed(0)}%
-                              </span>
-                              {i === 0 && matchedProduct && (
-                                <button
-                                  onClick={() => {
-                                    if (c.estimatedWeight) {
-                                      handleAddProduct(matchedProduct, c.estimatedWeight);
-                                      setShowAIModal(false);
-                                    }
-                                  }}
-                                  className="text-sm text-blue-600 hover:underline"
-                                >
-                                  添加
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <button
-              onClick={() => setShowAIModal(false)}
-              className="w-full mt-4 py-2 border rounded-lg"
-            >
-              关闭
-            </button>
           </div>
         </div>
       )}
