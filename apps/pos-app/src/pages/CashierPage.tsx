@@ -259,10 +259,6 @@ export default function CashierPage() {
                   <input ref={barcodeInputRef} type="text" placeholder="扫描或输入条码" className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     onKeyDown={(e) => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value; if (v) handleBarcodeScan(v); (e.target as HTMLInputElement).value = ''; } }} />
                   <button onClick={handleAiVision} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"><span>👁️</span> AI视觉</button>
-                  <button onClick={() => setShowSuspendedModal(true)} className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 relative">
-                    挂单/取单
-                    {suspendedOrders.length > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{suspendedOrders.length}</span>}
-                  </button>
                 </div>
                 <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                   {categories.map(cat => (
