@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useStoreStore, useRestockStore, useAlertStore, useMiniProgramStore, useAiConfigStore } from '../store';
+import { useStoreStore, useRestockStore, useAlertStore, useMiniProgramStore, useAiConfigStore, useOrderStore, useMemberStore } from '../store';
 
 type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth' | 'miniprogram' | 'product-import' | 'ai-config';
 type TimeRange = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -11,6 +11,8 @@ export default function DashboardPage() {
   const { stores } = useStoreStore();
   const { requests, approveRequest, rejectRequest } = useRestockStore();
   const { lowStockAlerts, overdueAlerts } = useAlertStore();
+  const { orders } = useOrderStore();
+  const { members } = useMemberStore();
   
   // 商品管理子Tab状态
   type ProductSubTab = 'store' | 'miniprogram' | 'community';
@@ -194,8 +196,9 @@ export default function DashboardPage() {
     return { start, end };
   }, [depositTimeRange, depositDateStart, depositDateEnd]);
   
-  // 生成模拟缴款单数据
-  const generateDepositRecords = () => {
+  // 缴款单数据（基于真实订单数据，实际部署时连接后端API）
+  const allDepositRecords = useMemo(() => {
+    // 从订单中提取缴款记录，实际部署时从后端API获取
     const records: Array<{
       id: string;
       store: string;
@@ -208,42 +211,30 @@ export default function DashboardPage() {
       cashier: string;
     }> = [];
     
-    const methods = ['银行转账', '现金', '支付宝', '微信'];
-    const statuses: Array<'pending' | 'confirmed'> = ['pending', 'confirmed'];
-    const cashiers = ['张三', '李四', '王五', '赵六'];
-    
-    // 生成近6个月的缴款记录
-    const today = new Date();
-    for (let m = 0; m < 6; m++) {
-      const monthDate = new Date(today.getFullYear(), today.getMonth() - m, 1);
-      const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
-      const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
-      
-      // 每月每个门店生成3-8条缴款记录
-      stores.forEach(store => {
-        const recordCount = Math.floor(Math.random() * 6) + 3;
-        for (let i = 0; i < recordCount; i++) {
-          const day = Math.floor(Math.random() * daysInMonth) + 1;
-          const recordDate = `${monthStr}-${String(day).padStart(2, '0')}`;
-          records.push({
-            id: `DEP${monthStr.replace('-', '')}${store.code}${String(i + 1).padStart(2, '0')}`,
-            store: store.name,
-            storeId: store.id,
-            amount: Math.round((Math.random() * 8000 + 2000) * 100) / 100,
-            method: methods[Math.floor(Math.random() * methods.length)],
-            status: m === 0 && Math.random() > 0.6 ? 'pending' : 'confirmed',
-            date: recordDate,
-            month: monthStr,
-            cashier: cashiers[Math.floor(Math.random() * cashiers.length)],
-          });
-        }
-      });
-    }
+    // 基于真实订单生成缴款汇总数据
+    orders.forEach(order => {
+      if (order.payStatus === 'paid' && order.payMethod !== 'suspended') {
+        const orderDate = new Date(order.createdAt);
+        const monthStr = orderDate.toISOString().slice(0, 7);
+        const dateStr = orderDate.toISOString().split('T')[0];
+        const store = stores.find(s => s.id === order.storeId);
+        
+        records.push({
+          id: `DEP${order.id.slice(-8)}`,
+          store: store?.name || '未知门店',
+          storeId: order.storeId || '',
+          amount: order.finalAmount || 0,
+          method: order.payMethod === 'cash' ? '现金' : '银行转账',
+          status: 'confirmed',
+          date: dateStr,
+          month: monthStr,
+          cashier: order.cashierId || '系统',
+        });
+      }
+    });
     
     return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
-  
-  const allDepositRecords = useMemo(() => generateDepositRecords(), [stores]);
+  }, [orders, stores]);
   
   // 根据时间范围筛选缴款记录
   const filteredDeposits = useMemo(() => {
@@ -299,15 +290,24 @@ export default function DashboardPage() {
     return `${depositDateStart} ~ ${depositDateEnd}`;
   };
 
-  // 模拟数据
-  const overviewData = {
-    totalStores: 3,
-    activeOrders: 24,
-    todaySales: 12580,
-    monthSales: 385600,
-    memberCount: 12580,
-    pendingRestocks: 5,
-  };
+  // 工作台数据（基于真实订单数据）
+  const overviewData = useMemo(() => {
+    const today = new Date().toDateString();
+    const todayOrders = orders.filter(o => o.createdAt?.startsWith(today) && o.status !== 'suspended');
+    const todaySales = todayOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toDateString();
+    const monthOrders = orders.filter(o => o.createdAt?.startsWith(monthStart) && o.status !== 'suspended');
+    const monthSales = monthOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    
+    return {
+      totalStores: stores.length,
+      activeOrders: orders.filter(o => o.status === 'pending' || o.status === 'preparing').length,
+      todaySales,
+      monthSales,
+      memberCount: members.length,
+      pendingRestocks: requests.filter(r => r.status === 'pending').length,
+    };
+  }, [stores, orders, members, requests]);
 
   const tabs: { id: Tab; label: string; icon: string; link?: string }[] = [
     { id: 'overview', label: '工作台', icon: '📊' },

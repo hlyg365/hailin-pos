@@ -1,12 +1,27 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useStoreStore, useFinanceStore, useRestockStore, useAlertStore, useProductStore, useCartStore, useOrderStore, useMemberStore, useOfflineStore } from '../store';
+import { useStoreStore, useFinanceStore, useRestockStore, useAlertStore, useProductStore, useCartStore, useOrderStore, useMemberStore, useOfflineStore, useAiConfigStore } from '../store';
 import type { Product } from '../types';
 
-// AI条码查询模拟函数
+// AI条码查询函数
 const aiBarcodeLookup = async (barcode: string): Promise<{ success: boolean; product?: Product; candidates?: Product[] }> => {
-  // 模拟AI查询
-  await new Promise(resolve => setTimeout(resolve, 300));
+  const aiConfig = useAiConfigStore.getState();
+  const result = await aiConfig.aiScanByBarcode(barcode);
+  
+  if (result.success && result.name) {
+    const product: Product = {
+      id: `prod_${Date.now()}`,
+      name: result.name || '',
+      barcode: barcode,
+      category: result.category || '食品',
+      retailPrice: result.retailPrice || 0,
+      costPrice: result.costPrice || 0,
+      isStandard: true,
+      status: 'active',
+      stock: 100,
+    };
+    return { success: true, product };
+  }
   return { success: false };
 };
 

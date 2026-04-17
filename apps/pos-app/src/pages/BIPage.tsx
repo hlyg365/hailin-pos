@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useOrderStore, useFinanceStore } from '../store';
 
 // 数字滚动动画组件
 function AnimatedNumber({ value, prefix = '', suffix = '', decimals = 0 }: {
@@ -438,82 +439,70 @@ function TechDashboard({ data, onExit }: { data: any; onExit: () => void }) {
 export default function BIPage() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [realtimeData, setRealtimeData] = useState({
-    totalSales: 125680,
-    orderCount: 356,
-    avgOrderValue: 352.3,
-    customers: 289,
-  });
+  const { orders } = useOrderStore();
+  const { todaySales } = useFinanceStore();
 
-  // 模拟实时数据跳动
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRealtimeData(prev => ({
-        totalSales: prev.totalSales + Math.floor(Math.random() * 100),
-        orderCount: prev.orderCount + 1,
-        avgOrderValue: (prev.totalSales + 80) / (prev.orderCount + 1),
-        customers: prev.customers + Math.floor(Math.random() * 2),
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  // 计算实时数据（基于真实订单数据）
+  const realtimeData = useMemo(() => {
+    const today = new Date().toDateString();
+    const todayOrders = orders.filter(o => o.createdAt?.startsWith(today) && o.status !== 'suspended');
+    const totalSales = todayOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const orderCount = todayOrders.length;
+    const avgOrderValue = orderCount > 0 ? totalSales / orderCount : 0;
+    return {
+      totalSales,
+      orderCount,
+      avgOrderValue,
+      customers: new Set(todayOrders.map(o => o.memberId).filter(Boolean)).size,
+    };
+  }, [orders]);
 
-  // 时段分析数据
-  const hourlyData = [
-    { hour: '06-08', sales: 8500, orders: 45 },
-    { hour: '08-10', sales: 15600, orders: 89 },
-    { hour: '10-12', sales: 12300, orders: 67 },
-    { hour: '12-14', sales: 18900, orders: 112 },
-    { hour: '14-16', sales: 9800, orders: 52 },
-    { hour: '16-18', sales: 14200, orders: 78 },
-    { hour: '18-20', sales: 22500, orders: 128 },
-    { hour: '20-22', sales: 31800, orders: 186 },
-  ];
+  // 时段分析数据（基于真实订单数据）
+  const hourlyData = useMemo(() => {
+    const today = new Date().toDateString();
+    const todayOrders = orders.filter(o => o.createdAt?.startsWith(today));
+    const hourlyMap: Record<string, { sales: number; orders: number }> = {};
+    
+    // 初始化所有时段
+    ['06-08', '08-10', '10-12', '12-14', '14-16', '16-18', '18-20', '20-22'].forEach(hour => {
+      hourlyMap[hour] = { sales: 0, orders: 0 };
+    });
+    
+    todayOrders.forEach(order => {
+      const hour = new Date(order.createdAt).getHours();
+      let timeSlot = '20-22';
+      if (hour >= 6 && hour < 8) timeSlot = '06-08';
+      else if (hour >= 8 && hour < 10) timeSlot = '08-10';
+      else if (hour >= 10 && hour < 12) timeSlot = '10-12';
+      else if (hour >= 12 && hour < 14) timeSlot = '12-14';
+      else if (hour >= 14 && hour < 16) timeSlot = '14-16';
+      else if (hour >= 16 && hour < 18) timeSlot = '16-18';
+      else if (hour >= 18 && hour < 20) timeSlot = '18-20';
+      
+      hourlyMap[timeSlot].sales += order.finalAmount || 0;
+      hourlyMap[timeSlot].orders += 1;
+    });
+    
+    return Object.entries(hourlyMap).map(([hour, data]) => ({ hour, ...data }));
+  }, [orders]);
 
-  // 门店排行
-  const storeRanking = [
-    { rank: 1, store: '望京店', sales: 45680, orders: 128, avgPrice: 356.8, margin: 38.2, trend: '+15%' },
-    { rank: 2, store: '国贸店', sales: 38920, orders: 112, avgPrice: 347.5, margin: 36.8, trend: '+12%' },
-    { rank: 3, store: '中关村店', sales: 32450, orders: 96, avgPrice: 338.0, margin: 35.5, trend: '+8%' },
-    { rank: 4, store: '五道口店', sales: 28900, orders: 85, avgPrice: 340.0, margin: 37.0, trend: '+5%' },
-    { rank: 5, store: '亚运村店', sales: 24560, orders: 72, avgPrice: 341.1, margin: 34.2, trend: '-2%' },
-  ];
+  // 门店排行（空数据，等待后端接入）
+  const storeRanking: { rank: number; store: string; sales: number; orders: number; avgPrice: number; margin: number; trend: string }[] = [];
 
-  // ABC分析数据
-  const abcProducts = [
-    { name: '农夫山泉550ml', sales: 1560, ratio: 0.12, type: 'A' },
-    { name: '可口可乐330ml', sales: 1280, ratio: 0.10, type: 'A' },
-    { name: '康师傅方便面', sales: 980, ratio: 0.08, type: 'A' },
-    { name: '双汇火腿肠', sales: 750, ratio: 0.06, type: 'B' },
-    { name: '奥利奥饼干', sales: 620, ratio: 0.05, type: 'B' },
-    { name: '伊利纯牛奶', sales: 580, ratio: 0.04, type: 'B' },
-    { name: '蒙牛酸奶', sales: 420, ratio: 0.03, type: 'C' },
-    { name: '绿箭口香糖', sales: 350, ratio: 0.03, type: 'C' },
-  ];
+  // ABC分析数据（空数据，等待后端接入）
+  const abcProducts: { name: string; sales: number; ratio: number; type: string }[] = [];
 
-  // 毛利分析
+  // 毛利分析（空数据，等待后端接入）
   const profitData = {
-    totalRevenue: 125680,
-    totalCost: 78650,
-    grossProfit: 47030,
-    grossMargin: 37.4,
-    categoryProfit: [
-      { category: '饮料', revenue: 45600, cost: 28400, margin: 37.7 },
-      { category: '食品', revenue: 35200, cost: 21800, margin: 38.1 },
-      { category: '零食', revenue: 21800, cost: 13200, margin: 39.4 },
-      { category: '奶制品', revenue: 15600, cost: 9800, margin: 37.2 },
-      { category: '生鲜', revenue: 7480, cost: 5450, margin: 27.1 },
-    ],
+    totalRevenue: 0,
+    totalCost: 0,
+    grossProfit: 0,
+    grossMargin: 0,
+    categoryProfit: [],
   };
 
-  // 预警数据
-  const alerts = [
-    { type: 'inventory', level: 'critical', message: '望京店：红富士苹果库存不足', time: '10分钟前' },
-    { type: 'inventory', level: 'warning', message: '国贸店：蒙牛酸奶临期3天', time: '30分钟前' },
-    { type: 'order', level: 'warning', message: '异常退单：订单#MINI20240117005', time: '1小时前' },
-    { type: 'finance', level: 'info', message: '中关村店：日结单待审核', time: '2小时前' },
-    { type: 'inventory', level: 'critical', message: '中关村店：散装面包已售罄', time: '2小时前' },
-  ];
+  // 预警数据（空数据，等待后端接入）
+  const alerts: { type: string; level: string; message: string; time: string }[] = [];
 
   // 投屏功能
   const handleFullscreen = useCallback(async () => {

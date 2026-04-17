@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useProductStore, useMemberStore } from '../store';
+import { useProductStore, useMemberStore, useStoreStore } from '../store';
 
 type Tab = 'home' | 'category' | 'cart' | 'orders' | 'my' | 'service';
 
@@ -273,12 +273,13 @@ export default function MiniStorePage() {
   
   const { products } = useProductStore();
   const { currentMember } = useMemberStore();
+  const { stores } = useStoreStore();
   
-  // 团长身份状态（模拟：当前用户是否是团长）
+  // 团长身份状态（实际部署时从用户信息获取）
   const [isGroupLeader, setIsGroupLeader] = useState(false);
   
-  // 门店选择功能
-  const [selectedStore, setSelectedStore] = useState({
+  // 门店选择功能（基于真实门店数据）
+  const [selectedStore, setSelectedStore] = useState(stores[0] || {
     id: 'store001',
     name: '望京店',
     address: '北京市朝阳区望京SOHO T1-B座',
@@ -289,13 +290,17 @@ export default function MiniStorePage() {
   });
   const [showStoreSelector, setShowStoreSelector] = useState(false);
   
-  // 门店列表
-  const storeList = [
+  // 门店列表（从store获取真实数据）
+  const storeList = stores.length > 0 ? stores.map(store => ({
+    id: store.id,
+    name: store.name,
+    address: store.address || '',
+    distance: '未知',
+    phone: store.phone || '',
+    businessHours: store.businessHours || '',
+    isOpen: store.status === 'active',
+  })) : [
     { id: 'store001', name: '望京店', address: '北京市朝阳区望京SOHO T1-B座', distance: '350m', phone: '010-64781234', businessHours: '24小时营业', isOpen: true },
-    { id: 'store002', name: '中关村店', address: '北京市海淀区中关村大街1号', distance: '1.2km', phone: '010-62561234', businessHours: '07:00-23:00', isOpen: true },
-    { id: 'store003', name: '国贸店', address: '北京市朝阳区国贸CBD核心区', distance: '2.5km', phone: '010-65881234', businessHours: '08:00-22:00', isOpen: true },
-    { id: 'store004', name: '三里屯店', address: '北京市朝阳区三里屯太古里', distance: '3.1km', phone: '010-64181234', businessHours: '10:00-24:00', isOpen: true },
-    { id: 'store005', name: '五道口店', address: '北京市海淀区五道口购物中心', distance: '4.8km', phone: '010-62681234', businessHours: '09:00-22:00', isOpen: false },
   ];
   // 团长数据
   const groupLeaderData = {
@@ -1456,10 +1461,11 @@ export default function MiniStorePage() {
             {/* 定位按钮 */}
             <button 
               onClick={() => {
-                // 模拟重新定位
-                const randomStore = storeList[Math.floor(Math.random() * storeList.length)];
-                setSelectedStore(randomStore);
-                setShowStoreSelector(false);
+                // 选择最近的门店（实际部署时使用GPS定位）
+                if (storeList.length > 0) {
+                  setSelectedStore(storeList[0]);
+                  setShowStoreSelector(false);
+                }
               }}
               className="w-full py-3 mb-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium flex items-center justify-center gap-2"
             >

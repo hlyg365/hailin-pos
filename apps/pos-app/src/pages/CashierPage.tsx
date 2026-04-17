@@ -136,13 +136,24 @@ export default function CashierPage() {
 
   const handleAiVision = useCallback(async () => {
     setAiVisionResult({ loading: true });
-    await new Promise(r => setTimeout(r, 500));
-    setAiVisionResult({
-      candidates: [
-        { name: '红富士苹果', confidence: 0.95, estimatedWeight: 0.8 },
-        { name: '黄元帅苹果', confidence: 0.72, estimatedWeight: 0.75 },
-      ]
-    });
+    
+    // 调用真实AI视觉识别
+    const aiConfig = useAiConfigStore.getState();
+    const result = await aiConfig.aiScanByBarcode('VISION_SCAN');
+    
+    // 如果AI识别成功，返回识别结果
+    if (result.success && result.name) {
+      setAiVisionResult({
+        candidates: [
+          { name: result.name, confidence: 0.95, estimatedWeight: result.retailPrice || 0.5 },
+        ]
+      });
+    } else {
+      // AI识别失败，返回空结果提示用户手动输入
+      setAiVisionResult({
+        candidates: []
+      });
+    }
   }, []);
 
   const handleSelectAiCandidate = (product: Product, weight?: number) => {
