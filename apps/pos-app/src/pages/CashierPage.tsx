@@ -2,11 +2,23 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
 import type { Product } from '../types';
+import { aiService, scaleService, VisionScaleController } from '../services/aiService';
 
-// AI条码识别模拟
+// AI 服务配置
+const AI_SERVICE_URL = 'http://127.0.0.1:5000';
+
+// AI条码识别（优先本地服务）
 const aiBarcodeLookup = async (barcode: string): Promise<{ success: boolean; product?: Product; candidates?: Product[] }> => {
-  await new Promise(r => setTimeout(r, 300));
   const products = useProductStore.getState().products;
+  
+  // 优先本地AI服务
+  const result = await aiService.recognize(barcode);
+  if (result.status === 'success' && result.product) {
+    const matched = products.find(p => p.name === result.product);
+    if (matched) return { success: true, product: matched };
+  }
+  
+  // 回退到本地商品库
   const exact = products.find(p => p.barcode === barcode);
   if (exact) return { success: true, product: exact };
   
@@ -15,8 +27,18 @@ const aiBarcodeLookup = async (barcode: string): Promise<{ success: boolean; pro
   return { success: false, candidates: similar.slice(0, 3) };
 };
 
-// AI视觉识别模拟
+// AI视觉识别（优先本地服务）
 const aiVisionRecognize = async (): Promise<{ name: string; confidence: number; estimatedWeight?: number }[]> => {
+  // 优先本地AI服务
+  const result = await aiService.recognize('');
+  if (result.status === 'success' && result.all_detected) {
+    return result.all_detected.map(item => ({
+      name: item.name,
+      confidence: item.confidence,
+    }));
+  }
+  
+  // 模拟模式
   await new Promise(r => setTimeout(r, 500));
   return [
     { name: '红富士苹果', confidence: 0.95, estimatedWeight: 0.8 },
@@ -45,6 +67,11 @@ export default function CashierPage() {
   const [selectedPay, setSelectedPay] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  // AI 服务状态
+  const [aiServiceStatus, setAiServiceStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [scaleStatus, setScaleStatus] = useState<'idle' | 'listening' | 'triggered'>('idle');
+  const [currentWeight, setCurrentWeight] = useState<number>(0);
 
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } = useCartStore();
   const { products, checkInventory, deductInventory } = useProductStore();
@@ -53,6 +80,55 @@ export default function CashierPage() {
   const { createOrder, suspendOrder } = useOrderStore();
   const { addSales } = useFinanceStore();
   const { isOnline } = useOfflineStore();
+
+  // AI 服务状态检查
+  useEffect(() => {
+    const checkAIService = async () => {
+      setAiServiceStatus('checking');
+      const available = await aiService.checkHealth();
+      setAiServiceStatus(available ? 'online' : 'offline');
+    };
+    
+    checkAIService();
+    const interval = setInterval(checkAIService, 30000); // 每30秒检查一次
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // 启动秤监听（模拟模式）
+  useEffect(() => {
+    const controller = new VisionScaleController({
+      aiServiceUrl: AI_SERVICE_URL,
+      autoCapture: true,
+    });
+
+    const startScale = async () => {
+      await controller.start((result, weight) => {
+        if (result.status === 'success' && result.product) {
+          const matched = products.find(p => p.name === result.product);
+          if (matched) {
+            handleAddProduct(matched, weight);
+          }
+        }
+      });
+      setScaleStatus('listening');
+    };
+
+    // 模拟模式
+    scaleService.startListeningSimulate((reading) => {
+      setCurrentWeight(reading.weight);
+      if (reading.weight > 0.01) {
+        setScaleStatus('triggered');
+        // 自动触发识别
+        handleVisionRecognize();
+      }
+    });
+
+    return () => {
+      scaleService.stopListening();
+      controller.stop();
+    };
+  }, []);
 
   // 分类列表
   const categories = useMemo(() => {
@@ -246,6 +322,26 @@ export default function CashierPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {/* AI 服务状态 */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`w-2 h-2 rounded-full ${
+              aiServiceStatus === 'online' ? 'bg-green-500' : 
+              aiServiceStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-400'
+            }`}></span>
+            <span className="text-gray-500">AI {aiServiceStatus === 'online' ? '已连接' : aiServiceStatus === 'checking' ? '检测中' : '离线'}</span>
+          </div>
+          
+          {/* 电子秤状态 */}
+          <div className="flex items-center gap-2 text-xs px-2 py-1 bg-gray-100 rounded">
+            <span className={`w-2 h-2 rounded-full ${
+              scaleStatus === 'triggered' ? 'bg-green-500 animate-pulse' : 
+              scaleStatus === 'listening' ? 'bg-blue-500' : 'bg-gray-400'
+            }`}></span>
+            <span className="text-gray-600">
+              {scaleStatus === 'triggered' ? `称重中 ${currentWeight.toFixed(3)}kg` : '秤就绪'}
+            </span>
+          </div>
+          
           {!isOnline && (
             <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
               <span className="w-2 h-2 bg-white rounded-full"></span>
