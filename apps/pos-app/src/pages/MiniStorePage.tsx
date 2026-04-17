@@ -273,6 +273,21 @@ export default function MiniStorePage() {
   
   const { products } = useProductStore();
   const { currentMember } = useMemberStore();
+  
+  // 团长身份状态（模拟：当前用户是否是团长）
+  const [isGroupLeader, setIsGroupLeader] = useState(false);
+  // 团长数据
+  const groupLeaderData = {
+    groupName: '望京社区团购群',
+    memberCount: 156,
+    activeOrders: 12,
+    todayEarnings: 328.5,
+    totalEarnings: 5680,
+    pendingOrders: [
+      { id: 'GB001', product: '新鲜土鸡蛋30枚', quantity: 8, amount: 184, status: '待发货' },
+      { id: 'GB002', product: '有机蔬菜套餐', quantity: 5, amount: 245, status: '待发货' },
+    ],
+  };
 
   // 分类数据
   const categories = [
@@ -357,12 +372,6 @@ export default function MiniStorePage() {
   ];
 
   const orderStatus = ['全部', '待付款', '待取货', '配送中', '已完成'];
-  
-  // 外卖待接单
-  const deliveryOrders = [
-    { platform: '美团', pending: 3, processing: 1, color: '#07C160' },
-    { platform: '饿了么', pending: 2, processing: 0, color: '#FF6B00' },
-  ];
 
   // 社区服务分类
   const serviceCategories = [
@@ -592,32 +601,6 @@ export default function MiniStorePage() {
                 ))}
               </div>
             </section>
-
-            {/* 外卖待接单入口 */}
-            {deliveryOrders.some(o => o.pending > 0) && (
-              <section className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-4 text-white shadow-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🛵</span>
-                    <div>
-                      <h3 className="font-semibold">外卖待接单</h3>
-                      <p className="text-sm opacity-80">您有 {deliveryOrders.reduce((sum, o) => sum + o.pending, 0)} 单待处理</p>
-                    </div>
-                  </div>
-                  <button className="px-4 py-2 bg-white text-green-600 rounded-full text-sm font-medium">
-                    立即处理
-                  </button>
-                </div>
-                <div className="flex gap-3">
-                  {deliveryOrders.map((order, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-white/20 rounded-lg px-3 py-2">
-                      <span style={{ color: order.color }}>{order.platform}</span>
-                      <span className="font-bold">{order.pending}单</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {/* 猜你喜欢 */}
             <section>
@@ -1005,6 +988,114 @@ export default function MiniStorePage() {
                 </div>
               ))}
             </div>
+
+            {/* 团长功能（仅团长可见） */}
+            {isGroupLeader && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-2xl p-4 text-white shadow-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-2xl">👑</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-lg">团长工作台</p>
+                      <p className="text-sm opacity-80">{groupLeaderData.groupName}</p>
+                    </div>
+                    <button 
+                      onClick={() => setIsGroupLeader(false)}
+                      className="text-xs bg-white/20 px-2 py-1 rounded"
+                    >
+                      退出团长
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white/20 rounded-lg p-2 text-center">
+                      <p className="text-xl font-bold">{groupLeaderData.memberCount}</p>
+                      <p className="text-xs opacity-80">团员数</p>
+                    </div>
+                    <div className="bg-white/20 rounded-lg p-2 text-center">
+                      <p className="text-xl font-bold">{groupLeaderData.activeOrders}</p>
+                      <p className="text-xs opacity-80">进行中</p>
+                    </div>
+                    <div className="bg-white/20 rounded-lg p-2 text-center">
+                      <p className="text-xl font-bold">¥{groupLeaderData.todayEarnings.toFixed(0)}</p>
+                      <p className="text-xs opacity-80">今日收益</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 待处理订单 */}
+                <div className="bg-white rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-semibold">待处理订单</p>
+                    <span className="text-sm text-orange-500">{groupLeaderData.pendingOrders.length} 单</span>
+                  </div>
+                  <div className="space-y-2">
+                    {groupLeaderData.pendingOrders.map((order, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                          <span>📦</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{order.product}</p>
+                          <p className="text-xs text-gray-500">{order.quantity}份 · ¥{order.amount}</p>
+                        </div>
+                        <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded">
+                          {order.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <button className="w-full mt-3 py-2 bg-orange-500 text-white rounded-xl text-sm font-medium">
+                    查看全部订单
+                  </button>
+                </div>
+
+                {/* 团长功能菜单 */}
+                <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                  {[
+                    { icon: '📢', label: '发起团购', desc: '创建新的团购活动', color: 'from-purple-500 to-pink-500' },
+                    { icon: '📊', label: '业绩统计', desc: '查看佣金和业绩', color: 'from-blue-500 to-cyan-500' },
+                    { icon: '👥', label: '我的团员', desc: '管理团购成员', color: 'from-green-500 to-emerald-500' },
+                    { icon: '💰', label: '提现记录', desc: '佣金提现明细', color: 'from-amber-500 to-orange-500' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-4 p-4 border-b last:border-0 hover:bg-gray-50 transition-colors">
+                      <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center text-white`}>
+                        <span className="text-lg">{item.icon}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{item.label}</p>
+                        <p className="text-xs text-gray-500">{item.desc}</p>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 成为团长入口（非团长可见） */}
+            {!isGroupLeader && (
+              <div 
+                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200 cursor-pointer hover:border-amber-300 transition-colors"
+                onClick={() => setIsGroupLeader(true)}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center">
+                    <span className="text-2xl">👑</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-800">申请成为团长</p>
+                    <p className="text-sm text-amber-600">分享商品赚取佣金，轻松副业增收</p>
+                  </div>
+                  <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            )}
 
             {/* 其他功能 */}
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
