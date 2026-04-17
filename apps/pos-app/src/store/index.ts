@@ -529,7 +529,113 @@ interface AiConfigState {
   updateConfig: (index: number, updates: Partial<AiBarcodeConfig>) => void;
   deleteConfig: (index: number) => void;
   setLastTestResult: (index: number, result: AiBarcodeConfig['lastTestResult']) => void;
+  // AI条码识别 - 返回商品信息
+  aiScanByBarcode: (barcode: string) => Promise<{
+    success: boolean;
+    name?: string;
+    category?: string;
+    retailPrice?: number;
+    costPrice?: number;
+    message?: string;
+  }>;
 }
+
+// AI条码识别函数
+const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Promise<{
+  success: boolean;
+  name?: string;
+  category?: string;
+  retailPrice?: number;
+  costPrice?: number;
+  message?: string;
+}> => {
+  // 找到已启用的配置
+  const enabledConfig = configs.find(c => c.enabled);
+  if (!enabledConfig) {
+    return { success: false, message: '请先配置并启用AI识别接口' };
+  }
+  
+  // 检查是否配置了必要的认证信息
+  if (!enabledConfig.apiUrl) {
+    return { success: false, message: '请先配置API接口地址' };
+  }
+  
+  if (!enabledConfig.apiKey && !enabledConfig.appCode) {
+    return { success: false, message: '请先配置API Key或AppCode' };
+  }
+
+  try {
+    // 构建请求体
+    let requestBody: Record<string, any> = {};
+    try {
+      const template = enabledConfig.requestTemplate
+        .replace(/\${barcode}/g, barcode)
+        .replace(/\${store_id}/g, 'STORE001')
+        .replace(/\${timestamp}/g, Date.now().toString());
+      requestBody = JSON.parse(template);
+    } catch {
+      requestBody = { barcode };
+    }
+
+    // 构建请求头
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (enabledConfig.apiKey) {
+      headers['Authorization'] = `Bearer ${enabledConfig.apiKey}`;
+    }
+    if (enabledConfig.appCode) {
+      headers['X-App-Code'] = enabledConfig.appCode;
+    }
+    if (enabledConfig.appSecret) {
+      headers['X-App-Secret'] = enabledConfig.appSecret;
+    }
+
+    // 调用API
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), enabledConfig.timeout * 1000);
+
+    const response = await fetch(enabledConfig.apiUrl, {
+      method: enabledConfig.method,
+      headers,
+      body: enabledConfig.method === 'POST' ? JSON.stringify(requestBody) : undefined,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return { success: false, message: `API请求失败: ${response.status}` };
+    }
+
+    const data = await response.json();
+    
+    // 根据字段映射提取数据
+    const getNestedValue = (obj: any, path: string): any => {
+      return path.split('.').reduce((acc, part) => acc?.[part], obj);
+    };
+
+    const name = getNestedValue(data, enabledConfig.responseMapping.name) || `商品(${barcode})`;
+    const category = getNestedValue(data, enabledConfig.responseMapping.category) || '食品';
+    const retailPrice = parseFloat(getNestedValue(data, enabledConfig.responseMapping.price)) || 0;
+    const costPrice = parseFloat(getNestedValue(data, enabledConfig.responseMapping.costPrice)) || 0;
+
+    return {
+      success: true,
+      name,
+      category,
+      retailPrice,
+      costPrice,
+      message: '识别成功',
+    };
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      return { success: false, message: '请求超时，请检查网络或调整超时时间' };
+    }
+    return { success: false, message: `识别失败: ${error.message}` };
+  }
+};
 
 const defaultAiConfig: AiBarcodeConfig = {
   enabled: true,
@@ -551,7 +657,7 @@ const defaultAiConfig: AiBarcodeConfig = {
 
 export const useAiConfigStore = create<AiConfigState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       configs: [defaultAiConfig],
       addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
       updateConfig: (index, updates) => set((state) => ({
@@ -563,6 +669,11 @@ export const useAiConfigStore = create<AiConfigState>()(
       setLastTestResult: (index, result) => set((state) => ({
         configs: state.configs.map((c, i) => i === index ? { ...c, lastTestResult: result } : c),
       })),
+      // AI条码识别
+      aiScanByBarcode: async (barcode: string) => {
+        const configs = get().configs;
+        return aiScanByBarcode(barcode, configs);
+      },
     }),
     {
       name: 'hailin-ai-config',
