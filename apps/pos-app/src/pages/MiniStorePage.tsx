@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useProductStore, useMemberStore } from '../store';
 
-type Tab = 'home' | 'category' | 'cart' | 'orders' | 'my';
+type Tab = 'home' | 'category' | 'cart' | 'orders' | 'my' | 'service';
 
 // 轮播Banner组件
 function BannerCarousel({ banners }: { banners: { image: string; title: string; subtitle: string; color: string }[] }) {
@@ -266,6 +266,10 @@ export default function MiniStorePage() {
   const [orderFilter, setOrderFilter] = useState('全部');
   const [showCheckout, setShowCheckout] = useState(false);
   const [showMemberCode, setShowMemberCode] = useState(false);
+  const [activeServiceTab, setActiveServiceTab] = useState(0);
+  const [showServiceDetail, setShowServiceDetail] = useState(false);
+  const [selectedService, setSelectedService] = useState<any>(null);
+  const [serviceOrders, setServiceOrders] = useState<any[]>([]);
   
   const { products } = useProductStore();
   const { currentMember } = useMemberStore();
@@ -359,6 +363,37 @@ export default function MiniStorePage() {
     { platform: '美团', pending: 3, processing: 1, color: '#07C160' },
     { platform: '饿了么', pending: 2, processing: 0, color: '#FF6B00' },
   ];
+
+  // 社区服务分类
+  const serviceCategories = [
+    { id: 0, name: '全部', icon: '🏪' },
+    { id: 1, name: '打印复印', icon: '🖨️' },
+    { id: 2, name: '家电维修', icon: '🔧' },
+    { id: 3, name: '洗衣干洗', icon: '👔' },
+    { id: 4, name: '家政保洁', icon: '🧹' },
+    { id: 5, name: '快递服务', icon: '📦' },
+  ];
+
+  // 社区服务项目
+  const services = [
+    { id: 1, category: 1, name: '黑白打印', icon: '📄', price: 0.2, unit: '元/张', desc: 'A4纸黑白打印', tag: '热门', provider: '海邻快印' },
+    { id: 2, category: 1, name: '彩色打印', icon: '🌈', price: 1.5, unit: '元/张', desc: 'A4纸彩色打印', tag: '高清', provider: '海邻快印' },
+    { id: 3, category: 1, name: '复印', icon: '📋', price: 0.1, unit: '元/张', desc: 'A4纸单面复印', provider: '海邻快印' },
+    { id: 4, category: 1, name: '身份证复印', icon: '🪪', price: 1, unit: '元/张', desc: '正反两面复印', provider: '海邻快印' },
+    { id: 5, category: 2, name: '小家电检修', icon: '🔌', price: 30, unit: '次', desc: '电饭煲、电水壶等', tag: '上门', provider: '邻家维修' },
+    { id: 6, category: 2, name: '空调清洗', icon: '❄️', price: 80, unit: '台', desc: '挂机/柜机深度清洗', tag: '优惠', provider: '邻家维修' },
+    { id: 7, category: 2, name: '油烟机清洗', icon: '🍳', price: 100, unit: '台', desc: '拆机深度清洁', provider: '邻家维修' },
+    { id: 8, category: 3, name: '普通水洗', icon: '👕', price: 8, unit: '元/件', desc: '衣物水洗甩干', provider: '洁净干洗' },
+    { id: 9, category: 3, name: '干洗', icon: '🎩', price: 25, unit: '元/件', desc: '西装大衣干洗', tag: '精洗', provider: '洁净干洗' },
+    { id: 10, category: 3, name: '鞋类清洗', icon: '👟', price: 20, unit: '双', desc: '运动鞋清洗保养', provider: '洁净干洗' },
+    { id: 11, category: 4, name: '日常保洁', icon: '✨', price: 50, unit: '小时', desc: '地面擦拭家具清洁', tag: '推荐', provider: '洁伴家政' },
+    { id: 12, category: 4, name: '深度保洁', icon: '🌟', price: 100, unit: '次', desc: '全屋深度清洁', provider: '洁伴家政' },
+    { id: 13, category: 5, name: '快递代收', icon: '📮', price: 0, unit: '免费', desc: '暂存24小时内取件', provider: '门店服务' },
+    { id: 14, category: 5, name: '快递寄件', icon: '✉️', price: 5, unit: '元起', desc: '多家快递可选', provider: '门店服务' },
+  ];
+
+  // 筛选服务
+  const filteredServices = services.filter(s => activeServiceTab === 0 || s.category === activeServiceTab);
 
   // 添加到购物车
   const addToCart = (product: any) => {
@@ -474,8 +509,8 @@ export default function MiniStorePage() {
           {[
             { id: 'home', label: '首页', icon: '🏠' },
             { id: 'category', label: '分类', icon: '📂' },
+            { id: 'service', label: '服务', icon: '🛠️' },
             { id: 'cart', label: '购物车', icon: '🛒' },
-            { id: 'orders', label: '订单', icon: '📋' },
             { id: 'my', label: '我的', icon: '👤' },
           ].map(tab => (
             <button
@@ -507,17 +542,17 @@ export default function MiniStorePage() {
 
             {/* 快捷服务入口 */}
             <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="grid grid-cols-5 gap-4">
+              <div className="grid grid-cols-5 gap-3">
                 {[
-                  { icon: '🍜', label: '到店自取', color: 'from-orange-400 to-orange-500' },
-                  { icon: '🚚', label: '配送到家', color: 'from-blue-400 to-blue-500' },
-                  { icon: '👥', label: '社区团购', color: 'from-purple-400 to-purple-500' },
-                  { icon: '🎫', label: '优惠券', color: 'from-pink-400 to-pink-500' },
-                  { icon: '💰', label: '会员码', color: 'from-green-400 to-green-500' },
+                  { icon: '🍜', label: '到店自取', color: 'from-orange-400 to-orange-500', action: null },
+                  { icon: '🚚', label: '配送到家', color: 'from-blue-400 to-blue-500', action: null },
+                  { icon: '👥', label: '社区团购', color: 'from-purple-400 to-purple-500', action: null },
+                  { icon: '🛠️', label: '社区服务', color: 'from-teal-400 to-teal-500', action: 'service' },
+                  { icon: '💰', label: '会员码', color: 'from-green-400 to-green-500', action: null },
                 ].map((item, i) => (
                   <button
                     key={i}
-                    onClick={() => item.label === '社区团购' && setActiveTab('category')}
+                    onClick={() => item.action && setActiveTab(item.action as Tab)}
                     className="flex flex-col items-center"
                   >
                     <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center text-2xl shadow-lg mb-1`}>
@@ -786,75 +821,95 @@ export default function MiniStorePage() {
           </div>
         )}
 
-        {/* 订单 */}
-        {activeTab === 'orders' && (
-          <div className="p-4">
-            {/* 筛选标签 */}
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-              {orderStatus.map(status => (
-                <button
-                  key={status}
-                  onClick={() => setOrderFilter(status)}
-                  className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-colors ${
-                    orderFilter === status 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white text-gray-600'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+        {/* 服务 */}
+        {activeTab === 'service' && (
+          <div className="p-4 space-y-4">
+            {/* 服务头部 */}
+            <div className="bg-gradient-to-r from-teal-500 to-cyan-600 rounded-2xl p-5 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="relative z-10">
+                <h2 className="text-xl font-bold mb-1">社区便民服务</h2>
+                <p className="text-sm opacity-90">打印复印 · 家电维修 · 洗衣干洗 · 家政保洁</p>
+              </div>
             </div>
-            
-            {/* 订单列表 */}
-            <div className="space-y-4">
-              {orders.filter(o => orderFilter === '全部' || o.status === orderFilter).length === 0 ? (
-                <div className="text-center py-16">
-                  <span className="text-6xl mb-3 block">📋</span>
-                  <p className="text-gray-500">暂无订单</p>
-                </div>
-              ) : (
-                orders.filter(o => orderFilter === '全部' || o.status === orderFilter).map(order => (
-                  <div key={order.id} className="bg-white rounded-2xl overflow-hidden shadow-sm">
-                    <div className="p-4 flex items-center justify-between border-b">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">🏪</span>
-                        <span className="font-medium">{order.store}</span>
-                      </div>
-                      <span className={`text-sm font-medium ${
-                        order.status === '已完成' ? 'text-gray-500' :
-                        order.status === '待取货' ? 'text-orange-600' :
-                        'text-blue-600'
-                      }`}>
-                        {order.status}
-                      </span>
+
+            {/* 服务分类 */}
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="grid grid-cols-3 gap-3">
+                {serviceCategories.slice(1).map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveServiceTab(cat.id)}
+                    className={`p-3 rounded-xl flex flex-col items-center transition-all ${
+                      activeServiceTab === cat.id 
+                        ? 'bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-teal-400' 
+                        : 'bg-gray-50 border-2 border-transparent'
+                    }`}
+                  >
+                    <span className="text-2xl mb-1">{cat.icon}</span>
+                    <span className={`text-xs font-medium ${activeServiceTab === cat.id ? 'text-teal-600' : 'text-gray-600'}`}>
+                      {cat.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 服务项目列表 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">服务项目</h3>
+                <span className="text-sm text-gray-500">{filteredServices.length}项服务</span>
+              </div>
+              
+              {filteredServices.map(service => (
+                <div 
+                  key={service.id}
+                  className="bg-white rounded-2xl p-4 shadow-sm"
+                  onClick={() => { setSelectedService(service); setShowServiceDetail(true); }}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl flex items-center justify-center text-2xl">
+                      {service.icon}
                     </div>
-                    <div className="p-4">
-                      <div className="space-y-2">
-                        {order.items.map((item, i) => (
-                          <div key={i} className="flex justify-between text-sm">
-                            <span className="text-gray-600">{item.name} x{item.qty}</span>
-                          </div>
-                        ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-semibold">{service.name}</h4>
+                        {service.tag && (
+                          <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full">
+                            {service.tag}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <p className="text-sm text-gray-500 mb-2">{service.desc}</p>
+                      <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-xs text-gray-500">{order.no}</p>
-                          <p className="text-xs text-gray-400">{order.time}</p>
+                          <span className="text-lg font-bold text-teal-600">¥{service.price}</span>
+                          <span className="text-xs text-gray-400 ml-1">{service.unit}</span>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-red-600">¥{order.amount.toFixed(2)}</p>
-                          {order.status === '待取货' && (
-                            <button className="mt-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-sm">
-                              确认取货
-                            </button>
-                          )}
-                        </div>
+                        <button 
+                          className="px-4 py-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-full text-sm font-medium"
+                          onClick={(e) => { e.stopPropagation(); setSelectedService(service); setShowServiceDetail(true); }}
+                        >
+                          立即预约
+                        </button>
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                </div>
+              ))}
+            </div>
+
+            {/* 服务须知 */}
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-4">
+              <h4 className="font-medium mb-2 flex items-center gap-2">
+                <span>📋</span> 服务须知
+              </h4>
+              <div className="space-y-1 text-sm text-gray-600">
+                <p>1. 部分服务需提前预约，门店会与您确认</p>
+                <p>2. 家电维修上门费需额外支付</p>
+                <p>3. 洗衣干洗预计2-3个工作日完成</p>
+              </div>
             </div>
           </div>
         )}
@@ -985,6 +1040,78 @@ export default function MiniStorePage() {
           onClose={() => setSelectedProduct(null)}
           onAdd={() => addToCart(selectedProduct)}
         />
+      )}
+
+      {/* 服务预约弹窗 */}
+      {showServiceDetail && selectedService && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setShowServiceDetail(false)}>
+          <div 
+            className="w-full bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold">服务详情</h3>
+              <button onClick={() => setShowServiceDetail(false)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                ✕
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-2xl flex items-center justify-center text-4xl">
+                  {selectedService.icon}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">{selectedService.name}</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-2xl font-bold text-teal-600">¥{selectedService.price}</span>
+                    <span className="text-sm text-gray-500">{selectedService.unit}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <h4 className="font-medium mb-2">服务说明</h4>
+                <p className="text-sm text-gray-600">{selectedService.desc}</p>
+              </div>
+              <div className="bg-teal-50 rounded-xl p-4 mb-4">
+                <h4 className="font-medium mb-2">服务商</h4>
+                <p className="text-teal-600">{selectedService.provider}</p>
+              </div>
+              <div className="mb-6">
+                <h4 className="font-medium mb-2">预约时间</h4>
+                <div className="grid grid-cols-4 gap-2">
+                  {['今天 14:00-16:00', '今天 16:00-18:00', '明天 10:00-12:00', '明天 14:00-16:00'].map((time, i) => (
+                    <button
+                      key={i}
+                      className={`p-2 rounded-lg text-xs text-center border ${
+                        i === 0 ? 'border-teal-500 bg-teal-50 text-teal-600' : 'border-gray-200'
+                      }`}
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="sticky bottom-0 bg-white p-4 border-t flex gap-3">
+              <button 
+                onClick={() => setShowServiceDetail(false)}
+                className="flex-1 py-4 border rounded-2xl font-medium text-gray-600"
+              >
+                取消
+              </button>
+              <button 
+                onClick={() => {
+                  setServiceOrders([...serviceOrders, { ...selectedService, status: '待确认', orderNo: `SRV${Date.now()}` }]);
+                  setShowServiceDetail(false);
+                  alert('预约成功！服务商会尽快与您联系确认。');
+                }}
+                className="flex-1 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-2xl font-semibold"
+              >
+                确认预约
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 会员码弹窗 */}
