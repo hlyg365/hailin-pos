@@ -10,7 +10,7 @@ const isClearanceMode = (): boolean => {
 };
 
 // 模块类型
-type StoreModule = 'cashier' | 'inventory' | 'products' | 'orders' | 'reports' | 'promo' | 'members' | 'settings';
+type StoreModule = 'cashier' | 'inventory' | 'products' | 'orders' | 'delivery' | 'reports' | 'promo' | 'members' | 'settings';
 
 export default function CashierPage() {
   // 门店管理模块状态
@@ -37,6 +37,7 @@ export default function CashierPage() {
     { id: 'inventory', label: '库存', icon: '📦' },
     { id: 'products', label: '商品', icon: '🏷️' },
     { id: 'orders', label: '订单', icon: '🧾' },
+    { id: 'delivery', label: '配送', icon: '🚚' },
     { id: 'reports', label: '报表', icon: '📊' },
     { id: 'promo', label: '促销', icon: '🎁' },
     { id: 'members', label: '会员', icon: '👥' },
@@ -872,6 +873,161 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
             <div className="text-center py-4 text-gray-400">
               <p>暂无销售数据</p>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // 配送管理
+  if (module === 'delivery') {
+    const [deliveryTab, setDeliveryTab] = useState<'store' | 'mini' | 'platform' | 'groupbuy'>('store');
+    const deliveryTabs = [
+      { id: 'store', label: '门店配送', icon: '🏪' },
+      { id: 'mini', label: '小程序订单', icon: '📱' },
+      { id: 'platform', label: '公域平台', icon: '🌐' },
+      { id: 'groupbuy', label: '团购接龙', icon: '👥' },
+    ];
+    
+    // 模拟配送订单数据
+    const deliveryOrders = {
+      store: [
+        { id: 'D20240117001', type: '调入', from: '国贸店', items: 12, amount: 2800, status: 'pending', time: '14:30' },
+        { id: 'D20240117002', type: '调出', to: '中关村店', items: 8, amount: 1560, status: 'shipped', time: '13:20' },
+      ],
+      mini: [
+        { id: 'MINI20240117001', source: '小程序', items: 5, amount: 89.5, status: 'pending', time: '14:25' },
+        { id: 'MINI20240117002', source: '小程序', items: 3, amount: 45.0, status: 'preparing', time: '14:10' },
+        { id: 'MINI20240117003', source: '小程序', items: 8, amount: 156.0, status: 'shipped', time: '13:50' },
+      ],
+      platform: [
+        { id: 'MT20240117001', source: '美团', items: 4, amount: 68.0, status: 'pending', time: '14:20' },
+        { id: 'ELE20240117001', source: '饿了么', items: 6, amount: 92.0, status: 'preparing', time: '14:05' },
+        { id: 'MT20240117002', source: '美团', items: 3, amount: 45.0, status: 'shipped', time: '13:40' },
+      ],
+      groupbuy: [
+        { id: 'GB20240117001', group: '望京社区群', leader: '张阿姨', items: 25, amount: 680.0, status: 'open', time: '08:00' },
+        { id: 'GB20240117002', group: '国贸业主群', leader: '李叔叔', items: 18, amount: 420.0, status: 'closed', time: '07:30' },
+      ],
+    };
+    
+    const getStatusLabel = (status: string) => {
+      const map: Record<string, { label: string; color: string }> = {
+        pending: { label: '待接单', color: 'yellow' },
+        preparing: { label: '备货中', color: 'blue' },
+        shipped: { label: '已发货', color: 'green' },
+        open: { label: '接龙中', color: 'purple' },
+        closed: { label: '已结束', color: 'gray' },
+      };
+      return map[status] || { label: status, color: 'gray' };
+    };
+    
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        {/* 配送概览 */}
+        <div className="grid grid-cols-4 gap-4 mb-4">
+          {[
+            { label: '待接单', value: 4, icon: '⏳', color: 'yellow' },
+            { label: '备货中', value: 2, icon: '🔄', color: 'blue' },
+            { label: '已发货', value: 3, icon: '✅', color: 'green' },
+            { label: '今日营收', value: '¥1,485', icon: '💰', color: 'purple' },
+          ].map((item, i) => (
+            <div key={i} className={`bg-${item.color}-50 rounded-lg p-3`}>
+              <div className="flex items-center gap-2 mb-1">
+                <span>{item.icon}</span>
+                <span className={`text-sm text-${item.color}-600`}>{item.label}</span>
+              </div>
+              <p className={`text-xl font-bold text-${item.color}-800`}>{item.value}</p>
+            </div>
+          ))}
+        </div>
+        
+        {/* 配送类型切换 */}
+        <div className="bg-white rounded-xl shadow-sm">
+          <div className="border-b px-4">
+            <div className="flex gap-1">
+              {deliveryTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setDeliveryTab(tab.id as typeof deliveryTab)}
+                  className={`px-4 py-3 border-b-2 transition-colors flex items-center gap-2 ${
+                    deliveryTab === tab.id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span className="font-medium">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* 订单列表 */}
+          <div className="p-4">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-gray-500 border-b">
+                  <th className="pb-3">订单号</th>
+                  <th className="pb-3">{deliveryTab === 'store' ? '类型' : '来源'}</th>
+                  <th className="pb-3">{deliveryTab === 'store' ? '对方门店' : deliveryTab === 'groupbuy' ? '团长' : '商品数'}</th>
+                  <th className="pb-3">金额</th>
+                  <th className="pb-3">状态</th>
+                  <th className="pb-3">时间</th>
+                  <th className="pb-3">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(deliveryOrders as any)[deliveryTab]?.map((order: any, i: number) => {
+                  const status = getStatusLabel(order.status);
+                  return (
+                    <tr key={i} className="border-b last:border-0 hover:bg-gray-50">
+                      <td className="py-3 font-mono text-sm">{order.id}</td>
+                      <td className="py-3">
+                        {deliveryTab === 'store' ? (
+                          <span className={`px-2 py-1 rounded text-xs ${order.type === '调入' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                            {order.type}
+                          </span>
+                        ) : (
+                          order.source
+                        )}
+                      </td>
+                      <td className="py-3">
+                        {deliveryTab === 'store' ? (order.from || order.to) : 
+                         deliveryTab === 'groupbuy' ? `${order.group} - ${order.leader}` : 
+                         `${order.items}件`}
+                      </td>
+                      <td className="py-3 text-green-600 font-medium">¥{order.amount.toFixed(1)}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded text-xs bg-${status.color}-100 text-${status.color}-600`}>
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="py-3 text-gray-500">{order.time}</td>
+                      <td className="py-3">
+                        {order.status === 'pending' && (
+                          <button className="text-blue-600 hover:underline text-sm mr-2">接单</button>
+                        )}
+                        {order.status === 'preparing' && (
+                          <button className="text-green-600 hover:underline text-sm mr-2">发货</button>
+                        )}
+                        {order.status === 'open' && (
+                          <button className="text-red-600 hover:underline text-sm mr-2">结束</button>
+                        )}
+                        <button className="text-gray-500 hover:underline text-sm">详情</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            
+            {(deliveryOrders as any)[deliveryTab]?.length === 0 && (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-4xl mb-2">📦</p>
+                <p>暂无{deliveryTabs.find(t => t.id === deliveryTab)?.label}订单</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
