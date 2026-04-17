@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "serialport": "^10.0.0",
-    "@serialport/parser-readline": "^10.0.0"
+    "@serialport/parser-readline": "^10.0.0",
+    "escpos": "^3.0.0-alpha.6",
+    "usb": "^2.11.0"
   },
   "build": {
     "appId": "com.hailin.pos",
@@ -58,10 +60,7 @@
     "nsis": {
       "oneClick": false,
       "perMachine": true,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "../apps/pos-app/public/icon-192.png",
-      "uninstallerIcon": "../apps/pos-app/public/icon-192.png",
-      "installerHeaderIcon": "../apps/pos-app/public/icon-192.png"
+      "allowToChangeInstallationDirectory": true
     },
     "extraResources": [
       {
