@@ -66,6 +66,8 @@ interface ProductState {
   setProducts: (products: Product[]) => void;
   updateInventory: (storeId: string, productId: string, quantity: number) => void;
   getInventory: (storeId: string, productId: string) => Inventory | undefined;
+  checkInventory: (storeId: string, productId: string, requiredQty: number) => { available: boolean; currentQty: number };
+  deductInventory: (storeId: string, productId: string, quantity: number) => boolean;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -100,6 +102,24 @@ export const useProductStore = create<ProductState>((set, get) => ({
   }),
   getInventory: (storeId, productId) => {
     return get().inventories.get(`${storeId}-${productId}`);
+  },
+  checkInventory: (storeId, productId, requiredQty) => {
+    const inv = get().inventories.get(`${storeId}-${productId}`);
+    const currentQty = inv?.quantity ?? 0;
+    return { available: currentQty >= requiredQty, currentQty };
+  },
+  deductInventory: (storeId, productId, quantity) => {
+    const key = `${storeId}-${productId}`;
+    const inv = get().inventories.get(key);
+    if (!inv || inv.quantity < quantity) {
+      return false; // 库存不足，严禁负库存
+    }
+    set((state) => {
+      const newInventories = new Map(state.inventories);
+      newInventories.set(key, { ...inv, quantity: inv.quantity - quantity });
+      return { inventories: newInventories };
+    });
+    return true;
   },
 }));
 
@@ -192,6 +212,7 @@ interface OrderState {
   suspendOrder: (orderId: string) => void;
   resumeOrder: (orderId: string) => Order | null;
   cancelOrder: (orderId: string) => void;
+  deleteSuspendedOrder: (orderId: string) => void;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -203,7 +224,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     if (order) {
       return {
         orders: state.orders.filter(o => o.id !== orderId),
-        suspendedOrders: [...state.suspendedOrders, order],
+        suspendedOrders: [{ ...order, status: 'pending' as const }, ...state.suspendedOrders],
       };
     }
     return state;
@@ -221,6 +242,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
   cancelOrder: (orderId) => set((state) => ({
     orders: state.orders.filter(o => o.id !== orderId),
+  })),
+  deleteSuspendedOrder: (orderId) => set((state) => ({
+    suspendedOrders: state.suspendedOrders.filter(o => o.id !== orderId),
   })),
 }));
 
