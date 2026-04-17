@@ -77,6 +77,9 @@ export default function CashierPage() {
   // AI识别结果（隐藏，不显示按钮但保留功能）
   const [aiScanResult, setAiScanResult] = useState<{ barcode?: string; loading?: boolean; product?: Product; candidates?: Product[] } | null>(null);
   const [aiVisionResult, setAiVisionResult] = useState<{ loading?: boolean; candidates?: { name: string; confidence: number; estimatedWeight?: number }[] } | null>(null);
+  
+  // 当前称重商品（AI视觉识别后设置）
+  const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
 
   
   // 门店模块配置
@@ -127,6 +130,7 @@ export default function CashierPage() {
     if (results.length > 0 && results[0].confidence > 0.8) {
       const matched = products.find(p => p.name.includes(results[0].name) || results[0].name.includes(p.name));
       if (matched) {
+        setCurrentProduct(matched);
         addItem(matched, results[0].estimatedWeight || 0.5);
       }
     }
@@ -194,6 +198,17 @@ export default function CashierPage() {
       return;
     }
     addItem(product, quantity);
+    // 添加成功后清除当前称重商品（如果是称重商品）
+    if (!product.isStandard) {
+      setCurrentProduct(null);
+    }
+  };
+  
+  // 添加称重商品到购物车（从称重面板）
+  const handleAddToCart = () => {
+    if (currentProduct && currentWeight > 0) {
+      handleAddProduct(currentProduct, currentWeight);
+    }
   };
 
   // 会员识别
@@ -467,9 +482,9 @@ export default function CashierPage() {
                 </div>
               </div>
             )}
-            
-        {/* 左侧商品区 */}
-        <div className="flex-1 flex flex-col p-4 overflow-hidden">
+
+            {/* 左侧商品区 */}
+            <div className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* 工具栏 */}
           <div className="flex items-center gap-3 mb-4">
             {/* 搜索框 */}

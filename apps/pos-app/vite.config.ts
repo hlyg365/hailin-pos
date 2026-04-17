@@ -14,6 +14,10 @@ export default defineConfig({
     host: true,
     historyApiFallback: true,
   },
+  preview: {
+    port: 5000,
+    host: true,
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,
