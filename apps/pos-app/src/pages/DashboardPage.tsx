@@ -12,6 +12,10 @@ export default function DashboardPage() {
   const { requests, approveRequest, rejectRequest } = useRestockStore();
   const { lowStockAlerts, overdueAlerts } = useAlertStore();
   
+  // 商品管理子Tab状态
+  type ProductSubTab = 'store' | 'miniprogram' | 'community';
+  const [productSubTab, setProductSubTab] = useState<ProductSubTab>('store');
+  
   // 财务中心-收银明细时间筛选状态
   const [financeTimeRange, setFinanceTimeRange] = useState<TimeRange>('today');
   const [financeDateStart, setFinanceDateStart] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -633,17 +637,71 @@ export default function DashboardPage() {
         {activeTab === 'products' && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold">商品管理</h2>
-              <div className="flex gap-2">
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                  <span>➕</span> 新增商品
-                </button>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-                  <span>📥</span> 批量导入
-                </button>
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold">商品管理</h2>
+                {/* 子Tab切换 */}
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setProductSubTab('store')}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      productSubTab === 'store' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    门店商品
+                  </button>
+                  <button
+                    onClick={() => setProductSubTab('miniprogram')}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      productSubTab === 'miniprogram' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    小程序商品
+                  </button>
+                  <button
+                    onClick={() => setProductSubTab('community')}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      productSubTab === 'community' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    社团商品
+                  </button>
+                </div>
               </div>
+              {productSubTab === 'store' && (
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                    <span>➕</span> 新增商品
+                  </button>
+                  <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <span>📥</span> 批量导入
+                  </button>
+                </div>
+              )}
+              {productSubTab === 'miniprogram' && (
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                    <span>➕</span> 添加到小程序
+                  </button>
+                  <button className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2">
+                    <span>📤</span> 批量上架
+                  </button>
+                </div>
+              )}
+              {productSubTab === 'community' && (
+                <div className="flex gap-2">
+                  <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                    <span>➕</span> 新增社团商品
+                  </button>
+                  <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <span>📢</span> 发起团购
+                  </button>
+                </div>
+              )}
             </div>
 
+            {/* 门店商品内容 */}
+            {productSubTab === 'store' && (
+              <>
             {/* 商品统计概览 */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {[
@@ -813,6 +871,294 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+              </>
+            )}
+
+            {/* 小程序商品上线管理 */}
+            {productSubTab === 'miniprogram' && (
+              <>
+              {/* 统计概览 */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: '可上架商品', value: '892', icon: '📦', color: 'blue' },
+                  { label: '已上架', value: '456', icon: '🟢', color: 'green' },
+                  { label: '待审核', value: '28', icon: '⏳', color: 'yellow' },
+                  { label: '已下架', value: '124', icon: '🔴', color: 'gray' },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{item.icon}</span>
+                      <span className="text-sm text-gray-500">{item.label}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-gray-800">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 筛选 */}
+              <div className="bg-white rounded-xl p-4 shadow-sm">
+                <div className="flex flex-wrap gap-4">
+                  <select className="px-4 py-2 border rounded-lg">
+                    <option value="">全部状态</option>
+                    <option value="online">已上架</option>
+                    <option value="pending">待审核</option>
+                    <option value="offline">已下架</option>
+                  </select>
+                  <select className="px-4 py-2 border rounded-lg">
+                    <option value="">全部分类</option>
+                    <option value="drinks">饮料</option>
+                    <option value="food">食品</option>
+                    <option value="snacks">零食</option>
+                  </select>
+                  <input type="text" placeholder="搜索商品名称..." className="px-4 py-2 border rounded-lg flex-1" />
+                  <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">搜索</button>
+                </div>
+              </div>
+
+              {/* 商品列表 */}
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <h3 className="font-semibold mb-4">小程序商品列表</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm text-gray-500">
+                        <th className="pb-3">商品信息</th>
+                        <th className="pb-3">小程序售价</th>
+                        <th className="pb-3">门店价</th>
+                        <th className="pb-3">优惠金额</th>
+                        <th className="pb-3">销量</th>
+                        <th className="pb-3">状态</th>
+                        <th className="pb-3">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { name: '农夫山泉550ml', category: '饮料', miniPrice: 1.8, storePrice: 2, sales: 1234, status: 'online' },
+                        { name: '可口可乐330ml', category: '饮料', miniPrice: 2.5, storePrice: 3, sales: 986, status: 'online' },
+                        { name: '康师傅方便面', category: '食品', miniPrice: 4, storePrice: 4.5, sales: 756, status: 'online' },
+                        { name: '奥利奥饼干', category: '零食', miniPrice: 7.5, storePrice: 8.5, sales: 543, status: 'pending' },
+                        { name: '蒙牛酸奶', category: '奶制品', miniPrice: 5.5, storePrice: 6.5, sales: 0, status: 'offline' },
+                      ].map((product, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-2xl">📦</div>
+                              <div>
+                                <p className="font-medium">{product.name}</p>
+                                <p className="text-xs text-gray-500">{product.category}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 font-medium text-orange-600">¥{product.miniPrice.toFixed(2)}</td>
+                          <td className="py-3 text-gray-500">¥{product.storePrice.toFixed(2)}</td>
+                          <td className="py-3 text-green-600">-¥{(product.storePrice - product.miniPrice).toFixed(2)}</td>
+                          <td className="py-3 text-gray-600">{product.sales}</td>
+                          <td className="py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              product.status === 'online' ? 'bg-green-100 text-green-600' :
+                              product.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {product.status === 'online' ? '已上架' : product.status === 'pending' ? '待审核' : '已下架'}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <button className="text-blue-600 hover:underline text-sm mr-2">编辑</button>
+                            <button className="text-red-600 hover:underline text-sm">
+                              {product.status === 'online' ? '下架' : '上架'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              </>
+            )}
+
+            {/* 社团商品管理 */}
+            {productSubTab === 'community' && (
+              <>
+              {/* 统计概览 */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: '社团商品总数', value: '186', icon: '📦', color: 'purple' },
+                  { label: '进行中团购', value: '12', icon: '🔥', color: 'orange' },
+                  { label: '待发货', value: '45', icon: '📋', color: 'blue' },
+                  { label: '本月GMV', value: '¥28.6万', icon: '💰', color: 'green' },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{item.icon}</span>
+                      <span className="text-sm text-gray-500">{item.label}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-gray-800">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 筛选 */}
+              <div className="bg-white rounded-xl p-4 shadow-sm">
+                <div className="flex flex-wrap gap-4">
+                  <select className="px-4 py-2 border rounded-lg">
+                    <option value="">全部状态</option>
+                    <option value="active">进行中</option>
+                    <option value="pending">待开始</option>
+                    <option value="ended">已结束</option>
+                  </select>
+                  <select className="px-4 py-2 border rounded-lg">
+                    <option value="">全部团长</option>
+                    <option value="zhangsan">张三</option>
+                    <option value="lisi">李四</option>
+                  </select>
+                  <input type="text" placeholder="搜索商品名称..." className="px-4 py-2 border rounded-lg flex-1" />
+                  <button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">搜索</button>
+                </div>
+              </div>
+
+              {/* 团购活动列表 */}
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <h3 className="font-semibold mb-4">团购活动管理</h3>
+                <div className="space-y-4">
+                  {[
+                    { id: 'GB001', name: '新鲜土鸡蛋30枚', price: 23, originalPrice: 28, target: 50, current: 38, startDate: '2024-01-15', endDate: '2024-01-18', status: 'active', leader: '张三', store: '望京店' },
+                    { id: 'GB002', name: '有机蔬菜套餐', price: 49, originalPrice: 65, target: 30, current: 22, startDate: '2024-01-16', endDate: '2024-01-20', status: 'active', leader: '李四', store: '中关村店' },
+                    { id: 'GB003', name: '精选进口牛奶', price: 35, originalPrice: 48, target: 40, current: 12, startDate: '2024-01-14', endDate: '2024-01-17', status: 'pending', leader: '王五', store: '国贸店' },
+                    { id: 'GB004', name: '新鲜三文鱼500g', price: 68, originalPrice: 88, target: 20, current: 20, startDate: '2024-01-10', endDate: '2024-01-14', status: 'ended', leader: '赵六', store: '望京店' },
+                  ].map((group, i) => (
+                    <div key={i} className="border rounded-xl p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start gap-4">
+                        <div className="w-20 h-20 bg-gradient-to-br from-orange-100 to-red-100 rounded-xl flex items-center justify-center text-3xl">
+                          🥚
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-semibold text-gray-800">{group.name}</h4>
+                              <p className="text-sm text-gray-500 mt-1">
+                                团长：{group.leader} | 门店：{group.store}
+                              </p>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs ${
+                              group.status === 'active' ? 'bg-green-100 text-green-600' :
+                              group.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {group.status === 'active' ? '进行中' : group.status === 'pending' ? '即将开始' : '已结束'}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-4 gap-4 mt-3">
+                            <div>
+                              <p className="text-xs text-gray-500">活动价</p>
+                              <p className="text-lg font-bold text-orange-600">¥{group.price}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">原价</p>
+                              <p className="text-sm text-gray-400 line-through">¥{group.originalPrice}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">参与进度</p>
+                              <p className="text-sm font-medium">{group.current}/{group.target}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">活动时间</p>
+                              <p className="text-xs text-gray-600">{group.startDate} ~ {group.endDate}</p>
+                            </div>
+                          </div>
+
+                          {/* 进度条 */}
+                          <div className="mt-3">
+                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-orange-400 to-red-500 rounded-full transition-all"
+                                style={{ width: `${Math.min((group.current / group.target) * 100, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 mt-4">
+                            <button className="px-4 py-1.5 border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 text-sm">
+                              查看详情
+                            </button>
+                            {group.status === 'active' && (
+                              <button className="px-4 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm">
+                                结束团购
+                              </button>
+                            )}
+                            {group.status === 'pending' && (
+                              <button className="px-4 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm">
+                                立即开始
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 团长管理 */}
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold">团长管理</h3>
+                  <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+                    添加团长
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b text-left text-sm text-gray-500">
+                        <th className="pb-3">团长信息</th>
+                        <th className="pb-3">负责门店</th>
+                        <th className="pb-3">团员数量</th>
+                        <th className="pb-3">进行中团购</th>
+                        <th className="pb-3">本月佣金</th>
+                        <th className="pb-3">状态</th>
+                        <th className="pb-3">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { name: '张三', phone: '138****1234', store: '望京店', members: 156, activeGroups: 3, commission: '¥2,680', status: 'active' },
+                        { name: '李四', phone: '139****5678', store: '中关村店', members: 128, activeGroups: 2, commission: '¥1,920', status: 'active' },
+                        { name: '王五', phone: '137****9012', store: '国贸店', members: 95, activeGroups: 1, commission: '¥1,450', status: 'active' },
+                        { name: '赵六', phone: '136****3456', store: '望京店', members: 78, activeGroups: 0, commission: '¥860', status: 'inactive' },
+                      ].map((leader, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-lg">👤</div>
+                              <div>
+                                <p className="font-medium">{leader.name}</p>
+                                <p className="text-xs text-gray-500">{leader.phone}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 text-gray-600">{leader.store}</td>
+                          <td className="py-4 text-gray-600">{leader.members}</td>
+                          <td className="py-4 text-orange-600 font-medium">{leader.activeGroups}</td>
+                          <td className="py-4 text-green-600 font-medium">{leader.commission}</td>
+                          <td className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-xs ${leader.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
+                              {leader.status === 'active' ? '活跃' : '停用'}
+                            </span>
+                          </td>
+                          <td className="py-4">
+                            <button className="text-blue-600 hover:underline text-sm mr-2">编辑</button>
+                            <button className="text-purple-600 hover:underline text-sm">查看业绩</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              </>
+            )}
           </div>
         )}
 
