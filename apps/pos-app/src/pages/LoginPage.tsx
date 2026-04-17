@@ -1,59 +1,182 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useEmployeeStore, useStoreStore } from '../store';
+import { TEST_ACCOUNTS, getRoleColor } from '../config/testAccounts';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
-  const [storeId, setStoreId] = useState('');
-  const [operatorId, setOperatorId] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
+  
+  const navigate = useNavigate();
+  const { login } = useEmployeeStore();
+  const { stores } = useStoreStore();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setTimeout(() => {
-      if (storeId && operatorId && password) {
+    
+    if (!username || !password) {
+      setError('请输入用户名和密码');
+      return;
+    }
+
+    // 演示模式：任意输入即可登录
+    const account = TEST_ACCOUNTS.find(a => a.operatorId === username || a.phone === username);
+    
+    if (account) {
+      login({
+        id: account.operatorId,
+        name: account.name,
+        phone: account.phone,
+        role: account.role as 'admin' | 'manager' | 'cashier',
+        storeId: account.storeId,
+        status: 'active',
+        hiredAt: new Date().toISOString(),
+      });
+      
+      // 根据角色跳转到对应页面
+      navigate(account.loginPath);
+    } else {
+      // 通用登录演示
+      login({
+        id: username,
+        name: username,
+        phone: '13800000000',
+        role: username.includes('admin') ? 'admin' : username.includes('cashier') ? 'cashier' : 'manager',
+        storeId: 'WJ001',
+        status: 'active',
+        hiredAt: new Date().toISOString(),
+      });
+      
+      // 根据角色跳转
+      if (username.includes('cashier')) {
         navigate('/pos/cashier');
+      } else if (username.includes('admin')) {
+        navigate('/dashboard');
       } else {
-        setError('请填写完整信息');
+        navigate('/assistant');
       }
-      setLoading(false);
-    }, 1000);
+    }
+  };
+
+  const handleQuickLogin = (account: typeof TEST_ACCOUNTS[0]) => {
+    login({
+      id: account.operatorId,
+      name: account.name,
+      phone: account.phone,
+      role: account.role as 'admin' | 'manager' | 'cashier',
+      storeId: account.storeId,
+      status: 'active',
+      hiredAt: new Date().toISOString(),
+    });
+    navigate(account.loginPath);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-white text-3xl font-bold">邻</span>
+          <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg">
+            <span className="text-4xl">🏪</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">海邻到家</h1>
-          <p className="text-gray-500 mt-2">智能便利店管理系统</p>
+          <h1 className="text-3xl font-bold text-white">海邻到家</h1>
+          <p className="text-blue-200 mt-2">连锁便利店智慧收银系统 V6.0</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">门店编号</label>
-            <input type="text" value={storeId} onChange={(e) => setStoreId(e.target.value)} placeholder="请输入门店编号" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none" />
+        {/* 登录表单 */}
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">员工登录</h2>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                操作员编号 / 手机号
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="请输入操作员编号或手机号"
+                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                密码
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {error && (
+              <p className="text-red-500 text-sm">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              登录
+            </button>
+          </form>
+
+          {/* 测试账号入口 */}
+          <div className="mt-6 pt-6 border-t">
+            <button
+              onClick={() => setShowTestAccounts(!showTestAccounts)}
+              className="w-full flex items-center justify-between text-sm text-gray-500 hover:text-blue-600"
+            >
+              <span>👈 测试账号快速登录</span>
+              <span>{showTestAccounts ? '▲ 收起' : '▼ 展开'}</span>
+            </button>
+
+            {showTestAccounts && (
+              <div className="mt-4 space-y-3">
+                {TEST_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.operatorId}
+                    onClick={() => handleQuickLogin(account)}
+                    className="w-full p-4 bg-gray-50 hover:bg-blue-50 rounded-lg text-left transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-800">{account.name}</span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${getRoleColor(account.role)}`}>
+                            {account.roleName}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {account.storeName} · {account.operatorId}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-400">快速登录 →</span>
+                    </div>
+                  </button>
+                ))}
+                
+                <div className="p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-xs text-yellow-700">
+                    <strong>💡 提示：</strong>测试模式下，密码可随意输入。建议使用上方测试账号快速体验不同角色功能。
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">操作员编号</label>
-            <input type="text" value={operatorId} onChange={(e) => setOperatorId(e.target.value)} placeholder="请输入操作员编号" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">密码</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请输入密码" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none" />
-          </div>
-          {error && <div className="text-red-500 text-sm text-center">{error}</div>}
-          <button type="submit" disabled={loading} className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50">
-            {loading ? '登录中...' : '登录'}
-          </button>
-        </form>
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>演示: 任意输入即可登录</p>
+        </div>
+
+        {/* 底部信息 */}
+        <div className="text-center mt-6 text-blue-200 text-sm">
+          <p>© 2024 海邻到家 · 云端连锁收银系统</p>
+          <p className="mt-1">支持 PC收银 | POS一体机 | 平板 | 自助收银</p>
         </div>
       </div>
     </div>

@@ -3,8 +3,8 @@ requires = ["nodejs-18"]
 
 [dev]
 build = ["pnpm", "install"]
-run = ["pnpm", "--filter", "@hailin/pos-app", "dev"]
+run = ["cd", "apps/pos-app", "&&", "pnpm", "dev"]
 
 [deploy]
-build = ["pnpm", "install", "&&", "pnpm", "--filter", "@hailin/pos-app", "build"]
-run = ["pnpm", "--filter", "@hailin/pos-app", "preview"]
+build = ["cd", "apps/pos-app", "&&", "pnpm", "install", "&&", "pnpm", "build"]
+run = ["cd", "apps/pos-app", "&&", "pnpm", "preview"]
