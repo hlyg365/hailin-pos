@@ -42,10 +42,7 @@ export default function DashboardPage() {
   
   // 采购入库
   const aiConfig = useAiConfigStore();
-  const [importedProducts, setImportedProducts] = useState<Array<{ barcode: string; name: string; category: string; price: number; costPrice: number; quantity: number }>>([
-    { barcode: '6901234567890', name: '农夫山泉', category: '饮料', price: 2.0, costPrice: 1.5, quantity: 24 },
-    { barcode: '6912345678901', name: '康师傅方便面', category: '食品', price: 4.5, costPrice: 3.2, quantity: 48 },
-  ]);
+  const [importedProducts, setImportedProducts] = useState<Array<{ barcode: string; name: string; category: string; price: number; costPrice: number; quantity: number }>>([]);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [newProductForm, setNewProductForm] = useState({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '', image: '' });
   const [ai识别中, setAi识别中] = useState(false);
