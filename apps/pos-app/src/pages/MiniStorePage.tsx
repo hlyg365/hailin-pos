@@ -276,6 +276,27 @@ export default function MiniStorePage() {
   
   // 团长身份状态（模拟：当前用户是否是团长）
   const [isGroupLeader, setIsGroupLeader] = useState(false);
+  
+  // 门店选择功能
+  const [selectedStore, setSelectedStore] = useState({
+    id: 'store001',
+    name: '望京店',
+    address: '北京市朝阳区望京SOHO T1-B座',
+    distance: '350m',
+    phone: '010-64781234',
+    businessHours: '24小时营业',
+    isOpen: true,
+  });
+  const [showStoreSelector, setShowStoreSelector] = useState(false);
+  
+  // 门店列表
+  const storeList = [
+    { id: 'store001', name: '望京店', address: '北京市朝阳区望京SOHO T1-B座', distance: '350m', phone: '010-64781234', businessHours: '24小时营业', isOpen: true },
+    { id: 'store002', name: '中关村店', address: '北京市海淀区中关村大街1号', distance: '1.2km', phone: '010-62561234', businessHours: '07:00-23:00', isOpen: true },
+    { id: 'store003', name: '国贸店', address: '北京市朝阳区国贸CBD核心区', distance: '2.5km', phone: '010-65881234', businessHours: '08:00-22:00', isOpen: true },
+    { id: 'store004', name: '三里屯店', address: '北京市朝阳区三里屯太古里', distance: '3.1km', phone: '010-64181234', businessHours: '10:00-24:00', isOpen: true },
+    { id: 'store005', name: '五道口店', address: '北京市海淀区五道口购物中心', distance: '4.8km', phone: '010-62681234', businessHours: '09:00-22:00', isOpen: false },
+  ];
   // 团长数据
   const groupLeaderData = {
     groupName: '望京社区团购群',
@@ -459,6 +480,38 @@ export default function MiniStorePage() {
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative">
       {/* 顶部 - 固定定位 */}
       <header className="bg-white sticky top-0 z-30 shadow-sm">
+        {/* 门店选择栏 */}
+        <div 
+          className="px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white flex items-center justify-between cursor-pointer"
+          onClick={() => setShowStoreSelector(true)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <span className="text-xl">🏪</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold">{selectedStore.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${selectedStore.isOpen ? 'bg-green-500' : 'bg-red-500'}`}>
+                  {selectedStore.isOpen ? '营业中' : '已打烊'}
+                </span>
+              </div>
+              <p className="text-xs text-white/80 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                </svg>
+                {selectedStore.address}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs bg-white/20 px-2 py-1 rounded">{selectedStore.distance}</span>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
         {/* 搜索栏 */}
         {showSearch ? (
           <div className="p-3 bg-white">
@@ -485,60 +538,18 @@ export default function MiniStorePage() {
             </div>
           </div>
         ) : (
-          <div className="p-3 flex items-center justify-between">
-            <Link to="/" className="w-10 h-10 flex items-center justify-center text-gray-500">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <div className="p-3">
+            <button 
+              onClick={() => setShowSearch(true)}
+              className="w-full px-4 py-2.5 bg-gray-100 rounded-full text-sm text-gray-400 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-            </Link>
-            <div className="flex-1 flex justify-center">
-              <button 
-                onClick={() => setShowSearch(true)}
-                className="w-full max-w-xs px-4 py-2 bg-gray-100 rounded-full text-sm text-gray-400 flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                搜索商品
-              </button>
-            </div>
-            {currentMember && (
-              <button 
-                onClick={() => setShowMemberCode(true)}
-                className="w-10 h-10 flex items-center justify-center"
-              >
-                <span className="text-xl">💳</span>
-              </button>
-            )}
+              搜索商品
+            </button>
           </div>
         )}
-
-        {/* 标签栏 */}
-        <div className="flex border-t">
-          {[
-            { id: 'home', label: '首页', icon: '🏠' },
-            { id: 'category', label: '分类', icon: '📂' },
-            { id: 'service', label: '服务', icon: '🛠️' },
-            { id: 'cart', label: '购物车', icon: '🛒' },
-            { id: 'my', label: '我的', icon: '👤' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
-              className={`flex-1 py-3 flex items-center justify-center gap-1 text-sm transition-colors ${
-                activeTab === tab.id ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-              {tab.id === 'cart' && cartCount > 0 && (
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                  {cartCount > 9 ? '9+' : cartCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </header>
 
       {/* 内容区 */}
@@ -1313,6 +1324,124 @@ export default function MiniStorePage() {
           </div>
         </div>
       )}
+
+      {/* 门店选择弹窗 */}
+      {showStoreSelector && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setShowStoreSelector(false)}>
+          <div 
+            className="w-full bg-white rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">选择门店</h3>
+              <button onClick={() => setShowStoreSelector(false)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                ✕
+              </button>
+            </div>
+            
+            {/* 定位按钮 */}
+            <button 
+              onClick={() => {
+                // 模拟重新定位
+                const randomStore = storeList[Math.floor(Math.random() * storeList.length)];
+                setSelectedStore(randomStore);
+                setShowStoreSelector(false);
+              }}
+              className="w-full py-3 mb-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-medium flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              重新定位获取附近门店
+            </button>
+
+            {/* 门店列表 */}
+            <div className="space-y-3">
+              {storeList.map(store => (
+                <div
+                  key={store.id}
+                  onClick={() => {
+                    setSelectedStore(store);
+                    setShowStoreSelector(false);
+                  }}
+                  className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                    selectedStore.id === store.id 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-100 hover:border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      selectedStore.id === store.id ? 'bg-blue-500 text-white' : 'bg-gray-100'
+                    }`}>
+                      <span className="text-2xl">🏪</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold">{store.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          store.isOpen ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                        }`}>
+                          {store.isOpen ? '营业中' : '已打烊'}
+                        </span>
+                        {selectedStore.id === store.id && (
+                          <span className="text-xs text-blue-500">✓ 已选择</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mb-1">{store.address}</p>
+                      <div className="flex items-center gap-3 text-xs text-gray-400">
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          </svg>
+                          距您 {store.distance}
+                        </span>
+                        <span>📞 {store.phone}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">🕐 {store.businessHours}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 底部导航栏 */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t shadow-lg z-40">
+        <div className="flex">
+          {[
+            { id: 'home', label: '首页', icon: '🏠' },
+            { id: 'category', label: '分类', icon: '📂' },
+            { id: 'service', label: '服务', icon: '🛠️' },
+            { id: 'cart', label: '购物车', icon: '🛒', badge: cartCount },
+            { id: 'my', label: '我的', icon: '👤' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as Tab)}
+              className={`relative flex-1 py-3 flex flex-col items-center gap-1 transition-colors ${
+                activeTab === tab.id ? 'text-blue-600' : 'text-gray-400'
+              }`}
+            >
+              <div className="relative">
+                <span className="text-xl">{tab.icon}</span>
+                {tab.badge && tab.badge > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                    {tab.badge > 9 ? '9+' : tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs">{tab.label}</span>
+              {activeTab === tab.id && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-blue-600 rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
