@@ -170,9 +170,14 @@ export default function HomePage() {
             { icon: '👥', label: '会员管理', to: '/pos/member' },
             { icon: '🎫', label: '会员识别', to: '/pos/member' },
             { icon: '📦', label: '商品管理', to: '/dashboard/products' },
-            { icon: '📈', label: '销售报表', to: '/dashboard/reports' },
+            { icon: '📈', label: 'BI分析', to: '/dashboard/bi' },
             { icon: '🚚', label: '要货申请', to: '/assistant/restock' },
             { icon: '💳', label: '缴款单', to: '/assistant/deposit' },
+            { icon: '🎁', label: '促销管理', to: '/dashboard/promotion' },
+            { icon: '🔄', label: '门店调拨', to: '/dashboard/store-ops' },
+            { icon: '📋', label: '巡店管理', to: '/dashboard/store-ops' },
+            { icon: '📨', label: '电子工单', to: '/dashboard/store-ops' },
+            { icon: '🔐', label: '权限管理', to: '/dashboard/auth' },
             { icon: '⚙️', label: '系统设置', to: '/settings' },
           ].map((item, i) => (
             <Link

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStoreStore, useRestockStore, useAlertStore } from '../store';
 
-type Tab = 'overview' | 'stores' | 'products' | 'finance' | 'supply' | 'members' | 'orders' | 'staff';
+type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -20,7 +20,7 @@ export default function DashboardPage() {
     pendingRestocks: 5,
   };
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
+  const tabs: { id: Tab; label: string; icon: string; link?: string }[] = [
     { id: 'overview', label: '工作台', icon: '📊' },
     { id: 'stores', label: '门店管理', icon: '🏪' },
     { id: 'products', label: '商品管理', icon: '📦' },
@@ -29,6 +29,10 @@ export default function DashboardPage() {
     { id: 'members', label: '会员管理', icon: '👥' },
     { id: 'orders', label: '订单管理', icon: '🧾' },
     { id: 'staff', label: '人员管理', icon: '👔' },
+    { id: 'promo', label: '促销管理', icon: '🎁', link: '/dashboard/promotion' },
+    { id: 'bi', label: 'BI分析', icon: '📈', link: '/dashboard/bi' },
+    { id: 'storeops', label: '门店运营', icon: '🔧', link: '/dashboard/store-ops' },
+    { id: 'auth', label: '权限管理', icon: '🔐', link: '/dashboard/auth' },
   ];
 
   return (
@@ -54,18 +58,29 @@ export default function DashboardPage() {
           {/* 标签导航 */}
           <div className="flex gap-1 overflow-x-auto pb-2">
             {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
+              tab.link ? (
+                <Link
+                  key={tab.id}
+                  to={tab.link}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors text-gray-600 hover:bg-gray-100"
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </Link>
+              ) : (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              )
             ))}
           </div>
         </div>
