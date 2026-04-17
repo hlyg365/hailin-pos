@@ -594,14 +594,14 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     // 构建请求头
     const headers: Record<string, string> = {};
     
-    if (enabledConfig.apiKey) {
-      // 标准 Bearer Token 认证
+    // 阿里云市场认证：优先使用 AppCode
+    if (enabledConfig.appCode) {
+      headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
+      headers['Content-Type'] = 'application/json';
+    } else if (enabledConfig.apiKey) {
+      // 标准 Bearer Token 认证（用于其他API）
       headers['Authorization'] = `Bearer ${enabledConfig.apiKey}`;
       headers['Content-Type'] = 'application/json';
-    }
-    if (enabledConfig.appCode) {
-      // 阿里云市场认证格式: APPCODE xxx
-      headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
     }
     if (enabledConfig.appSecret) {
       headers['X-App-Secret'] = enabledConfig.appSecret;
