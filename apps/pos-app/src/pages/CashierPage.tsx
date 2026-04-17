@@ -1415,7 +1415,7 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
             <div className="border rounded-lg p-4">
               <h4 className="font-medium mb-3 text-red-600">危险操作</h4>
               <button className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm hover:bg-red-200">
-                清空本地数据
+                清除缓存
               </button>
             </div>
           </div>
