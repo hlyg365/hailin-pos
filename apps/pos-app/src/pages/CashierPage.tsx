@@ -612,63 +612,197 @@ export default function CashierPage() {
 
           {/* ========== 配送管理 ========== */}
           {activeModule === 'delivery' && (
-            <div className="flex-1 bg-white p-6 overflow-auto">
+            <div className="flex-1 bg-gray-50 p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
                 <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">🚚</span> 配送管理</h2>
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                
+                {/* 统计卡片 */}
+                <div className="grid grid-cols-5 gap-4 mb-6">
                   {[
-                    { label: '待配送', value: 3, icon: '📦', color: 'bg-yellow-500' },
-                    { label: '配送中', value: 2, icon: '🚛', color: 'bg-blue-500' },
-                    { label: '已完成', value: 15, icon: '✅', color: 'bg-green-500' },
-                    { label: '异常', value: 1, icon: '⚠️', color: 'bg-red-500' },
+                    { label: '待处理', value: 8, icon: '📋', color: 'bg-yellow-500' },
+                    { label: '配送中', value: 5, icon: '🚛', color: 'bg-blue-500' },
+                    { label: '已完成', value: 42, icon: '✅', color: 'bg-green-500' },
+                    { label: '异常', value: 2, icon: '⚠️', color: 'bg-red-500' },
+                    { label: '今日营收', value: '¥3,580', icon: '💰', color: 'bg-purple-500' },
                   ].map((stat, i) => (
                     <div key={i} className="bg-white rounded-xl p-4 shadow-sm border">
                       <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center text-2xl`}>{stat.icon}</div>
-                        <div><p className="text-gray-500 text-sm">{stat.label}</p><p className="text-2xl font-bold">{stat.value}</p></div>
+                        <div className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center text-xl`}>{stat.icon}</div>
+                        <div><p className="text-gray-500 text-xs">{stat.label}</p><p className="text-xl font-bold">{stat.value}</p></div>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-3 gap-6 mb-6">
+
+                {/* 订单类型标签 */}
+                <div className="bg-white rounded-xl shadow-sm border mb-6">
+                  <div className="border-b">
+                    <div className="flex">
+                      {[
+                        { id: 'store', name: '门店调拨', icon: '🏪', count: 3 },
+                        { id: 'mini', name: '小程序订单', icon: '📱', count: 5 },
+                        { id: 'group', name: '社团接龙', icon: '👥', count: 2 },
+                        { id: 'meituan', name: '美团', icon: '🟠', count: 4 },
+                        { id: 'elem', name: '饿了么', icon: '🔵', count: 3 },
+                        { id: 'all', name: '全部', icon: '📦', count: 17 },
+                      ].map((tab, i) => (
+                        <button key={tab.id} className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${i === 0 ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
+                          <span className="mr-2">{tab.icon}</span>{tab.name}
+                          <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${tab.count > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'}`}>{tab.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* 订单列表 */}
+                  <div className="divide-y">
+                    {/* 小程序订单 */}
+                    <div className="p-4 hover:bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-xl">📱</span>
+                          <div>
+                            <p className="font-medium">小程序订单</p>
+                            <p className="text-xs text-gray-500">订单号: M20240117001 | 张江店</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">商品数: 5件</p>
+                            <p className="font-bold text-red-600">¥89.50</p>
+                          </div>
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">待配送</span>
+                          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">接单</button>
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                        <p><span className="text-gray-500">收货人:</span> 李小明 | <span className="text-gray-500">电话:</span> 138****8888</p>
+                        <p><span className="text-gray-500">地址:</span> 上海市浦东新区张江镇科苑路88号</p>
+                        <p><span className="text-gray-500">备注:</span> 请尽快送达</p>
+                      </div>
+                    </div>
+
+                    {/* 社团接龙订单 */}
+                    <div className="p-4 hover:bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">👥</span>
+                          <div>
+                            <p className="font-medium">社团接龙 - 新鲜水果团购</p>
+                            <p className="text-xs text-gray-500">接龙号: GR20240117001 | 团长: 王阿姨 | 已接龙: 23人</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">商品数: 1件</p>
+                            <p className="font-bold text-red-600">¥460.00</p>
+                          </div>
+                          <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">备货中</span>
+                          <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">查看详情</button>
+                        </div>
+                      </div>
+                      <div className="bg-green-50 rounded-lg p-3 text-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-green-700 font-medium">🍎 红富士苹果 10斤装</span>
+                          <span className="text-green-600">x23 份</span>
+                        </div>
+                        <p><span className="text-gray-500">提货时间:</span> 今日 18:00-20:00 | <span className="text-gray-500">提货点:</span> 张江店</p>
+                      </div>
+                    </div>
+
+                    {/* 美团订单 */}
+                    <div className="p-4 hover:bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center text-xl">🟠</span>
+                          <div>
+                            <p className="font-medium">美团外卖</p>
+                            <p className="text-xs text-gray-500">订单号: MT20240117001 | 骑手: 待分配</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">商品数: 3件</p>
+                            <p className="font-bold text-red-600">¥56.80</p>
+                          </div>
+                          <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">新订单</span>
+                          <button className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600">接单</button>
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-3 text-sm">
+                        <p><span className="text-gray-500">商品:</span> 农夫山泉x2 + 康师傅方便面x1</p>
+                        <p><span className="text-gray-500">地址:</span> 上海市浦东新区张江镇碧波路690号</p>
+                        <p><span className="text-orange-600 font-medium">预计送达: 30分钟内</span></p>
+                      </div>
+                    </div>
+
+                    {/* 饿了么订单 */}
+                    <div className="p-4 hover:bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-xl">🔵</span>
+                          <div>
+                            <p className="font-medium">饿了么</p>
+                            <p className="text-xs text-gray-500">订单号: ELM20240117001 | 骑手: 李师傅</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">商品数: 2件</p>
+                            <p className="font-bold text-red-600">¥38.50</p>
+                          </div>
+                          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">配送中</span>
+                          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">跟踪</button>
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 rounded-lg p-3 text-sm">
+                        <p><span className="text-gray-500">商品:</span> 可口可乐x1 + 薯片x1</p>
+                        <p><span className="text-gray-500">地址:</span> 上海市浦东新区张江镇祖冲之路230号</p>
+                        <p><span className="text-blue-600 font-medium">骑手位置: 距离您500米</span></p>
+                      </div>
+                    </div>
+
+                    {/* 门店调拨 */}
+                    <div className="p-4 hover:bg-gray-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-xl">🏪</span>
+                          <div>
+                            <p className="font-medium">门店调拨 - 总仓→张江店</p>
+                            <p className="text-xs text-gray-500">调拨单号: TR20240117001 | 配送司机: 张师傅</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">商品数: 15种</p>
+                            <p className="font-bold text-purple-600">¥2,580.00</p>
+                          </div>
+                          <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">配送中</span>
+                          <button className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">查看</button>
+                        </div>
+                      </div>
+                      <div className="bg-purple-50 rounded-lg p-3 text-sm">
+                        <p><span className="text-gray-500">出发时间:</span> 09:30 | <span className="text-gray-500">预计到达:</span> 10:30</p>
+                        <p><span className="text-gray-500">商品:</span> 饮料、零食、日用品等15种商品</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 快捷操作 */}
+                <div className="grid grid-cols-4 gap-4">
                   {[
-                    { name: '门店要货', icon: '🏪', desc: '门店向配送中心提交要货申请', color: 'bg-blue-500' },
-                    { name: '配送调度', icon: '📋', desc: '调度配送任务给配送员', color: 'bg-green-500' },
-                    { name: '配送跟踪', icon: '📍', desc: '实时跟踪配送进度', color: 'bg-purple-500' },
-                  ].map((item, i) => (
-                    <button key={i} className="bg-white rounded-xl p-6 shadow-sm border hover:shadow-md transition text-left">
-                      <div className={`w-14 h-14 ${item.color} rounded-xl flex items-center justify-center text-3xl mb-4`}>{item.icon}</div>
-                      <p className="font-bold text-lg mb-1">{item.name}</p>
-                      <p className="text-sm text-gray-500">{item.desc}</p>
+                    { name: '创建小程序订单', icon: '📱', color: 'bg-blue-500', desc: '手动创建小程序配送订单' },
+                    { name: '发起社团接龙', icon: '👥', color: 'bg-green-500', desc: '创建新的社区团购活动' },
+                    { name: '对接外卖平台', icon: '🟠', color: 'bg-orange-500', desc: '连接美团/饿了么自动接单' },
+                    { name: '配送调度', icon: '📍', color: 'bg-purple-500', desc: '调度配送员和骑手' },
+                  ].map((action, i) => (
+                    <button key={i} className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition text-left">
+                      <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center text-2xl mb-3`}>{action.icon}</div>
+                      <p className="font-bold mb-1">{action.name}</p>
+                      <p className="text-sm text-gray-500">{action.desc}</p>
                     </button>
                   ))}
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border">
-                  <div className="p-4 border-b flex items-center justify-between">
-                    <h3 className="font-semibold">配送单列表</h3>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">+ 新建配送单</button>
-                  </div>
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">配送单号</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">目的地</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">商品数</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">配送员</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">状态</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">操作</th></tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {[
-                        { id: 'DL2024011701', dest: '张江店', items: 15, courier: '张师傅', status: '配送中' },
-                        { id: 'DL2024011702', dest: '陆家嘴店', items: 8, courier: '李师傅', status: '待取货' },
-                        { id: 'DL2024011703', dest: '静安寺店', items: 12, courier: '-', status: '待分配' },
-                      ].map((d, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-mono text-sm">{d.id}</td>
-                          <td className="px-4 py-3">{d.dest}</td>
-                          <td className="px-4 py-3">{d.items}</td>
-                          <td className="px-4 py-3">{d.courier}</td>
-                          <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs ${d.status === '配送中' ? 'bg-blue-100 text-blue-600' : d.status === '待取货' ? 'bg-yellow-100 text-yellow-600' : 'bg-gray-100 text-gray-500'}`}>{d.status}</span></td>
-                          <td className="px-4 py-3"><button className="text-blue-600 hover:text-blue-800 text-sm">详情</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
               </div>
             </div>
