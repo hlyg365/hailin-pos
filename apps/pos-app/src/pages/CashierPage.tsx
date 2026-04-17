@@ -583,15 +583,15 @@ export default function CashierPage() {
             {/* 设备状态 */}
             <div className="bg-gray-50 px-4 py-2 flex items-center gap-3 text-xs border-b">
               <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${deviceManager.printer.isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                <span className={`w-2 h-2 rounded-full ${deviceManager.receiptPrinter?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                 打印机
               </span>
               <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${deviceManager.scale.isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                <span className={`w-2 h-2 rounded-full ${deviceManager.scale?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                 电子秤
               </span>
               <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${deviceManager.customerDisplay.isConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                <span className={`w-2 h-2 rounded-full ${deviceManager.customerDisplay?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>
                 客显屏
               </span>
             </div>
@@ -752,7 +752,7 @@ export default function CashierPage() {
                   <span className="text-2xl">📺</span>
                   <div>
                     <p className="font-medium">客显屏</p>
-                    <p className="text-xs text-gray-500">{deviceManager.customerDisplay.isConnected ? '已连接' : '未连接'}</p>
+                    <p className="text-xs text-gray-500">{deviceManager.customerDisplay?.status?.connected ? '已连接' : '未连接'}</p>
                   </div>
                 </div>
                 <button
@@ -769,7 +769,7 @@ export default function CashierPage() {
                   <span className="text-2xl">🖨️</span>
                   <div>
                     <p className="font-medium">小票打印机</p>
-                    <p className="text-xs text-gray-500">{deviceManager.printer.isConnected ? '已连接' : '未连接'}</p>
+                    <p className="text-xs text-gray-500">{deviceManager.receiptPrinter?.status?.connected ? '已连接' : '未连接'}</p>
                   </div>
                 </div>
                 <button
@@ -786,7 +786,7 @@ export default function CashierPage() {
                   <span className="text-2xl">🏷️</span>
                   <div>
                     <p className="font-medium">标签打印机</p>
-                    <p className="text-xs text-gray-500">{deviceManager.labelPrinter.isConnected ? '已连接' : '未连接'}</p>
+                    <p className="text-xs text-gray-500">{deviceManager.labelPrinter?.status?.connected ? '已连接' : '未连接'}</p>
                   </div>
                 </div>
                 <button
@@ -803,7 +803,7 @@ export default function CashierPage() {
                   <span className="text-2xl">💰</span>
                   <div>
                     <p className="font-medium">钱箱</p>
-                    <p className="text-xs text-gray-500">{deviceManager.cashDrawer.isConnected ? '已连接' : '未连接'}</p>
+                    <p className="text-xs text-gray-500">{deviceManager.cashDrawer?.status?.connected ? '已连接' : '未连接'}</p>
                   </div>
                 </div>
                 <button
@@ -820,7 +820,7 @@ export default function CashierPage() {
                   <span className="text-2xl">⚖️</span>
                   <div>
                     <p className="font-medium">电子秤</p>
-                    <p className="text-xs text-gray-500">{deviceManager.scale.isConnected ? '已连接' : '未连接'}</p>
+                    <p className="text-xs text-gray-500">{deviceManager.scale?.status?.connected ? '已连接' : '未连接'}</p>
                   </div>
                 </div>
                 <button
