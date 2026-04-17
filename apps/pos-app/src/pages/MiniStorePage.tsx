@@ -524,7 +524,22 @@ export default function MiniStorePage() {
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
               </svg>
-              <span className="text-sm font-medium max-w-[60px] truncate">{selectedStore.name}</span>
+              <div className="flex flex-col items-start">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-medium">{selectedStore.name}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    selectedStore.isOpen ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                  }`}>
+                    {selectedStore.isOpen ? '营业中' : '已打烊'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  </svg>
+                  距您 {selectedStore.distance}
+                </span>
+              </div>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
