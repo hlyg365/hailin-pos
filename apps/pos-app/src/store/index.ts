@@ -608,6 +608,13 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     }
 
     // 调用API
+    console.log('[AI识别] 开始调用API:', {
+      url,
+      method: enabledConfig.method,
+      headers,
+      requestBody
+    });
+    
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), enabledConfig.timeout * 1000);
 
@@ -620,11 +627,17 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 
     clearTimeout(timeoutId);
 
+    console.log('[AI识别] API响应状态:', response.status);
+    
     if (!response.ok) {
-      return { success: false, message: `API请求失败: ${response.status}` };
+      // 读取响应内容以便调试
+      const errorText = await response.text().catch(() => '无法读取响应');
+      console.error('[AI识别] HTTP错误:', response.status, errorText);
+      return { success: false, message: `API请求失败: ${response.status} - 请检查AppCode配置是否正确` };
     }
 
     const data = await response.json();
+    console.log('[AI识别] API返回数据:', data);
     
     // 根据字段映射提取数据（支持多种常见响应格式）
     const getNestedValue = (obj: any, path: string): any => {
@@ -645,21 +658,34 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       || getNestedValue(data, 'price') 
       || getNestedValue(data, 'result.price') 
       || getNestedValue(data, 'data.price')
-    ) || 0;
+    );
     const costPrice = parseFloat(
       getNestedValue(data, enabledConfig.responseMapping.costPrice) 
       || getNestedValue(data, 'cost_price')
-    ) || 0;
-
-    return {
-      success: true,
-      name,
-      category,
-      retailPrice,
-      costPrice,
-      message: '识别成功',
-    };
+    );
+    
+    console.log('[AI识别] 解析结果:', { name, category, retailPrice, costPrice });
+    
+    // 只有当有有效数据时才返回成功
+    if (name && name !== `商品(${barcode})`) {
+      console.log('[AI识别] 识别成功，返回商品信息');
+      return {
+        success: true,
+        name,
+        category,
+        retailPrice: retailPrice || 0,
+        costPrice: costPrice || 0,
+        message: '识别成功',
+      };
+    } else {
+      console.log('[AI识别] 识别失败，未获取到有效商品信息');
+      return {
+        success: false,
+        message: '未获取到商品信息，请检查条码是否正确或手动输入',
+      };
+    }
   } catch (error: any) {
+    console.error('[AI识别] 异常:', error);
     if (error.name === 'AbortError') {
       return { success: false, message: '请求超时，请检查网络或调整超时时间' };
     }

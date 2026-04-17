@@ -86,17 +86,22 @@ export default function DashboardPage() {
   };
   
   // 采购入库-扫码识别
-  const [scanResult, setScanResult] = useState<{ barcode: string; name?: string; price?: number; costPrice?: number } | null>(null);
+  const [scanResult, setScanResult] = useState<{ barcode: string; name?: string; price?: number; costPrice?: number; success?: boolean; error?: string } | null>(null);
   const handleImportAiScan = async (barcode: string) => {
     if (!barcode) return;
+    setScanResult({ barcode, success: false, error: '' });
     setImport识别中(true);
+    
     const aiConfig = useAiConfigStore.getState();
     const result = await aiConfig.aiScanByBarcode(barcode);
-    if (result.success) {
-      setScanResult({ barcode, name: result.name, price: result.retailPrice, costPrice: result.costPrice });
+    
+    if (result.success && result.name && result.retailPrice) {
+      // 识别成功
+      setScanResult({ barcode, name: result.name, price: result.retailPrice, costPrice: result.costPrice, success: true });
     } else {
-      setScanResult({ barcode });
-      alert(result.message || 'AI识别失败');
+      // 识别失败
+      setScanResult({ barcode, success: false, error: result.message || 'AI识别失败，请手动输入商品信息' });
+      alert(result.message || 'AI识别失败，请手动输入商品信息');
     }
     setImport识别中(false);
   };
@@ -2435,10 +2440,13 @@ export default function DashboardPage() {
                   
                   {/* 识别结果显示 */}
                   {scanResult && (
+                    scanResult.success ? (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium text-green-800">{scanResult.name || '待识别商品'}</p>
+                          <p className="font-medium text-green-800 flex items-center gap-2">
+                            <span>✅</span> {scanResult.name}
+                          </p>
                           <p className="text-sm text-green-600">条码: {scanResult.barcode}</p>
                           {scanResult.price && <p className="text-sm text-green-600">零售价: ¥{scanResult.price}</p>}
                         </div>
@@ -2448,6 +2456,23 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
+                    ) : (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-red-800 flex items-center gap-2">
+                            <span>❌</span> 识别失败
+                          </p>
+                          <p className="text-sm text-red-600">条码: {scanResult.barcode}</p>
+                          <p className="text-sm text-red-600">原因: {scanResult.error || '无法识别该条码'}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setShowAddProductModal(true); setNewProductForm(prev => ({ ...prev, barcode: scanResult.barcode })); setScanResult(null); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">手动录入</button>
+                          <button onClick={() => setScanResult(null)} className="px-3 py-1 border rounded text-sm hover:bg-gray-50">清除</button>
+                        </div>
+                      </div>
+                    </div>
+                    )
                   )}
                   
                   <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4 mb-4">
