@@ -17,9 +17,12 @@ export default function HomePage() {
       <header className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">海邻到家</h1>
-              <p className="text-sm text-blue-100">连锁便利店智慧收银系统 V6.0</p>
+            <div className="flex items-center gap-4">
+              <img src="/logo.png" alt="海邻到家" className="h-14 w-auto" />
+              <div>
+                <h1 className="text-xl font-bold">海邻到家</h1>
+                <p className="text-sm text-blue-100">连锁便利店智慧收银系统 V6.0</p>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               {isClearanceMode() && (

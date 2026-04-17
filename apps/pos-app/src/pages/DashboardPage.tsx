@@ -260,6 +260,7 @@ export default function DashboardPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
+              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" />
               <h1 className="text-xl font-bold text-gray-800">总部管理后台</h1>
             </div>
             <div className="flex items-center gap-4">
