@@ -36,7 +36,13 @@ export default function CashierPage() {
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [showDevicePanel, setShowDevicePanel] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
-  const [aiScanResult, setAiScanResult] = useState<{ barcode?: string; loading?: boolean; candidates?: Product[] } | null>(null);
+  const [aiScanResult, setAiScanResult] = useState<{
+    barcode?: string;
+    loading?: boolean;
+    candidates?: Product[];
+    aiRecognized?: boolean;
+    aiProduct?: Product;
+  } | null>(null);
   const [aiVisionResult, setAiVisionResult] = useState<{ loading?: boolean; candidates?: { name: string; confidence: number; estimatedWeight?: number }[] } | null>(null);
   const [ai识别中, setAi识别中] = useState(false);
 
@@ -122,14 +128,49 @@ export default function CashierPage() {
   const handleBarcodeScan = useCallback(async (barcode: string) => {
     setAiScanResult({ barcode, loading: true });
     
+    // 1. 先查找商品库
     const exact = products.find(p => p.barcode === barcode);
     if (exact) {
       addItem(exact, 1);
-      setAiScanResult(null); // 清空扫码结果
-      deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + exact.retailPrice);
+      setAiScanResult(null);
+      const currentTotal = useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0);
+      deviceManager.customerDisplay?.showWaiting?.(currentTotal + exact.retailPrice);
+      return;
+    }
+    
+    // 2. 商品库没有，调用AI识别
+    const aiConfig = useAiConfigStore.getState();
+    const result = await aiConfig.aiScanByBarcode(barcode);
+    
+    if (result.success && result.name) {
+      // AI识别成功，显示识别结果
+      const aiProduct: Product = {
+        id: `ai_${Date.now()}`,
+        name: result.name || `商品(${barcode})`,
+        barcode: barcode,
+        category: result.category || '食品',
+        retailPrice: result.retailPrice || 0,
+        costPrice: result.costPrice || 0,
+        isStandard: true,
+        status: 'active',
+        stock: 100,
+      };
+      setAiScanResult({ 
+        barcode, 
+        candidates: [aiProduct],
+        aiRecognized: true,
+        aiProduct: aiProduct
+      });
     } else {
-      const similar = products.filter(p => p.barcode.includes(barcode.slice(-6))).slice(0, 3);
-      setAiScanResult({ barcode, candidates: similar });
+      // AI识别失败，显示扫码结果让用户手动输入
+      setAiScanResult({ 
+        barcode, 
+        candidates: [],
+        aiRecognized: false
+      });
+      // 打开新增商品弹窗
+      setNewProduct(prev => ({ ...prev, barcode }));
+      setShowAddProductModal(true);
     }
   }, [products, addItem]);
 
