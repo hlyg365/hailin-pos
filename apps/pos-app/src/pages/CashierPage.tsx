@@ -382,38 +382,66 @@ export default function CashierPage() {
         </div>
       </div>
       
-      {/* 门店管理模块导航 */}
-      <div className="bg-gray-100 border-b px-4 py-2">
-        <div className="flex gap-1 overflow-x-auto">
-          {storeModules.map(mod => (
-            <button
-              key={mod.id}
-              onClick={() => setActiveModule(mod.id)}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-sm transition-colors flex items-center gap-1.5 ${
-                activeModule === mod.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <span>{mod.icon}</span>
-              <span>{mod.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      {/* 模块内容区域 */}
-      {activeModule !== 'cashier' && (
-        <StoreManagementModule 
-          module={activeModule} 
-          store={currentStore}
-          products={products}
-          members={members}
-          orders={useOrderStore.getState().orders}
-        />
-      )}
-
+      {/* 主体区域：侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden">
+        {/* 左侧侧边栏 */}
+        <aside className="w-56 bg-gray-800 text-white flex flex-col overflow-y-auto">
+          {/* 侧边栏头部 */}
+          <div className="p-4 border-b border-gray-700">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🏪</span>
+              <div>
+                <p className="font-semibold text-sm">{currentStore?.name || '门店'}</p>
+                <p className="text-xs text-gray-400">{currentStore?.code || 'WJ001'}</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 模块导航 */}
+          <nav className="flex-1 p-2">
+            <div className="mb-4">
+              <p className="text-xs text-gray-500 uppercase tracking-wider px-3 mb-2">功能模块</p>
+              {storeModules.map(mod => (
+                <button
+                  key={mod.id}
+                  onClick={() => setActiveModule(mod.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
+                    activeModule === mod.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  <span className="text-lg">{mod.icon}</span>
+                  <span className="text-sm font-medium">{mod.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+          
+          {/* 侧边栏底部 */}
+          <div className="p-4 border-t border-gray-700">
+            <div className="text-xs text-gray-500">
+              <p>版本：V6.0</p>
+              <p className="mt-1">© 2024 海邻到家</p>
+            </div>
+          </div>
+        </aside>
+        
+        {/* 右侧主内容区 */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* 管理模块内容 */}
+          {activeModule !== 'cashier' && (
+            <StoreManagementModule 
+              module={activeModule} 
+              store={currentStore}
+              products={products}
+              members={members}
+              orders={useOrderStore.getState().orders}
+            />
+          )}
+
+          {/* 收银台界面 */}
+          <div className="flex-1 flex overflow-hidden">
         {/* 左侧商品区 */}
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* 工具栏 */}
@@ -889,6 +917,8 @@ export default function CashierPage() {
           </div>
         </div>
       )}
+        </main>
+      </div>
     </div>
   );
 }
