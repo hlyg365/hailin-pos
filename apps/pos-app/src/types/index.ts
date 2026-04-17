@@ -123,7 +123,7 @@ export interface Member {
   createdAt: DateTime;
 }
 
-export interface Member Benefit {
+export interface MemberBenefit {
   level: MemberLevel;
   discount: number;
   pointsRate: number;

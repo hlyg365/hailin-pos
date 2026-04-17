@@ -4,8 +4,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { 
-  Store, Employee, Product, Inventory, Order, Member,
-  MEMBER_BENEFITS, CLEARANCE_HOUR_START, CLEARANCE_HOUR_END, CLEARANCE_DISCOUNT
+  Store, Employee, Product, Inventory, Order, Member
 } from '../types';
 
 // ============ 门店状态 ============
@@ -227,6 +226,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
 // ============ 财务状态 ============
 interface FinanceState {
+  todaySales: number;
   todayCash: number;
   todayOnline: number;
   todayOrders: number;
@@ -236,17 +236,19 @@ interface FinanceState {
 }
 
 export const useFinanceStore = create<FinanceState>((set) => ({
+  todaySales: 21540,
   todayCash: 12580,
   todayOnline: 8960,
   todayOrders: 356,
   depositPending: 8500,
   addSales: (amount, method) => set((state) => ({
+    todaySales: state.todaySales + amount,
     todayOrders: state.todayOrders + 1,
     todayCash: method === 'cash' ? state.todayCash + amount : state.todayCash,
     todayOnline: method === 'online' ? state.todayOnline + amount : state.todayOnline,
     depositPending: method === 'cash' ? state.depositPending + amount : state.depositPending,
   })),
-  resetDaily: () => set({ todayCash: 0, todayOnline: 0, todayOrders: 0, depositPending: 0 }),
+  resetDaily: () => set({ todaySales: 0, todayCash: 0, todayOnline: 0, todayOrders: 0, depositPending: 0 }),
 }));
 
 // ============ 离线状态 ============
