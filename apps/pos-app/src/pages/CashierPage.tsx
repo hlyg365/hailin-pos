@@ -18,6 +18,8 @@ const storeModules = [
   { id: 'promotion', label: '促销', icon: '🎁' },
   { id: 'orders', label: '订单', icon: '📋' },
   { id: 'delivery', label: '配送', icon: '🚚' },
+  { id: 'reports', label: '报表', icon: '📊' },
+  { id: 'member', label: '会员', icon: '👥' },
   { id: 'settings', label: '设置', icon: '⚙️' },
 ];
 
@@ -667,6 +669,231 @@ export default function CashierPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========== 报表中心 ========== */}
+          {activeModule === 'reports' && (
+            <div className="flex-1 bg-gray-50 p-6 overflow-auto">
+              <div className="max-w-6xl mx-auto">
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">📊</span> 报表中心</h2>
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  {[
+                    { label: '今日营收', value: '¥12,580', icon: '💰', color: 'bg-green-500', change: '+15%' },
+                    { label: '今日订单', value: '186', icon: '📝', color: 'bg-blue-500', change: '+8%' },
+                    { label: '客单价', value: '¥67.63', icon: '🛒', color: 'bg-purple-500', change: '+3%' },
+                    { label: '毛利率', value: '23.5%', icon: '📈', color: 'bg-orange-500', change: '+1.2%' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white rounded-xl p-4 shadow-sm border">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center text-xl`}>{stat.icon}</div>
+                        <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">{stat.change}</span>
+                      </div>
+                      <p className="text-gray-500 text-sm">{stat.label}</p>
+                      <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">销售趋势</h3>
+                    <div className="h-48 flex items-end justify-around gap-2">
+                      {['周一', '周二', '周三', '周四', '周五', '周六', '周日'].map((day, i) => {
+                        const heights = [60, 75, 45, 80, 65, 90, 70];
+                        return (
+                          <div key={i} className="flex flex-col items-center gap-2">
+                            <div className="w-10 bg-gradient-to-t from-blue-500 to-blue-300 rounded-t" style={{ height: `${heights[i]}%` }}></div>
+                            <span className="text-xs text-gray-500">{day}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">商品销售排行</h3>
+                    <div className="space-y-3">
+                      {[{ name: '农夫山泉', sales: 156, icon: '💧' }, { name: '红南京', sales: 98, icon: '🚬' }, { name: '康师傅方便面', sales: 87, icon: '🍜' }, { name: '可比克薯片', sales: 76, icon: '🍿' }, { name: '奥利奥', sales: 65, icon: '🍪' }].map((item, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i < 3 ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-600'}`}>{i + 1}</span>
+                          <span className="text-lg">{item.icon}</span>
+                          <span className="flex-1 font-medium">{item.name}</span>
+                          <span className="text-gray-500 text-sm">{item.sales}件</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-6 mb-6">
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">时段分析</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between"><span className="text-gray-500">早高峰 7-9点</span><span className="font-medium">18%</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">午间 11-13点</span><span className="font-medium">25%</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">下午 14-17点</span><span className="font-medium">15%</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">晚高峰 17-20点</span><span className="font-medium">30%</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">夜间 20-23点</span><span className="font-medium">12%</span></div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">支付方式</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center"><span className="text-gray-500">微信支付</span><span className="font-medium">45%</span><div className="w-24 h-2 bg-gray-100 rounded"><div className="w-[45%] h-full bg-green-500 rounded"></div></div></div>
+                      <div className="flex justify-between items-center"><span className="text-gray-500">支付宝</span><span className="font-medium">35%</span><div className="w-24 h-2 bg-gray-100 rounded"><div className="w-[35%] h-full bg-blue-500 rounded"></div></div></div>
+                      <div className="flex justify-between items-center"><span className="text-gray-500">现金</span><span className="font-medium">12%</span><div className="w-24 h-2 bg-gray-100 rounded"><div className="w-[12%] h-full bg-yellow-500 rounded"></div></div></div>
+                      <div className="flex justify-between items-center"><span className="text-gray-500">云闪付</span><span className="font-medium">8%</span><div className="w-24 h-2 bg-gray-100 rounded"><div className="w-[8%] h-full bg-red-500 rounded"></div></div></div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">毛利分析</h3>
+                    <div className="space-y-3">
+                      <div><p className="text-sm text-gray-500 mb-1">综合毛利率</p><p className="text-2xl font-bold text-green-600">23.5%</p></div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="bg-blue-50 rounded p-2"><p className="text-gray-500 text-xs">食品类</p><p className="font-semibold">25.8%</p></div>
+                        <div className="bg-orange-50 rounded p-2"><p className="text-gray-500 text-xs">饮料类</p><p className="font-semibold">32.1%</p></div>
+                        <div className="bg-purple-50 rounded p-2"><p className="text-gray-500 text-xs">烟草类</p><p className="font-semibold">18.5%</p></div>
+                        <div className="bg-gray-50 rounded p-2"><p className="text-gray-500 text-xs">日用品</p><p className="font-semibold">28.3%</p></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border">
+                  <div className="p-4 border-b flex items-center justify-between">
+                    <h3 className="font-semibold">财务报表</h3>
+                    <div className="flex gap-2">
+                      <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">导出Excel</button>
+                      <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">打印</button>
+                    </div>
+                  </div>
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">日期</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">销售额</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">成本</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">毛利</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">毛利率</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {[{ date: '2024-01-17', sales: 12580, cost: 9629, profit: 2951 }, { date: '2024-01-16', sales: 11250, cost: 8615, profit: 2635 }, { date: '2024-01-15', sales: 10890, cost: 8335, profit: 2555 }].map((row, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">{row.date}</td>
+                          <td className="px-4 py-3 text-red-600 font-medium">¥{row.sales.toLocaleString()}</td>
+                          <td className="px-4 py-3">¥{row.cost.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-green-600 font-medium">¥{row.profit.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-blue-600">{(row.profit / row.sales * 100).toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========== 会员管理 ========== */}
+          {activeModule === 'member' && (
+            <div className="flex-1 bg-gray-50 p-6 overflow-auto">
+              <div className="max-w-6xl mx-auto">
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">👥</span> 会员管理</h2>
+                <div className="grid grid-cols-5 gap-4 mb-6">
+                  {[
+                    { label: '会员总数', value: '1,286', icon: '👥', color: 'bg-blue-500' },
+                    { label: '新增会员', value: '+23', icon: '🆕', color: 'bg-green-500' },
+                    { label: '活跃会员', value: '856', icon: '🔥', color: 'bg-orange-500' },
+                    { label: '沉睡会员', value: '430', icon: '💤', color: 'bg-gray-500' },
+                    { label: '本月积分', value: '58,920', icon: '⭐', color: 'bg-yellow-500' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white rounded-xl p-4 shadow-sm border">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 ${stat.color} rounded-lg flex items-center justify-center text-xl`}>{stat.icon}</div>
+                        <div><p className="text-gray-500 text-xs">{stat.label}</p><p className="text-xl font-bold">{stat.value}</p></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  {[
+                    { level: 'diamond', name: '钻石会员', count: 45, color: 'bg-gradient-to-br from-purple-500 to-pink-500', icon: '💎', discount: '9折', rights: ['全品类9折', '2倍积分', '专属客服'] },
+                    { level: 'gold', name: '金卡会员', count: 156, color: 'bg-gradient-to-br from-yellow-500 to-orange-500', icon: '🥇', discount: '95折', rights: ['全品类95折', '1.5倍积分', '生日礼券'] },
+                    { level: 'silver', name: '银卡会员', count: 389, color: 'bg-gradient-to-br from-gray-400 to-gray-500', icon: '🥈', discount: '98折', rights: ['全品类98折', '1.2倍积分'] },
+                    { level: 'normal', name: '普通会员', count: 696, color: 'bg-gradient-to-br from-blue-400 to-blue-500', icon: '🎫', discount: '原价', rights: ['1倍积分', '参与活动'] },
+                  ].map((tier, i) => (
+                    <div key={i} className={`${tier.color} text-white rounded-xl p-4`}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-3xl">{tier.icon}</span>
+                        <div><p className="font-bold">{tier.name}</p><p className="text-sm opacity-80">{tier.count}人</p></div>
+                      </div>
+                      <div className="bg-white/20 rounded-lg p-3 space-y-1">
+                        <p className="text-sm font-medium">{tier.discount}</p>
+                        {tier.rights.map((r, j) => <p key={j} className="text-xs opacity-90">• {r}</p>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border mb-6">
+                  <div className="p-4 border-b flex items-center justify-between">
+                    <h3 className="font-semibold">会员列表</h3>
+                    <div className="flex gap-2">
+                      <select className="px-3 py-2 border rounded-lg text-sm">
+                        <option value="">全部等级</option>
+                        <option value="diamond">钻石会员</option>
+                        <option value="gold">金卡会员</option>
+                        <option value="silver">银卡会员</option>
+                        <option value="normal">普通会员</option>
+                      </select>
+                      <input type="text" placeholder="搜索手机号/姓名..." className="px-3 py-2 border rounded-lg text-sm" />
+                      <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">搜索</button>
+                      <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">+ 新增会员</button>
+                    </div>
+                  </div>
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">会员信息</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">手机号</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">等级</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">积分</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">余额</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">消费金额</th><th className="px-4 py-3 text-left text-sm font-medium text-gray-500">操作</th></tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {useMemberStore.getState().members.map((m, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">{m.name.slice(0, 1)}</div>
+                            <span className="font-medium">{m.name}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 font-mono">{m.phone}</td>
+                          <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs ${m.level === 'diamond' ? 'bg-purple-100 text-purple-600' : m.level === 'gold' ? 'bg-yellow-100 text-yellow-600' : m.level === 'silver' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-600'}`}>{m.level === 'diamond' ? '💎钻石' : m.level === 'gold' ? '🥇金卡' : m.level === 'silver' ? '🥈银卡' : '普通'}</span></td>
+                          <td className="px-4 py-3 text-orange-600">{m.points.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-green-600">¥{m.balance.toFixed(2)}</td>
+                          <td className="px-4 py-3">¥{m.totalSpent.toLocaleString()}</td>
+                          <td className="px-4 py-3"><button className="text-blue-600 hover:text-blue-800 text-sm mr-2">详情</button><button className="text-gray-500 hover:text-gray-700 text-sm">充值</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">积分规则</h3>
+                    <div className="space-y-3">
+                      {[{ action: '消费1元', points: '1分', level: '普通' }, { action: '消费1元', points: '1.2分', level: '银卡' }, { action: '消费1元', points: '1.5分', level: '金卡' }, { action: '消费1元', points: '2分', level: '钻石' }].map((rule, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span>{rule.action}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-orange-600 font-semibold">{rule.points}</span>
+                            <span className="text-xs text-gray-500">({rule.level})</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow-sm border p-4">
+                    <h3 className="font-semibold mb-4">会员活动</h3>
+                    <div className="space-y-3">
+                      {[{ name: '生日双倍积分', status: '进行中', icon: '🎂' }, { name: '新会员首充送积分', status: '进行中', icon: '🎁' }, { name: '周末积分翻倍', status: '未开始', icon: '📅' }].map((act, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">{act.icon}</span>
+                            <span className="font-medium">{act.name}</span>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs ${act.status === '进行中' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>{act.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
