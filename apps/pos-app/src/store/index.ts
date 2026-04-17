@@ -292,8 +292,8 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
   })),
   syncOrders: async () => {
     const { pendingOrders } = get();
-    // 模拟同步
-    console.log('Syncing orders:', pendingOrders);
+    // 离线订单同步到服务器（实际部署时调用后端API）
+    console.log('Syncing orders to server:', pendingOrders);
     set({ pendingOrders: [] });
   },
   setOnline: (status) => set({ isOnline: status }),

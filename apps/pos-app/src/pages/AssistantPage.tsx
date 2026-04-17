@@ -166,9 +166,6 @@ function MobileCashierTab() {
     createOrder(order);
     addSales(totals.total, selectedPay === 'cash' ? 'cash' : 'online');
     
-    // 模拟支付延迟
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
     setIsProcessing(false);
     setShowPayModal(false);
     setShowSuccess(true);
@@ -639,12 +636,12 @@ export default function AssistantPage() {
                       </div>
                       <div>
                         <p className="font-medium">{product.name}</p>
-                        <p className="text-sm text-gray-500">库存 {Math.floor(Math.random() * 100 + 20)}</p>
+                        <p className="text-sm text-gray-500">库存 {(product as any).stock || 0}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`text-sm ${Math.random() > 0.3 ? 'text-green-600' : 'text-red-600'}`}>
-                        {Math.random() > 0.3 ? '充足' : '不足'}
+                      <p className={`text-sm ${(product as any).stock > 30 ? 'text-green-600' : 'text-red-600'}`}>
+                        {(product as any).stock > 30 ? '充足' : '不足'}
                       </p>
                       <p className="text-xs text-gray-400">预警: 30</p>
                     </div>
