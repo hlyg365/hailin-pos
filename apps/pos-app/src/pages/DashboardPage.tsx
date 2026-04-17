@@ -2565,6 +2565,16 @@ export default function DashboardPage() {
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">🆔 AppCode</label>
+                    <input type="text" value={config.appCode} onChange={(e) => aiConfig.updateConfig(index, { appCode: e.target.value })} placeholder="阿里云等平台AppCode" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">🔐 AppSecret</label>
+                    <input type="password" value={config.appSecret} onChange={(e) => aiConfig.updateConfig(index, { appSecret: e.target.value })} placeholder="阿里云等平台AppSecret" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">📤 请求方式</label>
                     <select value={config.method} onChange={(e) => aiConfig.updateConfig(index, { method: e.target.value as 'POST' | 'GET' })} className="w-full px-3 py-2 border rounded-lg text-sm">
                       <option value="POST">POST</option>

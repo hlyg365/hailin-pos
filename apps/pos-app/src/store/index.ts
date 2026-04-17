@@ -505,6 +505,8 @@ interface AiBarcodeConfig {
   enabled: boolean;
   apiUrl: string;
   apiKey: string;
+  appCode: string;
+  appSecret: string;
   method: 'POST' | 'GET';
   timeout: number;
   requestTemplate: string;
@@ -533,6 +535,8 @@ const defaultAiConfig: AiBarcodeConfig = {
   enabled: true,
   apiUrl: 'https://api.hailin.com/ai/barcode',
   apiKey: '',
+  appCode: '',
+  appSecret: '',
   method: 'POST',
   timeout: 3,
   requestTemplate: '{"barcode": "${barcode}", "store_id": "${store_id}"}',
