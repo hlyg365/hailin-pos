@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
+import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore, useAiConfigStore } from '../store';
 import { deviceManager } from '../services/posDevices';
 import type { Product } from '../types';
 
@@ -48,49 +48,33 @@ export default function CashierPage() {
     setAi识别中(true);
     setNewProduct(prev => ({ ...prev, barcode })); // 先填充条码
     
-    // 模拟AI识别 - 实际应用中调用后端API
-    await new Promise(r => setTimeout(r, 800));
+    // 调用真实AI识别接口
+    const aiConfig = useAiConfigStore.getState();
+    const result = await aiConfig.aiScanByBarcode(barcode);
     
-    // 根据条码特征智能识别
-    const barcodePrefix = barcode.substring(0, 6);
-    let guessedProduct = {
-      name: '',
-      category: '食品',
-      retailPrice: 0,
-      costPrice: 0,
-      supplier: '',
-    };
-    
-    // 模拟根据条码前缀识别商品
-    if (barcode.startsWith('69')) {
-      // 中国商品
-      guessedProduct = {
-        name: '待识别商品',
+    if (result.success) {
+      setNewProduct(prev => ({
+        ...prev,
+        barcode,
+        name: result.name || '',
+        category: result.category || '食品',
+        retailPrice: result.retailPrice || 0,
+        costPrice: result.costPrice || 0,
+        supplier: result.supplier || '',
+      }));
+    } else {
+      // 识别失败时填充基本信息
+      setNewProduct(prev => ({
+        ...prev,
+        barcode,
+        name: '',
         category: '食品',
         retailPrice: 0,
         costPrice: 0,
-        supplier: '待填写',
-      };
-    } else if (barcode.length >= 13) {
-      guessedProduct = {
-        name: '待识别商品',
-        category: '饮料',
-        retailPrice: 0,
-        costPrice: 0,
-        supplier: '待填写',
-      };
+        supplier: '',
+      }));
+      console.warn('AI识别失败:', result.message);
     }
-    
-    // 自动填充识别结果
-    setNewProduct(prev => ({
-      ...prev,
-      barcode,
-      name: guessedProduct.name,
-      category: guessedProduct.category,
-      retailPrice: guessedProduct.retailPrice,
-      costPrice: guessedProduct.costPrice,
-      supplier: guessedProduct.supplier,
-    }));
     
     setAi识别中(false);
   };

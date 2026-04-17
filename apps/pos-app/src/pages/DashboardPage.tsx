@@ -46,6 +46,8 @@ export default function DashboardPage() {
   ]);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [newProductForm, setNewProductForm] = useState({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '' });
+  const [ai识别中, setAi识别中] = useState(false);
+  const [import识别中, setImport识别中] = useState(false);
   
   const handleAddProduct = () => {
     if (!newProductForm.name || !newProductForm.barcode) {
@@ -56,6 +58,45 @@ export default function DashboardPage() {
     setShowAddProductModal(false);
     setNewProductForm({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '' });
     alert('商品添加成功');
+  };
+  
+  // 商品管理-新增商品AI识别
+  const handleAiScanForNewProduct = async (barcode: string) => {
+    if (!barcode) return;
+    setAi识别中(true);
+    const aiConfig = useAiConfigStore.getState();
+    const result = await aiConfig.aiScanByBarcode(barcode);
+    if (result.success) {
+      setNewProductForm(prev => ({
+        ...prev,
+        barcode,
+        name: result.name || '',
+        category: result.category || '食品',
+        retailPrice: result.retailPrice || 0,
+        costPrice: result.costPrice || 0,
+        supplier: result.supplier || '',
+      }));
+    } else {
+      setNewProductForm(prev => ({ ...prev, barcode }));
+      alert(result.message || 'AI识别失败');
+    }
+    setAi识别中(false);
+  };
+  
+  // 采购入库-扫码识别
+  const [scanResult, setScanResult] = useState<{ barcode: string; name?: string; price?: number; costPrice?: number } | null>(null);
+  const handleImportAiScan = async (barcode: string) => {
+    if (!barcode) return;
+    setImport识别中(true);
+    const aiConfig = useAiConfigStore.getState();
+    const result = await aiConfig.aiScanByBarcode(barcode);
+    if (result.success) {
+      setScanResult({ barcode, name: result.name, price: result.retailPrice, costPrice: result.costPrice });
+    } else {
+      setScanResult({ barcode });
+      alert(result.message || 'AI识别失败');
+    }
+    setImport识别中(false);
   };
   
   // 同步小程序设置
@@ -2275,7 +2316,12 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">条码 *</label>
-                  <input type="text" value={newProductForm.barcode} onChange={(e) => setNewProductForm({...newProductForm, barcode: e.target.value})} placeholder="扫描或输入条码" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+                  <div className="flex gap-2">
+                    <input type="text" value={newProductForm.barcode} onChange={(e) => setNewProductForm({...newProductForm, barcode: e.target.value})} placeholder="扫描或输入条码" className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+                    <button onClick={() => handleAiScanForNewProduct(newProductForm.barcode)} disabled={ai识别中 || !newProductForm.barcode} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1">
+                      {ai识别中 ? '识别中...' : '🤖 AI识别'}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">商品分类</label>
@@ -2339,11 +2385,47 @@ export default function DashboardPage() {
                   </h3>
                   
                   <div className="flex gap-3 mb-4">
-                    <input type="text" placeholder="扫描或输入条码..." className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-mono" autoFocus />
-                    <button className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                      识别
+                    <input 
+                      type="text" 
+                      id="importBarcodeInput"
+                      placeholder="扫描或输入条码后按回车..." 
+                      className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-mono" 
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const barcode = (e.target as HTMLInputElement).value.trim();
+                          if (barcode) handleImportAiScan(barcode);
+                        }
+                      }}
+                    />
+                    <button 
+                      onClick={() => {
+                        const input = document.getElementById('importBarcodeInput') as HTMLInputElement;
+                        if (input?.value) handleImportAiScan(input.value.trim());
+                      }} 
+                      disabled={import识别中}
+                      className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
+                    >
+                      {import识别中 ? '识别中...' : '识别'}
                     </button>
                   </div>
+                  
+                  {/* 识别结果显示 */}
+                  {scanResult && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-green-800">{scanResult.name || '待识别商品'}</p>
+                          <p className="text-sm text-green-600">条码: {scanResult.barcode}</p>
+                          {scanResult.price && <p className="text-sm text-green-600">零售价: ¥{scanResult.price}</p>}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setShowAddProductModal(true); setNewProductForm({ name: scanResult.name || '', barcode: scanResult.barcode, category: '食品', retailPrice: scanResult.price || 0, costPrice: scanResult.costPrice || 0, supplier: '' }); setScanResult(null); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">添加到商品库</button>
+                          <button onClick={() => setScanResult(null)} className="px-3 py-1 border rounded text-sm hover:bg-gray-50">清除</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4 mb-4">
                     <div className="flex items-center justify-between">
@@ -2356,7 +2438,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-green-600 bg-green-100 px-2 py-1 rounded text-sm">已启用</span>
-                        <button className="text-sm text-purple-600 hover:text-purple-800">配置</button>
+                        <button onClick={() => setActiveTab('ai-config')} className="text-sm text-purple-600 hover:text-purple-800">配置</button>
                       </div>
                     </div>
                   </div>
