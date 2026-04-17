@@ -811,9 +811,9 @@ export default function AssistantPage() {
               <h3 className="font-semibold mb-4">热销商品 TOP5</h3>
               <div className="space-y-3">
                 {[
-                  { name: '农夫山泉550ml', sales: 156, amount: 312 },
-                  { name: '可口可乐330ml', sales: 128, amount: 384 },
-                  { name: '康师傅方便面', sales: 95, amount: 427.5 },
+                  
+                  
+                  
                   { name: '双汇火腿肠', sales: 78, amount: 390 },
                   { name: '奥利奥饼干', sales: 65, amount: 552.5 },
                 ].map((item, i) => (

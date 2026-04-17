@@ -573,9 +573,9 @@ export default function DashboardPage() {
                 {[
                   { label: '门店总数', value: stores.length, icon: '🏪', color: 'blue' },
                   { label: '营业中', value: stores.filter(s => s.status === 'active').length, icon: '✅', color: 'green' },
-                  { label: '待处理要货', value: 5, icon: '📦', color: 'orange' },
-                  { label: '库存预警', value: 3, icon: '⚠️', color: 'red' },
-                  { label: '今日订单', value: 128, icon: '🧾', color: 'purple' },
+                  { label: '待处理要货', value: requests.filter(r => r.status === 'pending').length, icon: '📦', color: 'orange' },
+                  { label: '库存预警', value: lowStockAlerts.length, icon: '⚠️', color: 'red' },
+                  { label: '今日订单', value: orders.filter(o => o.createdAt?.startsWith(new Date().toDateString())).length, icon: '🧾', color: 'purple' },
                 ].map((item, i) => (
                   <div key={i} className={`bg-${item.color}-50 rounded-lg p-4`}>
                     <div className="flex items-center gap-2 mb-2">
@@ -622,7 +622,7 @@ export default function DashboardPage() {
                 {/* 基本信息 */}
                 <div className="bg-white rounded-xl p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-semibold">望京店 (WJ001)</h4>
+                    <h4 className="font-semibold">门店详情</h4>
                     <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">营业中</span>
                   </div>
                   <div className="grid grid-cols-3 gap-4 text-sm">
@@ -669,26 +669,28 @@ export default function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        { name: '红富士苹果', stock: 15, threshold: 30, status: 'low' },
-                        { name: '散装面包', stock: 5, threshold: 20, status: 'critical' },
-                        { name: '伊利纯牛奶', stock: 45, threshold: 50, status: 'low' },
-                      ].map((item, i) => (
-                        <tr key={i} className="border-b last:border-0">
-                          <td className="py-2">{item.name}</td>
-                          <td className={`py-2 ${item.status === 'critical' ? 'text-red-600' : 'text-yellow-600'}`}>
-                            {item.stock}
-                          </td>
-                          <td className="py-2 text-gray-500">{item.threshold}</td>
-                          <td className="py-2">
-                            <span className={`px-2 py-0.5 rounded text-xs ${
-                              item.status === 'critical' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'
-                            }`}>
-                              {item.status === 'critical' ? '紧急' : '预警'}
-                            </span>
-                          </td>
+                      {lowStockAlerts.length > 0 ? (
+                        lowStockAlerts.slice(0, 5).map((item, i) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="py-2">{item.productName || '未知商品'}</td>
+                            <td className={`py-2 ${(item.level === 'critical' || item.currentStock < 20) ? 'text-red-600' : 'text-yellow-600'}`}>
+                              {item.currentStock || 0}
+                            </td>
+                            <td className="py-2 text-gray-500">{item.threshold || 30}</td>
+                            <td className="py-2">
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                (item.level === 'critical' || item.currentStock < 20) ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'
+                              }`}>
+                                {(item.level === 'critical' || item.currentStock < 20) ? '紧急' : '预警'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="py-4 text-center text-gray-500">暂无库存预警</td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -711,9 +713,9 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {[
-                        { store: '望京店', items: 8, amount: 5200, time: '10:30' },
+                        
                         { store: '国贸店', items: 5, amount: 3800, time: '09:15' },
-                        { store: '中关村店', items: 12, amount: 7500, time: '08:45' },
+                        
                       ].map((item, i) => (
                         <tr key={i} className="border-b last:border-0">
                           <td className="py-2">{item.store}</td>
@@ -748,8 +750,8 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {[
-                        { id: 'ORD20240117001', store: '望京店', amount: 128.5, pay: '微信', time: '14:32' },
-                        { id: 'ORD20240117002', store: '望京店', amount: 56.0, pay: '现金', time: '14:28' },
+                        
+                        
                         { id: 'ORD20240117003', store: '国贸店', amount: 238.0, pay: '支付宝', time: '14:15' },
                       ].map((item, i) => (
                         <tr key={i} className="border-b last:border-0">
@@ -937,23 +939,16 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { id: 'p001', barcode: '6921166466888', name: '农夫山泉550ml', category: '饮料', cost: 1.5, price: 2, stock: 120, status: 'active', isStandard: true },
-                      { id: 'p002', barcode: '6921234567890', name: '可口可乐330ml', category: '饮料', cost: 2.2, price: 3, stock: 85, status: 'active', isStandard: true },
-                      { id: 'p003', barcode: '6922345678901', name: '康师傅方便面', category: '食品', cost: 3.5, price: 4.5, stock: 200, status: 'active', isStandard: true },
-                      { id: 'p004', barcode: '6923456789012', name: '双汇火腿肠', category: '食品', cost: 3.8, price: 5, stock: 150, status: 'active', isStandard: true },
-                      { id: 'p005', barcode: '6924567890123', name: '绿箭口香糖', category: '零食', cost: 4.5, price: 6, stock: 80, status: 'active', isStandard: true },
-                      { id: 'p006', barcode: '6925678901234', name: '奥利奥饼干', category: '零食', cost: 6.5, price: 8.5, stock: 65, status: 'active', isStandard: true },
-                      { id: 'p007', barcode: '6926789012345', name: '伊利纯牛奶', category: '奶制品', cost: 9, price: 12, stock: 45, status: 'active', isStandard: true },
-                      { id: 'p008', barcode: '6927890123456', name: '蒙牛酸奶', category: '奶制品', cost: 5, price: 6.5, stock: 72, status: 'active', isStandard: true },
-                      { id: 'p009', barcode: '', name: '红富士苹果', category: '生鲜', cost: 6, price: 9.9, stock: 15, status: 'active', isStandard: false },
-                      { id: 'p010', barcode: '', name: '散装面包', category: '烘焙', cost: 15, price: 25, stock: 5, status: 'warning', isStandard: false },
-                    ].map(product => (
+                    {products.slice(0, 20).map(product => (
                       <tr key={product.id} className="border-b last:border-0 hover:bg-gray-50">
                         <td className="py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-2xl">
-                              {product.isStandard ? '📦' : '🍎'}
+                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-2xl overflow-hidden">
+                              {product.image ? (
+                                <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                              ) : (
+                                product.isStandard ? '📦' : '🍎'
+                              )}
                             </div>
                             <div>
                               <p className="font-medium">{product.name}</p>
@@ -967,11 +962,11 @@ export default function DashboardPage() {
                         <td className="py-3">
                           <span className="px-2 py-1 bg-gray-100 rounded text-sm">{product.category}</span>
                         </td>
-                        <td className="py-3 text-gray-600">¥{product.cost.toFixed(2)}</td>
-                        <td className="py-3 font-medium text-green-600">¥{product.price.toFixed(2)}</td>
+                        <td className="py-3 text-gray-600">¥{product.costPrice.toFixed(2)}</td>
+                        <td className="py-3 font-medium text-green-600">¥{product.retailPrice.toFixed(2)}</td>
                         <td className="py-3">
-                          <span className={product.stock < 20 ? 'text-red-600 font-medium' : ''}>
-                            {product.stock}
+                          <span className={(product.stock || 0) < 20 ? 'text-red-600 font-medium' : ''}>
+                            {product.stock || 0}
                           </span>
                         </td>
                         <td className="py-3">
@@ -1068,9 +1063,9 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {[
-                        { name: '农夫山泉550ml', category: '饮料', miniPrice: 1.8, storePrice: 2, sales: 1234, status: 'online' },
-                        { name: '可口可乐330ml', category: '饮料', miniPrice: 2.5, storePrice: 3, sales: 986, status: 'online' },
-                        { name: '康师傅方便面', category: '食品', miniPrice: 4, storePrice: 4.5, sales: 756, status: 'online' },
+                        
+                        
+                        
                         { name: '奥利奥饼干', category: '零食', miniPrice: 7.5, storePrice: 8.5, sales: 543, status: 'pending' },
                         { name: '蒙牛酸奶', category: '奶制品', miniPrice: 5.5, storePrice: 6.5, sales: 0, status: 'offline' },
                       ].map((product, i) => (
@@ -1157,10 +1152,10 @@ export default function DashboardPage() {
                 <h3 className="font-semibold mb-4">团购活动管理</h3>
                 <div className="space-y-4">
                   {[
-                    { id: 'GB001', name: '新鲜土鸡蛋30枚', price: 23, originalPrice: 28, target: 50, current: 38, startDate: '2024-01-15', endDate: '2024-01-18', status: 'active', leader: '张三', store: '望京店' },
-                    { id: 'GB002', name: '有机蔬菜套餐', price: 49, originalPrice: 65, target: 30, current: 22, startDate: '2024-01-16', endDate: '2024-01-20', status: 'active', leader: '李四', store: '中关村店' },
+                    
+                    
                     { id: 'GB003', name: '精选进口牛奶', price: 35, originalPrice: 48, target: 40, current: 12, startDate: '2024-01-14', endDate: '2024-01-17', status: 'pending', leader: '王五', store: '国贸店' },
-                    { id: 'GB004', name: '新鲜三文鱼500g', price: 68, originalPrice: 88, target: 20, current: 20, startDate: '2024-01-10', endDate: '2024-01-14', status: 'ended', leader: '赵六', store: '望京店' },
+                    
                   ].map((group, i) => (
                     <div key={i} className="border rounded-xl p-4 hover:shadow-md transition-shadow">
                       <div className="flex items-start gap-4">
@@ -1258,10 +1253,10 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {[
-                        { name: '张三', phone: '138****1234', store: '望京店', members: 156, activeGroups: 3, commission: '¥2,680', status: 'active' },
-                        { name: '李四', phone: '139****5678', store: '中关村店', members: 128, activeGroups: 2, commission: '¥1,920', status: 'active' },
+                        
+                        
                         { name: '王五', phone: '137****9012', store: '国贸店', members: 95, activeGroups: 1, commission: '¥1,450', status: 'active' },
-                        { name: '赵六', phone: '136****3456', store: '望京店', members: 78, activeGroups: 0, commission: '¥860', status: 'inactive' },
+                        
                       ].map((leader, i) => (
                         <tr key={i} className="border-b last:border-0">
                           <td className="py-4">
@@ -1318,8 +1313,8 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {[
-                      { no: 'PO20240117001', supplier: '农夫山泉股份', amount: 15000, status: 'shipped' },
-                      { no: 'PO20240117002', supplier: '康师傅集团', amount: 8500, status: 'approved' },
+                      
+                      
                       { no: 'PO20240116001', supplier: '伊利乳业', amount: 22000, status: 'completed' },
                     ].map((po, i) => (
                       <tr key={i} className="border-b last:border-0">
@@ -1348,9 +1343,9 @@ export default function DashboardPage() {
               <h3 className="font-semibold mb-4">智能配送调度</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                  { route: '总仓 → 望京店', items: 15, eta: '2小时后' },
+                  
                   { route: '总仓 → 国贸店', items: 12, eta: '3小时后' },
-                  { route: '总仓 → 中关村店', items: 8, eta: '4小时后' },
+                  
                 ].map((delivery, i) => (
                   <div key={i} className="border rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -1849,10 +1844,10 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {[
-                      { no: 'POS20240117001', type: 'POS', store: '望京店', amount: 35.50, pay: '微信', status: 'completed', time: '10:30' },
+                      
                       { no: 'MINI20240117002', type: '小程序', store: '国贸店', amount: 128.00, pay: '支付宝', status: 'completed', time: '10:15' },
-                      { no: 'DEL20240117003', type: '外卖', store: '中关村店', amount: 45.00, pay: '美团', status: 'completed', time: '09:50' },
-                      { no: 'GRP20240117004', type: '团购', store: '望京店', amount: 89.00, pay: '微信', status: 'pending', time: '09:30' },
+                      
+                      
                     ].map((order, i) => (
                       <tr key={i} className="border-b last:border-0">
                         <td className="py-3 font-mono text-sm">{order.no}</td>
@@ -1932,10 +1927,10 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {[
-                      { name: '张三', phone: '13800138000', role: '店长', store: '望京店', date: '2023-01-15', status: 'active' },
-                      { name: '李四', phone: '13900139000', role: '收银员', store: '望京店', date: '2023-06-01', status: 'active' },
+                      
+                      
                       { name: '王五', phone: '13700137000', role: '店长', store: '国贸店', date: '2022-08-20', status: 'active' },
-                      { name: '赵六', phone: '13600136000', role: '收银员', store: '中关村店', date: '2023-03-10', status: 'inactive' },
+                      
                     ].map((emp, i) => (
                       <tr key={i} className="border-b last:border-0">
                         <td className="py-3 font-medium">{emp.name}</td>
