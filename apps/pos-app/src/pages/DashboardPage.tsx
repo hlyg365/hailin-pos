@@ -2358,25 +2358,38 @@ export default function DashboardPage() {
               <div className="p-4 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">➕</span>
-                    <h3 className="font-semibold text-lg">新增商品</h3>
+                    <span className="text-2xl">🤖</span>
+                    <div>
+                      <h3 className="font-semibold text-lg">AI智能添加商品</h3>
+                      {ai识别中 ? (
+                        <p className="text-sm text-blue-200">正在识别商品信息...</p>
+                      ) : newProductForm.name ? (
+                        <p className="text-sm text-green-200">✓ 识别成功，商品信息已填充</p>
+                      ) : newProductForm.barcode ? (
+                        <p className="text-sm text-yellow-200">请点击"AI识别"获取商品信息</p>
+                      ) : (
+                        <p className="text-sm text-blue-200">请扫描或输入条码</p>
+                      )}
+                    </div>
                   </div>
                   <button onClick={() => setShowAddProductModal(false)} className="text-white/80 hover:text-white text-2xl">×</button>
                 </div>
               </div>
               <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">商品名称 *</label>
-                  <input type="text" value={newProductForm.name} onChange={(e) => setNewProductForm({...newProductForm, name: e.target.value})} placeholder="请输入商品名称" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">条码 *</label>
                   <div className="flex gap-2">
-                    <input type="text" value={newProductForm.barcode} onChange={(e) => setNewProductForm({...newProductForm, barcode: e.target.value})} placeholder="扫描或输入条码" className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+                    <input type="text" value={newProductForm.barcode} onChange={(e) => setNewProductForm({...newProductForm, barcode: e.target.value, name: '', retailPrice: 0, costPrice: 0, category: '食品' })} placeholder="扫描或输入条码" className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
                     <button onClick={() => handleAiScanForNewProduct(newProductForm.barcode)} disabled={ai识别中 || !newProductForm.barcode} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1">
-                      {ai识别中 ? '识别中...' : '🤖 AI识别'}
+                      {ai识别中 ? '⏳ 识别中...' : '🤖 AI识别'}
                     </button>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    商品名称 {newProductForm.name ? <span className="text-green-600 text-xs">✓ 已识别</span> : <span className="text-red-500">*</span>}
+                  </label>
+                  <input type="text" value={newProductForm.name} onChange={(e) => setNewProductForm({...newProductForm, name: e.target.value})} placeholder="请输入商品名称" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">商品分类</label>
@@ -2392,7 +2405,9 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">零售价(元) *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      零售价(元) {newProductForm.retailPrice > 0 ? <span className="text-green-600 text-xs">✓ 已识别</span> : <span className="text-red-500">*</span>}
+                    </label>
                     <input type="number" value={newProductForm.retailPrice || ''} onChange={(e) => setNewProductForm({...newProductForm, retailPrice: parseFloat(e.target.value) || 0})} placeholder="0.00" className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                   <div>
@@ -2404,9 +2419,18 @@ export default function DashboardPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">供应商</label>
                   <input type="text" value={newProductForm.supplier} onChange={(e) => setNewProductForm({...newProductForm, supplier: e.target.value})} placeholder="请输入供应商" className="w-full px-3 py-2 border rounded-lg" />
                 </div>
+                
+                {/* 提示信息 */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                  <p>• 条码已自动填充，请点击"AI识别"获取商品信息</p>
+                  <p>• 商品将同步到总部商品库</p>
+                </div>
+                
                 <div className="flex gap-3 pt-4 border-t">
                   <button onClick={() => setShowAddProductModal(false)} className="flex-1 py-3 border rounded-lg hover:bg-gray-50">取消</button>
-                  <button onClick={handleAddProduct} className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">确认添加</button>
+                  <button onClick={handleAddProduct} disabled={!newProductForm.name || !newProductForm.barcode || newProductForm.retailPrice <= 0} className="flex-1 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    {!newProductForm.name ? '请先识别商品' : '确认添加'}
+                  </button>
                 </div>
               </div>
             </div>
