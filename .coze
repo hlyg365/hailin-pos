@@ -7,4 +7,4 @@ run = ["cd", "apps/pos-app", "&&", "pnpm", "dev"]
 
 [deploy]
 build = ["cd", "apps/pos-app", "&&", "pnpm", "install", "&&", "pnpm", "build"]
-run = ["cd", "apps/pos-app", "&&", "pnpm", "start"]
+run = ["bash", "apps/pos-app/start-prod.sh"]
