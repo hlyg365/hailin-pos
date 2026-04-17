@@ -1142,13 +1142,11 @@ export default function CashierPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">🤖</span>
                       <div>
-                        <p className="font-medium text-purple-800">AI条码识别配置</p>
-                        <p className="text-sm text-purple-600">请在总部后台统一配置，收银台自动同步</p>
+                        <p className="font-medium text-purple-800">AI条码识别</p>
+                        <p className="text-sm text-purple-600">总部采购入库时自动识别商品信息</p>
                       </div>
                     </div>
-                    <Link to="/dashboard" className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
-                      前往总部后台
-                    </Link>
+                    <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">已启用</span>
                   </div>
                 </div>
                 
