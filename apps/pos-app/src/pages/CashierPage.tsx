@@ -51,6 +51,7 @@ export default function CashierPage() {
   const currentStore = useStoreStore(state => state.currentStore);
   const { totals, hasItems } = useMemo(() => {
     const result = getTotal();
+    const items = useCartStore.getState().items;
     const clearanceDiscount = isClearanceMode() ? 0.8 : 1;
     const memberDiscount = currentMember ? (currentMember.level === 'diamond' ? 0.9 : currentMember.level === 'gold' ? 0.95 : currentMember.level === 'silver' ? 0.98 : 1) : 1;
     const finalDiscount = clearanceDiscount * memberDiscount;
@@ -61,7 +62,7 @@ export default function CashierPage() {
         memberDiscount: result.subtotal * (1 - memberDiscount),
         total: result.subtotal * finalDiscount,
       },
-      hasItems: result.items.length > 0,
+      hasItems: items.length > 0,
     };
   }, [getTotal, currentMember]);
 
