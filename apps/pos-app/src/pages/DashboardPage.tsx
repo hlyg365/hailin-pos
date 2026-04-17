@@ -1533,6 +1533,91 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            {/* 首页Banner滚动图片 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-gray-800">首页Banner滚动图片</h3>
+                  <p className="text-sm text-gray-500 mt-1">建议尺寸 750×300 像素，支持 JPG/PNG 格式</p>
+                </div>
+                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  添加Banner
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {[
+                  { id: 1, title: '海邻到家便利店', subtitle: '便利生活每一天', link: '/mini', color: 'from-red-400 to-orange-500', status: '启用', required: true },
+                  { id: 2, title: '新人专属福利', subtitle: '首单满39减5元', link: '/mini/promo', color: 'from-purple-400 to-pink-500', status: '启用', required: false },
+                  { id: 3, title: '限时秒杀', subtitle: '每日10点准时开抢', link: '/mini/flashsale', color: 'from-yellow-400 to-red-500', status: '启用', required: false },
+                ].map((banner, index) => (
+                  <div key={banner.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                    <div className="relative">
+                      <div className={`w-24 h-16 bg-gradient-to-br ${banner.color} rounded-lg flex items-center justify-center text-white`}>
+                        <span className="text-2xl font-bold">{index + 1}</span>
+                      </div>
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full shadow flex items-center justify-center text-xs">
+                        📷
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          defaultValue={banner.title}
+                          className="px-3 py-1.5 border rounded-lg text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Banner标题"
+                        />
+                        {banner.required && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded">必选</span>
+                        )}
+                      </div>
+                      <input 
+                        type="text" 
+                        defaultValue={banner.link}
+                        className="mt-2 px-3 py-1.5 border rounded-lg text-sm w-full text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="跳转链接"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">{banner.subtitle}</p>
+                        <p className="text-xs text-gray-400">点击量: 12.8万</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" defaultChecked={banner.status === '启用'} disabled={banner.required} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:bg-gray-300"></div>
+                      </label>
+                      <button className="p-2 text-gray-400 hover:text-gray-600">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      {!banner.required && (
+                        <button className="p-2 text-gray-400 hover:text-red-500">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm">提示：最多支持添加5个Banner，建议保留1-3个Banner以获得最佳展示效果</span>
+                </div>
+              </div>
+            </div>
+
             {/* 模板选择 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-gray-800 mb-4">模板选择</h3>
