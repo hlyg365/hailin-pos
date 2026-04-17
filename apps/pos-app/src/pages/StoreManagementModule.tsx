@@ -281,27 +281,56 @@ export default function StoreManagementModule({ module, store, products, members
       { id: 'groupbuy', label: '团购接龙', icon: '👥' },
     ];
     
-    // 模拟配送订单数据
-    const deliveryOrders = {
-      store: [
-        { id: 'D20240117001', type: '调入', from: '国贸店', items: 12, amount: 2800, status: 'pending', time: '14:30' },
-        { id: 'D20240117002', type: '调出', to: '中关村店', items: 8, amount: 1560, status: 'shipped', time: '13:20' },
-      ],
-      mini: [
-        { id: 'MINI20240117001', source: '小程序', items: 5, amount: 89.5, status: 'pending', time: '14:25' },
-        { id: 'MINI20240117002', source: '小程序', items: 3, amount: 45.0, status: 'preparing', time: '14:10' },
-        { id: 'MINI20240117003', source: '小程序', items: 8, amount: 156.0, status: 'shipped', time: '13:50' },
-      ],
-      platform: [
-        { id: 'MT20240117001', source: '美团', items: 4, amount: 68.0, status: 'pending', time: '14:20' },
-        { id: 'ELE20240117001', source: '饿了么', items: 6, amount: 92.0, status: 'preparing', time: '14:05' },
-        { id: 'MT20240117002', source: '美团', items: 3, amount: 45.0, status: 'shipped', time: '13:40' },
-      ],
-      groupbuy: [
-        { id: 'GB20240117001', group: '望京社区群', leader: '张阿姨', items: 25, amount: 680.0, status: 'open', time: '08:00' },
-        { id: 'GB20240117002', group: '国贸业主群', leader: '李叔叔', items: 18, amount: 420.0, status: 'closed', time: '07:30' },
-      ],
-    }
+    // 配送订单数据（基于真实订单）
+    const deliveryOrders = useMemo(() => ({
+      store: orders.filter(o => o.type === 'transfer').map(o => ({
+        id: o.id,
+        type: o.items?.[0]?.type || '调入',
+        from: o.items?.[0]?.fromStore || '',
+        to: o.items?.[0]?.toStore || '',
+        items: o.items?.length || 0,
+        amount: o.finalAmount || 0,
+        status: o.status === 'pending' ? 'pending' : o.status === 'shipped' ? 'shipped' : 'preparing',
+        time: new Date(o.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      })),
+      mini: orders.filter(o => o.type === 'mini').map(o => ({
+        id: o.id,
+        source: '小程序',
+        items: o.items?.length || 0,
+        amount: o.finalAmount || 0,
+        status: o.status === 'pending' ? 'pending' : o.status === 'shipped' ? 'shipped' : 'preparing',
+        time: new Date(o.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      })),
+      platform: orders.filter(o => o.type === 'platform').map(o => ({
+        id: o.id,
+        source: o.platform || '美团',
+        items: o.items?.length || 0,
+        amount: o.finalAmount || 0,
+        status: o.status === 'pending' ? 'pending' : o.status === 'shipped' ? 'shipped' : 'preparing',
+        time: new Date(o.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      })),
+      groupbuy: orders.filter(o => o.type === 'groupbuy').map(o => ({
+        id: o.id,
+        group: o.groupName || '社区群',
+        leader: o.leader || '',
+        items: o.items?.length || 0,
+        amount: o.finalAmount || 0,
+        status: o.status === 'open' ? 'open' : 'closed',
+        time: new Date(o.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      })),
+    }), [orders]);
+
+    // 计算配送概览数据
+    const deliveryStats = useMemo(() => {
+      const today = new Date().toDateString();
+      const todayOrders = orders.filter(o => o.createdAt?.startsWith(today));
+      return {
+        pending: todayOrders.filter(o => o.status === 'pending').length,
+        preparing: todayOrders.filter(o => o.status === 'preparing').length,
+        shipped: todayOrders.filter(o => o.status === 'shipped' || o.status === 'completed').length,
+        todayRevenue: todayOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0),
+      };
+    }, [orders]);
 
     
     const getStatusLabel = (status: string) => {
@@ -323,10 +352,10 @@ export default function StoreManagementModule({ module, store, products, members
         {/* 配送概览 */}
         <div className="grid grid-cols-4 gap-4 mb-4">
           {[
-            { label: '待接单', value: 4, icon: '⏳', color: 'yellow' },
-            { label: '备货中', value: 2, icon: '🔄', color: 'blue' },
-            { label: '已发货', value: 3, icon: '✅', color: 'green' },
-            { label: '今日营收', value: '¥1,485', icon: '💰', color: 'purple' },
+            { label: '待接单', value: deliveryStats.pending, icon: '⏳', color: 'yellow' },
+            { label: '备货中', value: deliveryStats.preparing, icon: '🔄', color: 'blue' },
+            { label: '已发货', value: deliveryStats.shipped, icon: '✅', color: 'green' },
+            { label: '今日营收', value: `¥${deliveryStats.todayRevenue.toFixed(0)}`, icon: '💰', color: 'purple' },
           ].map((item, i) => (
             <div key={i} className={`bg-${item.color}-50 rounded-lg p-3`}>
               <div className="flex items-center gap-2 mb-1">
