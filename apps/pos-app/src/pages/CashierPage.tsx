@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore } from '../store';
+import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
 import type { Product } from '../types';
 
 // AI条码识别模拟
@@ -36,6 +36,7 @@ export default function CashierPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberPhone, setMemberPhone] = useState('');
+  const [memberError, setMemberError] = useState('');
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiMode, setAiMode] = useState<'barcode' | 'vision'>('barcode');
   const [aiInput, setAiInput] = useState('');
@@ -46,7 +47,8 @@ export default function CashierPage() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } = useCartStore();
-  const { products } = useProductStore();
+  const { products, checkInventory, deductInventory } = useProductStore();
+  const { currentStore } = useStoreStore();
   const { currentMember, scanMember, members } = useMemberStore();
   const { createOrder, suspendOrder } = useOrderStore();
   const { addSales } = useFinanceStore();
@@ -103,15 +105,34 @@ export default function CashierPage() {
 
   // 添加商品
   const handleAddProduct = (product: Product, quantity: number = 1) => {
+    const storeId = currentStore?.id || 'store001';
+    // 库存检查
+    const existing = items.find(i => i.product.id === product.id);
+    const currentCartQty = existing?.quantity || 0;
+    const totalRequired = currentCartQty + quantity;
+    
+    const { available, currentQty } = checkInventory(storeId, product.id, totalRequired);
+    if (!available) {
+      alert(`库存不足！当前库存: ${currentQty}，无法添加 ${quantity} 件`);
+      return;
+    }
     addItem(product, quantity);
   };
 
   // 会员识别
   const handleMemberScan = () => {
+    setMemberError('');
+    if (!memberPhone.trim()) {
+      setMemberError('请输入手机号');
+      return;
+    }
     const member = scanMember(memberPhone);
     if (member) {
       setShowMemberModal(false);
       setMemberPhone('');
+      setMemberError('');
+    } else {
+      setMemberError('未找到该会员');
     }
   };
 
@@ -152,6 +173,18 @@ export default function CashierPage() {
     if (!selectedPay || items.length === 0) return;
     setIsProcessing(true);
     
+    const storeId = currentStore?.id || 'store001';
+    
+    // 扣减库存（V6.0严禁负库存销售）
+    for (const item of items) {
+      const success = deductInventory(storeId, item.product.id, item.quantity);
+      if (!success) {
+        setIsProcessing(false);
+        alert(`库存不足：${item.product.name}，无法完成支付`);
+        return;
+      }
+    }
+    
     await new Promise(r => setTimeout(r, 1000));
     
     const payMethod = selectedPay === 'cash' ? 'cash' : 
@@ -162,7 +195,7 @@ export default function CashierPage() {
       id: `order_${Date.now()}`,
       orderNo: `POS${Date.now()}`,
       type: 'pos' as const,
-      storeId: 'store001',
+      storeId,
       memberId: currentMember?.id,
       items: items.map(i => ({
         productId: i.product.id,
@@ -442,10 +475,13 @@ export default function CashierPage() {
                 type="text"
                 placeholder="输入手机号"
                 value={memberPhone}
-                onChange={(e) => setMemberPhone(e.target.value)}
+                onChange={(e) => { setMemberPhone(e.target.value); setMemberError(''); }}
                 onKeyDown={(e) => e.key === 'Enter' && handleMemberScan()}
                 className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {memberError && (
+                <p className="text-red-500 text-sm mt-1">{memberError}</p>
+              )}
               <div className="text-sm text-gray-500">
                 <p className="mb-2">快速识别：</p>
                 <div className="flex flex-wrap gap-2">
@@ -579,34 +615,41 @@ export default function CashierPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <p className="font-medium text-blue-800 mb-3">识别结果（置信度）：</p>
                     <div className="space-y-2">
-                      {aiResult.candidates.map((c: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between bg-white p-3 rounded-lg">
-                          <div>
-                            <span className="font-medium">{c.name}</span>
-                            {i === 0 && <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded">最高</span>}
-                            {c.estimatedWeight && <span className="ml-2 text-gray-500">约 {c.estimatedWeight}kg</span>}
+                      {aiResult.candidates.map((c: any, i: number) => {
+                        // 使用模糊匹配查找商品
+                        const matchedProduct = products.find(p => 
+                          p.name.includes(c.name) || c.name.includes(p.name) || 
+                          p.category === '生鲜' && c.name.includes('苹果') && p.name.includes('苹果')
+                        );
+                        return (
+                          <div key={i} className="flex items-center justify-between bg-white p-3 rounded-lg">
+                            <div>
+                              <span className="font-medium">{c.name}</span>
+                              {i === 0 && <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded">最高</span>}
+                              {c.estimatedWeight && <span className="ml-2 text-gray-500">约 {c.estimatedWeight}kg</span>}
+                              {!matchedProduct && <span className="ml-2 text-xs bg-yellow-500 text-white px-2 py-0.5 rounded">未匹配商品</span>}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`font-semibold ${c.confidence > 0.9 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                {(c.confidence * 100).toFixed(0)}%
+                              </span>
+                              {i === 0 && matchedProduct && (
+                                <button
+                                  onClick={() => {
+                                    if (c.estimatedWeight) {
+                                      handleAddProduct(matchedProduct, c.estimatedWeight);
+                                      setShowAIModal(false);
+                                    }
+                                  }}
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  添加
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className={`font-semibold ${c.confidence > 0.9 ? 'text-green-600' : 'text-yellow-600'}`}>
-                              {(c.confidence * 100).toFixed(0)}%
-                            </span>
-                            {i === 0 && (
-                              <button
-                                onClick={() => {
-                                  const product = products.find(p => p.name === c.name);
-                                  if (product && c.estimatedWeight) {
-                                    handleAddProduct(product, c.estimatedWeight);
-                                    setShowAIModal(false);
-                                  }
-                                }}
-                                className="text-sm text-blue-600 hover:underline"
-                              >
-                                添加
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
