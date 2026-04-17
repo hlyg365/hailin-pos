@@ -52,54 +52,6 @@ export default function CashierPage() {
   const { addSales } = useFinanceStore();
   const { isOnline } = useOfflineStore();
 
-  // AI 服务状态检查
-  useEffect(() => {
-    const checkAIService = async () => {
-      setAiServiceStatus('checking');
-      const available = await aiService.checkHealth();
-      setAiServiceStatus(available ? 'online' : 'offline');
-    };
-    
-    checkAIService();
-    const interval = setInterval(checkAIService, 30000); // 每30秒检查一次
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // 启动秤监听（模拟模式）
-  useEffect(() => {
-    const controller = new VisionScaleController({
-      aiServiceUrl: AI_SERVICE_URL,
-      autoCapture: true,
-    });
-
-    const startScale = async () => {
-      await controller.start((result, weight) => {
-        if (result.status === 'success' && result.product) {
-          const matched = products.find(p => p.name === result.product);
-          if (matched) {
-            handleAddProduct(matched, weight);
-          }
-        }
-      });
-      setScaleStatus('listening');
-    };
-
-    // 模拟模式
-    scaleService.startListeningSimulate((reading) => {
-      setCurrentWeight(reading.weight);
-      if (reading.weight > 0.01) {
-        setScaleStatus('triggered');
-        // 自动触发识别
-        handleVisionRecognize();
-      }
-    });
-
-    return () => {
-      scaleService.stopListening();
-      controller.stop();
-    };
-  }, []);
 
   // 分类列表
   const categories = useMemo(() => {
