@@ -168,7 +168,7 @@ export default function CashierPage() {
 
   // 添加新商品到商品库
   const handleAddNewProduct = () => {
-    if (!newProduct.name || !newProduct.barcode || !newProduct.retailPrice) {
+    if (!newProduct.name || !newProduct.barcode || newProduct.retailPrice <= 0) {
       alert('请填写商品名称、条码和售价');
       return;
     }
@@ -1382,7 +1382,7 @@ export default function CashierPage() {
               </div>
               <div className="flex gap-3 pt-4 border-t">
                 <button onClick={() => setShowAddProductModal(false)} className="flex-1 py-3 border rounded-lg hover:bg-gray-50">取消</button>
-                <button onClick={handleAddNewProduct} disabled={!newProduct.name || !newProduct.barcode || !newProduct.retailPrice} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed">确认添加</button>
+                <button onClick={handleAddNewProduct} disabled={!newProduct.name || !newProduct.barcode || newProduct.retailPrice <= 0} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed">确认添加</button>
               </div>
             </div>
           </div>
