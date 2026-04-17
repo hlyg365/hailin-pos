@@ -188,45 +188,45 @@ export default function CashierPage() {
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
-      {/* 顶部状态栏 */}
-      <div className="bg-white border-b px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="text-blue-600 hover:text-blue-700"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></Link>
-          <h1 className="text-lg font-semibold">{storeModules.find(m => m.id === activeModule)?.label || '收银台'}</h1>
-          {clearanceMode && <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">清货模式 8折</span>}
+      {/* 顶部状态栏 - 响应式 */}
+      <div className="bg-white border-b px-2 sm:px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Link to="/" className="text-blue-600 hover:text-blue-700"><svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></Link>
+          <h1 className="text-sm sm:text-lg font-semibold">{storeModules.find(m => m.id === activeModule)?.label || '收银台'}</h1>
+          {clearanceMode && <span className="bg-red-500 text-white text-xs px-2 py-0.5 sm:py-1 rounded-full animate-pulse hidden sm:inline">清货模式 8折</span>}
         </div>
-        <div className="flex items-center gap-3">
-          {!isOnline && <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded flex items-center gap-1"><span className="w-2 h-2 bg-white rounded-full"></span>离线模式</span>}
-          <button onClick={() => setShowMemberModal(true)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            {currentMember ? `${currentMember.name} (${currentMember.level === 'diamond' ? '钻石' : currentMember.level === 'gold' ? '金卡' : currentMember.level === 'silver' ? '银卡' : '普通'})` : '会员识别'}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {!isOnline && <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 sm:py-1 rounded flex items-center gap-1"><span className="w-2 h-2 bg-white rounded-full"></span>离线</span>}
+          <button onClick={() => setShowMemberModal(true)} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <span className="hidden sm:inline">{currentMember ? currentMember.name : '会员'}</span>
           </button>
-          <button onClick={() => setShowDevicePanel(true)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            设备
+          <button onClick={() => setShowDevicePanel(true)} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            <span className="hidden sm:inline">设备</span>
           </button>
         </div>
       </div>
 
       {/* 主体区域 */}
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧侧边栏 */}
-        <aside className="w-20 bg-gray-800 text-white flex flex-col">
-          <div className="p-2 border-b border-gray-700">
+        {/* 左侧侧边栏 - 响应式 */}
+        <aside className="w-14 sm:w-20 bg-gray-800 text-white flex flex-col">
+          <div className="p-1 sm:p-2 border-b border-gray-700">
             <div className="flex flex-col items-center">
-              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto rounded" style={{ background: 'rgba(255,255,255,0.1)', padding: '2px' }} />
-              <p className="text-xs mt-1 truncate max-w-full text-center leading-tight">{currentStore?.name || '门店'}</p>
+              <img src="/logo.png" alt="海邻到家" className="h-8 sm:h-10 w-auto rounded" style={{ background: 'rgba(255,255,255,0.1)', padding: '2px' }} />
+              <p className="text-xs mt-1 truncate max-w-full text-center leading-tight hidden sm:block">{currentStore?.name || '门店'}</p>
             </div>
           </div>
-          <nav className="flex-1 py-2 overflow-y-auto">
+          <nav className="flex-1 py-1 sm:py-2 overflow-y-auto">
             {storeModules.map(mod => (
-              <button key={mod.id} onClick={() => setActiveModule(mod.id)} className={`w-full flex flex-col items-center py-2 px-1 mb-1 transition-colors ${activeModule === mod.id ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}>
-                <span className="text-xl">{mod.icon}</span>
-                <span className="text-xs mt-1">{mod.label}</span>
+              <button key={mod.id} onClick={() => setActiveModule(mod.id)} className={`w-full flex flex-col items-center py-1 sm:py-2 px-0.5 sm:px-1 mb-1 transition-colors ${activeModule === mod.id ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}>
+                <span className="text-lg sm:text-xl">{mod.icon}</span>
+                <span className="text-xs mt-0.5 sm:mt-1">{mod.label}</span>
               </button>
             ))}
           </nav>
-          <div className="p-2 border-t border-gray-700 text-center"><p className="text-xs text-gray-500">V6.0</p></div>
+          <div className="p-1 sm:p-2 border-t border-gray-700 text-center"><p className="text-xs text-gray-500">V6.0</p></div>
         </aside>
 
         {/* 右侧主内容区 */}
@@ -235,41 +235,41 @@ export default function CashierPage() {
           {activeModule === 'cashier' && (
             <>
               <div className="flex-1 flex flex-col overflow-hidden">
-                {/* 称重商品面板 - 显示称重状态 */}
-                <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-4 mb-4 rounded-xl shadow-lg">
+                {/* 称重商品面板 - 响应式 */}
+                <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-2 sm:p-4 mb-2 sm:mb-4 rounded-lg sm:rounded-xl shadow-lg">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center animate-pulse">
-                        <span className="text-3xl">⚖️</span>
+                    <div className="flex items-center gap-2 sm:gap-4">
+                      <div className="w-10 sm:w-16 h-10 sm:h-16 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center animate-pulse">
+                        <span className="text-xl sm:text-3xl">⚖️</span>
                       </div>
                       <div>
-                        <p className="text-sm opacity-80">等待称重</p>
-                        <p className="text-xl font-bold">请放置商品到电子秤</p>
-                        <p className="text-sm opacity-80 mt-1">放置商品后自动加入购物车</p>
+                        <p className="text-xs sm:text-sm opacity-80">等待称重</p>
+                        <p className="text-sm sm:text-xl font-bold">请放置商品到电子秤</p>
+                        <p className="text-xs sm:text-sm opacity-80 mt-1">放置商品后自动加入购物车</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3 sm:gap-6">
                       <div className="text-right">
-                        <p className="text-sm opacity-80">当前重量</p>
-                        <p className="text-4xl font-bold">0.000</p>
-                        <p className="text-sm opacity-80">kg</p>
+                        <p className="text-xs sm:text-sm opacity-80">当前重量</p>
+                        <p className="text-2xl sm:text-4xl font-bold">0.000</p>
+                        <p className="text-xs sm:text-sm opacity-80">kg</p>
                       </div>
-                      <div className="text-right border-l border-white/30 pl-6">
+                      <div className="text-right border-l border-white/30 pl-3 sm:pl-6 hidden sm:block">
                         <p className="text-sm opacity-80">商品金额</p>
-                        <p className="text-2xl font-bold text-yellow-200">¥0.00</p>
+                        <p className="text-lg sm:text-2xl font-bold text-yellow-200">¥0.00</p>
                       </div>
                     </div>
                   </div>
                 </div>
                 {aiScanResult && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                    <p className="text-blue-700 font-medium mb-2">{aiScanResult.loading ? '正在查询商品...' : `未找到商品: ${aiScanResult.barcode}`}</p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg sm:rounded-xl p-2 sm:p-4 mb-2 sm:mb-4">
+                    <p className="text-blue-700 font-medium mb-2 text-sm">{aiScanResult.loading ? '正在查询商品...' : `未找到商品: ${aiScanResult.barcode}`}</p>
                     {aiScanResult.candidates && aiScanResult.candidates.length > 0 ? (
                       <div className="space-y-2">
                         <p className="text-sm text-gray-600">您是否在找：</p>
                         {aiScanResult.candidates.map((p, i) => (
-                          <button key={i} onClick={() => handleSelectAiCandidate(p)} className="w-full flex items-center justify-between bg-white rounded-lg p-3 border hover:border-blue-400">
-                            <div><p className="font-medium">{p.name}</p><p className="text-sm text-gray-500">{p.barcode}</p></div>
+                          <button key={i} onClick={() => handleSelectAiCandidate(p)} className="w-full flex items-center justify-between bg-white rounded-lg p-2 sm:p-3 border hover:border-blue-400">
+                            <div><p className="font-medium text-sm sm:text-base">{p.name}</p><p className="text-xs text-gray-500">{p.barcode}</p></div>
                             <p className="text-red-600 font-semibold">¥{p.retailPrice.toFixed(2)}</p>
                           </button>
                         ))}
@@ -288,15 +288,15 @@ export default function CashierPage() {
                   </div>
                 )}
                 {aiVisionResult && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
-                    <p className="text-purple-700 font-medium mb-2">{aiVisionResult.loading ? '正在识别商品...' : '识别到以下商品：'}</p>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg sm:rounded-xl p-2 sm:p-4 mb-2 sm:mb-4">
+                    <p className="text-purple-700 font-medium mb-2 text-sm">{aiVisionResult.loading ? '正在识别商品...' : '识别到以下商品：'}</p>
                     {aiVisionResult.candidates && aiVisionResult.candidates.length > 0 && (
                       <div className="space-y-2">
                         {aiVisionResult.candidates.map((c, i) => {
                           const product = products.find(p => p.name === c.name);
                           return (
-                            <button key={i} onClick={() => product && handleSelectAiCandidate(product, c.estimatedWeight)} className="w-full flex items-center justify-between bg-white rounded-lg p-3 border hover:border-purple-400">
-                              <div><p className="font-medium">{c.name}</p><p className="text-sm text-gray-500">置信度: {(c.confidence * 100).toFixed(0)}%{c.estimatedWeight && ` | 预估: ${c.estimatedWeight}kg`}</p></div>
+                            <button key={i} onClick={() => product && handleSelectAiCandidate(product, c.estimatedWeight)} className="w-full flex items-center justify-between bg-white rounded-lg p-2 sm:p-3 border hover:border-purple-400">
+                              <div><p className="font-medium text-sm sm:text-base">{c.name}</p><p className="text-xs text-gray-500">置信度: {(c.confidence * 100).toFixed(0)}%{c.estimatedWeight && ` | 预估: ${c.estimatedWeight}kg`}</p></div>
                               {c.estimatedWeight && <p className="text-purple-600 font-semibold">约 ¥{((product?.retailPrice || 0) * c.estimatedWeight).toFixed(2)}</p>}
                             </button>
                           );
@@ -305,78 +305,76 @@ export default function CashierPage() {
                     )}
                   </div>
                 )}
-                <div className="bg-white rounded-xl p-4 mb-4 flex gap-3">
-                  <input ref={barcodeInputRef} type="text" placeholder="扫描或输入条码" className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <div className="bg-white rounded-lg sm:rounded-xl p-2 sm:p-4 mb-2 sm:mb-4 flex gap-2 sm:gap-3">
+                  <input ref={barcodeInputRef} type="text" placeholder="扫描条码" className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     onKeyDown={(e) => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value; if (v) handleBarcodeScan(v); (e.target as HTMLInputElement).value = ''; } }} />
-                  <button onClick={handleAiVision} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"><span>👁️</span> AI视觉</button>
+                  <button onClick={handleAiVision} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1 sm:gap-2 text-sm"><span>👁️</span> <span className="hidden sm:inline">AI视觉</span></button>
                 </div>
-                <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                <div className="flex gap-1 sm:gap-2 mb-2 sm:mb-4 overflow-x-auto pb-2">
                   {categories.map(cat => (
-                    <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-2 rounded-full whitespace-nowrap ${activeCategory === cat ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>{cat === 'all' ? '全部' : cat}</button>
+                    <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-2 sm:px-4 py-1 sm:py-2 rounded-full whitespace-nowrap text-xs sm:text-sm ${activeCategory === cat ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>{cat === 'all' ? '全部' : cat}</button>
                   ))}
-                  <input type="text" placeholder="搜索商品..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="px-4 py-2 border rounded-full bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input type="text" placeholder="搜索" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="px-2 sm:px-4 py-1 sm:py-2 border rounded-full bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm w-24 sm:w-auto" />
                 </div>
-                <div className="flex-1 overflow-y-auto grid grid-cols-4 gap-3 p-1">
+                {/* 商品网格 - 响应式列数 */}
+                <div className="flex-1 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 sm:gap-3 p-1">
                   {filteredProducts.map(product => (
                     <button key={product.id} onClick={() => {
                       if (!product.isStandard) {
-                        // 称重商品：自动获取重量并加入购物车
                         const weight = Math.round((Math.random() * 2 + 0.3) * 1000) / 1000;
                         addItem(product, weight);
-                        // 显示添加成功提示
                         deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice * weight);
                       } else {
-                        // 标准商品：直接加入购物车
                         addItem(product, 1);
                         deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0));
                       }
-                    }} className="bg-white rounded-xl p-3 text-left hover:shadow-md transition-shadow relative">
-                      {!product.isStandard && <div className="absolute top-2 right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center"><span className="text-xs">⚖️</span></div>}
-                      <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
-                        {!product.isStandard && <span className="text-2xl">🍎</span>}
+                    }} className="bg-white rounded-lg sm:rounded-xl p-2 sm:p-3 text-left hover:shadow-md transition-shadow relative">
+                      {!product.isStandard && <div className="absolute top-1 sm:top-2 right-1 sm:right-2 w-5 sm:w-6 h-5 sm:h-6 bg-orange-500 text-white rounded-full flex items-center justify-center"><span className="text-xs">⚖️</span></div>}
+                      <div className="aspect-square bg-gray-100 rounded-lg mb-1 sm:mb-2 flex items-center justify-center">
+                        {!product.isStandard && <span className="text-lg sm:text-2xl">🍎</span>}
                         {product.isStandard && <span className="text-xs text-gray-400">{product.name.slice(0, 2)}</span>}
                       </div>
-                      <p className="text-sm font-medium truncate">{product.name}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-red-600 font-semibold">¥{product.retailPrice.toFixed(2)}</span>
-                        <span className={`text-xs px-1 rounded ${product.isStandard ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>{product.isStandard ? '标准' : '称重'}</span>
+                      <p className="text-xs sm:text-sm font-medium truncate">{product.name}</p>
+                      <div className="flex items-center justify-between mt-0.5 sm:mt-1">
+                        <span className="text-red-600 font-semibold text-xs sm:text-base">¥{product.retailPrice.toFixed(2)}</span>
+                        <span className={`text-xs px-1 rounded ${product.isStandard ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>{product.isStandard ? '标' : '称'}</span>
                       </div>
                     </button>
                   ))}
                 </div>
               </div>
-              {/* 购物车 */}
-              <div className="w-96 bg-white border-l flex flex-col">
+              {/* 购物车 - 响应式宽度 */}
+              <div className="w-72 sm:w-80 md:w-96 bg-white border-l flex flex-col">
                 {currentMember && (
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-2 sm:p-4">
                     <div className="flex items-center justify-between">
-                      <div><p className="font-medium">{currentMember.name}</p><p className="text-sm opacity-80">{currentMember.level === 'diamond' ? '💎 钻石会员' : currentMember.level === 'gold' ? '🥇 金卡会员' : currentMember.level === 'silver' ? '🥈 银卡会员' : '普通会员'}</p></div>
-                      <div className="text-right"><p className="text-sm">积分</p><p className="font-bold">{currentMember.points.toLocaleString()}</p></div>
+                      <div className="flex-1"><p className="font-medium text-sm sm:text-base">{currentMember.name}</p><p className="text-xs opacity-80 hidden sm:block">{currentMember.level === 'diamond' ? '💎钻石' : currentMember.level === 'gold' ? '🥇金卡' : currentMember.level === 'silver' ? '🥈银卡' : '普通'}</p></div>
+                      <div className="text-right"><p className="text-xs sm:text-sm">积分</p><p className="font-bold text-sm sm:text-base">{currentMember.points.toLocaleString()}</p></div>
                     </div>
                   </div>
                 )}
-                <div className="bg-gray-50 px-4 py-2 flex items-center gap-3 text-xs border-b">
-                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.receiptPrinter?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>打印机</span>
-                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.scale?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>电子秤</span>
-                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.customerDisplay?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span>客显屏</span>
+                <div className="bg-gray-50 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-3 text-xs border-b">
+                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.receiptPrinter?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">打印机</span></span>
+                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.scale?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">电子秤</span></span>
+                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.customerDisplay?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">客显屏</span></span>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4">
+                <div className="flex-1 overflow-y-auto p-2 sm:p-4">
                   {items.length === 0 ? (
-                    <div className="text-center text-gray-400 py-12"><p className="text-4xl mb-4">🛒</p><p>购物车是空的</p><p className="text-sm mt-1">扫描条码添加商品</p></div>
+                    <div className="text-center text-gray-400 py-8 sm:py-12"><p className="text-3xl sm:text-4xl mb-2 sm:mb-4">🛒</p><p className="text-sm">购物车是空的</p><p className="text-xs sm:text-sm mt-1">扫描条码添加商品</p></div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {items.map(item => (
-                        <div key={item.product.id} className={`flex gap-3 rounded-lg p-3 ${!item.product.isStandard ? 'bg-orange-50 border border-orange-200' : 'bg-gray-50'}`}>
+                        <div key={item.product.id} className={`flex gap-2 sm:gap-3 rounded-lg p-2 sm:p-3 ${!item.product.isStandard ? 'bg-orange-50 border border-orange-200' : 'bg-gray-50'}`}>
                           <div className="flex-1">
-                            <div className="flex items-center gap-2"><p className="font-medium text-sm">{item.product.name}</p>{!item.product.isStandard && <span className="text-xs bg-orange-500 text-white px-1 rounded">称重</span>}</div>
+                            <div className="flex items-center gap-1 sm:gap-2"><p className="font-medium text-xs sm:text-sm truncate">{item.product.name}</p>{!item.product.isStandard && <span className="text-xs bg-orange-500 text-white px-1 rounded shrink-0">称</span>}</div>
                             <p className="text-xs text-gray-500">¥{item.product.retailPrice.toFixed(2)} × {item.product.isStandard ? item.quantity : `${item.quantity.toFixed(3)}kg`}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-red-600">¥{(item.product.retailPrice * item.quantity).toFixed(2)}</p>
-                            <div className="flex gap-1 mt-1">
-                              <button onClick={() => updateQuantity(item.product.id, item.quantity - (item.product.isStandard ? 1 : 0.1))} className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 text-xs">-</button>
-                              <button onClick={() => updateQuantity(item.product.id, item.quantity + (item.product.isStandard ? 1 : 0.1))} className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 text-xs">+</button>
-                              <button onClick={() => removeItem(item.product.id)} className="w-6 h-6 rounded bg-red-100 hover:bg-red-200 text-red-600 text-xs">×</button>
+                          <div className="text-right shrink-0">
+                            <p className="font-semibold text-red-600 text-xs sm:text-base">¥{(item.product.retailPrice * item.quantity).toFixed(2)}</p>
+                            <div className="flex gap-0.5 sm:gap-1 mt-0.5 sm:mt-1">
+                              <button onClick={() => updateQuantity(item.product.id, item.quantity - (item.product.isStandard ? 1 : 0.1))} className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-gray-200 hover:bg-gray-300 text-xs flex items-center justify-center">-</button>
+                              <button onClick={() => updateQuantity(item.product.id, item.quantity + (item.product.isStandard ? 1 : 0.1))} className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-gray-200 hover:bg-gray-300 text-xs flex items-center justify-center">+</button>
+                              <button onClick={() => removeItem(item.product.id)} className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-red-100 hover:bg-red-200 text-red-600 text-xs flex items-center justify-center">×</button>
                             </div>
                           </div>
                         </div>
@@ -385,20 +383,20 @@ export default function CashierPage() {
                   )}
                 </div>
                 {(totals.clearanceDiscount > 0 || totals.memberDiscount > 0) && (
-                  <div className="px-4 py-2 bg-green-50 text-sm">
-                    {totals.clearanceDiscount > 0 && <div className="flex justify-between text-green-600"><span>清货8折优惠</span><span>-¥{totals.clearanceDiscount.toFixed(2)}</span></div>}
+                  <div className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-50 text-xs sm:text-sm">
+                    {totals.clearanceDiscount > 0 && <div className="flex justify-between text-green-600"><span>清货8折</span><span>-¥{totals.clearanceDiscount.toFixed(2)}</span></div>}
                     {totals.memberDiscount > 0 && <div className="flex justify-between text-blue-600"><span>会员折扣</span><span>-¥{totals.memberDiscount.toFixed(2)}</span></div>}
                   </div>
                 )}
-                <div className="p-4 border-t">
-                  <div className="flex justify-between items-center mb-4"><span className="text-gray-600">应付金额</span><span className="text-2xl font-bold text-red-600">¥{totals.total.toFixed(2)}</span></div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button onClick={handleSuspend} disabled={items.length === 0} className="py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm">挂单</button>
-                    <button onClick={() => setShowSuspendedModal(true)} className="py-3 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 relative text-sm">
+                <div className="p-2 sm:p-4 border-t">
+                  <div className="flex justify-between items-center mb-2 sm:mb-4"><span className="text-gray-600 text-sm">应付金额</span><span className="text-lg sm:text-2xl font-bold text-red-600">¥{totals.total.toFixed(2)}</span></div>
+                  <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                    <button onClick={handleSuspend} disabled={items.length === 0} className="py-2 sm:py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm">挂单</button>
+                    <button onClick={() => setShowSuspendedModal(true)} className="py-2 sm:py-3 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 relative text-xs sm:text-sm">
                       取单
-                      {suspendedOrders.length > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{suspendedOrders.length}</span>}
+                      {suspendedOrders.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{suspendedOrders.length}</span>}
                     </button>
-                    <button onClick={() => setShowPayModal(true)} disabled={items.length === 0} className="py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm">收款</button>
+                    <button onClick={() => setShowPayModal(true)} disabled={items.length === 0} className="py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-medium">收款</button>
                   </div>
                 </div>
               </div>
@@ -407,10 +405,10 @@ export default function CashierPage() {
 
           {/* ========== 库存管理 ========== */}
           {activeModule === 'inventory' && (
-            <div className="flex-1 bg-white p-6 overflow-auto">
+            <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">📦</span> 库存管理</h2>
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">📦</span> 库存管理</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '商品总数', value: products.length, icon: '📦', color: 'bg-blue-500' },
                     { label: '库存预警', value: products.filter(p => (p as any).stock < 10).length, icon: '⚠️', color: 'bg-yellow-500' },
@@ -467,10 +465,10 @@ export default function CashierPage() {
 
           {/* ========== 商品管理 ========== */}
           {activeModule === 'products' && (
-            <div className="flex-1 bg-white p-6 overflow-auto">
+            <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">🏷️</span> 商品管理</h2>
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">🏷️</span> 商品管理</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '商品总数', value: products.length, icon: '📦', color: 'bg-blue-500' },
                     { label: '正常销售', value: products.filter(p => p.status === 'active').length, icon: '✅', color: 'bg-green-500' },
@@ -524,10 +522,10 @@ export default function CashierPage() {
 
           {/* ========== 促销管理 ========== */}
           {activeModule === 'promotion' && (
-            <div className="flex-1 bg-white p-6 overflow-auto">
+            <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">🎁</span> 促销管理</h2>
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">🎁</span> 促销管理</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '进行中', value: 2, icon: '🔥', color: 'bg-red-500' },
                     { label: '即将开始', value: 1, icon: '⏰', color: 'bg-yellow-500' },
@@ -599,10 +597,10 @@ export default function CashierPage() {
 
           {/* ========== 订单管理 ========== */}
           {activeModule === 'orders' && (
-            <div className="flex-1 bg-white p-6 overflow-auto">
+            <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">📋</span> 订单管理</h2>
-                <div className="grid grid-cols-5 gap-4 mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">📋</span> 订单管理</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '今日订单', value: orders.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString()).length, icon: '📝', color: 'bg-blue-500' },
                     { label: '待支付', value: orders.filter(o => o.status === 'pending').length, icon: '⏳', color: 'bg-yellow-500' },
@@ -654,12 +652,12 @@ export default function CashierPage() {
 
           {/* ========== 配送管理 ========== */}
           {activeModule === 'delivery' && (
-            <div className="flex-1 bg-gray-50 p-6 overflow-auto">
+            <div className="flex-1 bg-gray-50 p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">🚚</span> 配送管理</h2>
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">🚚</span> 配送管理</h2>
                 
                 {/* 统计卡片 */}
-                <div className="grid grid-cols-5 gap-4 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '待处理', value: 8, icon: '📋', color: 'bg-yellow-500' },
                     { label: '配送中', value: 5, icon: '🚛', color: 'bg-blue-500' },
@@ -852,10 +850,10 @@ export default function CashierPage() {
 
           {/* ========== 报表中心 ========== */}
           {activeModule === 'reports' && (
-            <div className="flex-1 bg-gray-50 p-6 overflow-auto">
+            <div className="flex-1 bg-gray-50 p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">📊</span> 报表中心</h2>
-                <div className="grid grid-cols-4 gap-4 mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">📊</span> 报表中心</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '今日营收', value: '¥12,580', icon: '💰', color: 'bg-green-500', change: '+15%' },
                     { label: '今日订单', value: '186', icon: '📝', color: 'bg-blue-500', change: '+8%' },
@@ -965,10 +963,10 @@ export default function CashierPage() {
 
           {/* ========== 会员管理 ========== */}
           {activeModule === 'member' && (
-            <div className="flex-1 bg-gray-50 p-6 overflow-auto">
+            <div className="flex-1 bg-gray-50 p-4 sm:p-6 overflow-auto">
               <div className="max-w-6xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">👥</span> 会员管理</h2>
-                <div className="grid grid-cols-5 gap-4 mb-6">
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">👥</span> 会员管理</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {[
                     { label: '会员总数', value: '1,286', icon: '👥', color: 'bg-blue-500' },
                     { label: '新增会员', value: '+23', icon: '🆕', color: 'bg-green-500' },
@@ -1077,9 +1075,9 @@ export default function CashierPage() {
 
           {/* ========== 系统设置 ========== */}
           {activeModule === 'settings' && (
-            <div className="flex-1 bg-white p-6 overflow-auto">
+            <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
               <div className="max-w-2xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="text-3xl">⚙️</span> 系统设置</h2>
+                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">⚙️</span> 系统设置</h2>
                 <div className="bg-white rounded-xl shadow-sm border mb-6">
                   <div className="p-4 border-b"><h3 className="font-semibold">门店信息</h3></div>
                   <div className="p-4 space-y-4">
@@ -1143,7 +1141,7 @@ export default function CashierPage() {
       </div>
 
       {/* 底部 */}
-      <div className="bg-black/30 text-center py-3"><p className="text-blue-200/60 text-sm">{hasItems ? '收银完成请出示付款码' : '如有疑问请联系店员'}</p></div>
+      <div className="bg-black/30 text-center py-1.5 sm:py-3"><p className="text-blue-200/60 text-xs sm:text-sm">{hasItems ? '收银完成请出示付款码' : '如有疑问请联系店员'}</p></div>
 
       {/* 设备状态面板 */}
       {showDevicePanel && (
