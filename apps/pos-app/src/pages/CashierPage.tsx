@@ -35,8 +35,12 @@ export default function CashierPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [showDevicePanel, setShowDevicePanel] = useState(false);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [aiScanResult, setAiScanResult] = useState<{ barcode?: string; loading?: boolean; candidates?: Product[] } | null>(null);
   const [aiVisionResult, setAiVisionResult] = useState<{ loading?: boolean; candidates?: { name: string; confidence: number; estimatedWeight?: number }[] } | null>(null);
+
+  // 新商品表单
+  const [newProduct, setNewProduct] = useState({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, isStandard: true, supplier: '' });
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOfflineStore(state => state.isOnline);
@@ -107,6 +111,34 @@ export default function CashierPage() {
     addItem(product, weight || 1);
     setAiVisionResult(null);
     setAiScanResult(null);
+  };
+
+  // 添加新商品到商品库
+  const handleAddNewProduct = () => {
+    if (!newProduct.name || !newProduct.barcode || !newProduct.retailPrice) {
+      alert('请填写商品名称、条码和售价');
+      return;
+    }
+    const productStore = useProductStore.getState();
+    const newProd: Product = {
+      id: `prod_${Date.now()}`,
+      name: newProduct.name,
+      barcode: newProduct.barcode,
+      category: newProduct.category,
+      retailPrice: newProduct.retailPrice,
+      costPrice: newProduct.costPrice,
+      isStandard: newProduct.isStandard,
+      status: 'active',
+      stock: 100,
+      supplier: newProduct.supplier,
+    };
+    productStore.addProduct(newProd);
+    // 直接添加到购物车
+    addItem(newProd, newProduct.isStandard ? 1 : 0.5);
+    setShowAddProductModal(false);
+    setAiScanResult(null);
+    setNewProduct({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, isStandard: true, supplier: '' });
+    alert(`商品 "${newProduct.name}" 已添加到商品库并加入购物车`);
   };
 
   const handlePay = async () => {
@@ -232,7 +264,7 @@ export default function CashierPage() {
                 {aiScanResult && (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
                     <p className="text-blue-700 font-medium mb-2">{aiScanResult.loading ? '正在查询商品...' : `未找到商品: ${aiScanResult.barcode}`}</p>
-                    {aiScanResult.candidates && aiScanResult.candidates.length > 0 && (
+                    {aiScanResult.candidates && aiScanResult.candidates.length > 0 ? (
                       <div className="space-y-2">
                         <p className="text-sm text-gray-600">您是否在找：</p>
                         {aiScanResult.candidates.map((p, i) => (
@@ -241,6 +273,16 @@ export default function CashierPage() {
                             <p className="text-red-600 font-semibold">¥{p.retailPrice.toFixed(2)}</p>
                           </button>
                         ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-blue-200">
+                        <div>
+                          <p className="font-medium text-gray-700">商品库中未找到此商品</p>
+                          <p className="text-sm text-gray-500">条码: {aiScanResult.barcode}</p>
+                        </div>
+                        <button onClick={() => setShowAddProductModal(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                          <span>+</span> 添加到商品库
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1194,6 +1236,85 @@ export default function CashierPage() {
               <button onClick={handlePay} disabled={!selectedPay || isProcessing} className="flex-1 py-3 bg-green-600 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
                 {isProcessing ? <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>处理中...</> : <>确认收款 ¥{totals.total.toFixed(2)}</>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 添加商品弹窗 */}
+      {showAddProductModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-[500px] max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-green-600 to-emerald-600 text-white">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📦</span>
+                <div>
+                  <h3 className="font-semibold text-lg">添加新商品</h3>
+                  <p className="text-sm opacity-80">商品将同步到总部商品库</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddProductModal(false)} className="text-white/80 hover:text-white text-2xl">×</button>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">商品名称 *</label>
+                  <input type="text" value={newProduct.name} onChange={(e) => setNewProduct({...newProduct, name: e.target.value})} placeholder="请输入商品名称" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" autoFocus />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">条码 *</label>
+                  <input type="text" value={newProduct.barcode} onChange={(e) => setNewProduct({...newProduct, barcode: e.target.value})} placeholder="扫描或输入条码" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">商品分类</label>
+                  <select value={newProduct.category} onChange={(e) => setNewProduct({...newProduct, category: e.target.value})} className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="食品">食品</option>
+                    <option value="饮料">饮料</option>
+                    <option value="日用品">日用品</option>
+                    <option value="烟草">烟草</option>
+                    <option value="酒类">酒类</option>
+                    <option value="生鲜">生鲜</option>
+                    <option value="其他">其他</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">零售价(元) *</label>
+                  <input type="number" value={newProduct.retailPrice || ''} onChange={(e) => setNewProduct({...newProduct, retailPrice: parseFloat(e.target.value) || 0})} placeholder="0.00" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">进价(元)</label>
+                  <input type="number" value={newProduct.costPrice || ''} onChange={(e) => setNewProduct({...newProduct, costPrice: parseFloat(e.target.value) || 0})} placeholder="0.00" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+                  <input type="text" value={newProduct.supplier} onChange={(e) => setNewProduct({...newProduct, supplier: e.target.value})} placeholder="请输入供应商" className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">商品类型</label>
+                  <div className="flex gap-4 mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={newProduct.isStandard} onChange={() => setNewProduct({...newProduct, isStandard: true})} className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">标准品</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={!newProduct.isStandard} onChange={() => setNewProduct({...newProduct, isStandard: false})} className="w-4 h-4 text-green-600" />
+                      <span className="text-sm">称重商品</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+                <p className="font-medium mb-1">提示：</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>商品将同步到总部商品库</li>
+                  <li>可在"商品管理"模块编辑完善信息</li>
+                  <li>添加后自动加入当前购物车</li>
+                </ul>
+              </div>
+              <div className="flex gap-3 pt-4 border-t">
+                <button onClick={() => setShowAddProductModal(false)} className="flex-1 py-3 border rounded-lg hover:bg-gray-50">取消</button>
+                <button onClick={handleAddNewProduct} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">确认添加</button>
+              </div>
             </div>
           </div>
         </div>
