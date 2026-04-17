@@ -651,42 +651,38 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     const data = await response.json();
     console.log('[AI识别] API返回数据:', data);
     
-    // 根据字段映射提取数据（支持多种常见响应格式）
-    const getNestedValue = (obj: any, path: string): any => {
-      return path.split('.').reduce((acc, part) => acc?.[part], obj);
-    };
-
-    const name = getNestedValue(data, enabledConfig.responseMapping.name) 
-      || getNestedValue(data, 'result.name') 
-      || getNestedValue(data, 'name') 
-      || getNestedValue(data, 'data.name') 
-      || `商品(${barcode})`;
-    const category = getNestedValue(data, enabledConfig.responseMapping.category) 
-      || getNestedValue(data, 'category') 
-      || getNestedValue(data, 'result.category') 
-      || '食品';
-    const retailPrice = parseFloat(
-      getNestedValue(data, enabledConfig.responseMapping.price) 
-      || getNestedValue(data, 'price') 
-      || getNestedValue(data, 'result.price') 
-      || getNestedValue(data, 'data.price')
-    );
-    const costPrice = parseFloat(
-      getNestedValue(data, enabledConfig.responseMapping.costPrice) 
-      || getNestedValue(data, 'cost_price')
-    );
+    // 阿里云市场格式检查：code=1 表示成功
+    if (data.code !== 1) {
+      console.error('[AI识别] API返回错误:', data.msg || '未知错误');
+      return { success: false, message: data.msg || 'API返回错误，请检查AppCode是否有效' };
+    }
+    
+    // 提取商品数据（支持阿里云市场格式和通用格式）
+    const goodsData = data.data || data.result || data;
+    
+    // 商品名称
+    const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
+    
+    // 商品分类
+    const category = goodsData.category_name || goodsData.category || '食品';
+    
+    // 零售价
+    const retailPrice = parseFloat(goodsData.price) || 0;
+    
+    // 进价（通常API不返回）
+    const costPrice = parseFloat(goodsData.cost_price) || 0;
     
     console.log('[AI识别] 解析结果:', { name, category, retailPrice, costPrice });
     
     // 只有当有有效数据时才返回成功
-    if (name && name !== `商品(${barcode})`) {
+    if (name) {
       console.log('[AI识别] 识别成功，返回商品信息');
       return {
         success: true,
         name,
         category,
-        retailPrice: retailPrice || 0,
-        costPrice: costPrice || 0,
+        retailPrice,
+        costPrice,
         message: '识别成功',
       };
     } else {
