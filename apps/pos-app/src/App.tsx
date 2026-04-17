@@ -8,6 +8,10 @@ import LoginPage from './pages/LoginPage';
 import MemberPage from './pages/MemberPage';
 import SuspendedOrdersPage from './pages/SuspendedOrdersPage';
 import SettingsPage from './pages/SettingsPage';
+import BIPage from './pages/BIPage';
+import StoreOpsPage from './pages/StoreOpsPage';
+import PromotionPage from './pages/PromotionPage';
+import AuthPage from './pages/AuthPage';
 
 function App() {
   return (
@@ -19,6 +23,10 @@ function App() {
         <Route path="/pos/member" element={<MemberPage />} />
         <Route path="/pos/suspended" element={<SuspendedOrdersPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/dashboard/bi" element={<BIPage />} />
+        <Route path="/dashboard/store-ops" element={<StoreOpsPage />} />
+        <Route path="/dashboard/promotion" element={<PromotionPage />} />
+        <Route path="/dashboard/auth" element={<AuthPage />} />
         <Route path="/mini" element={<MiniStorePage />} />
         <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/settings" element={<SettingsPage />} />
