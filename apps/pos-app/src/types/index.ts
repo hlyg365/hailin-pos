@@ -60,7 +60,7 @@ export interface Product {
   costPrice: Money;
   retailPrice: Money;
   wholesalePrice: Money;
-  image?: string;
+  image?: string; // 商品图片URL
   isStandard: boolean; // 是否标品（标品有条码）
   status: 'active' | 'inactive';
   supplier?: string; // 供应商

@@ -548,6 +548,7 @@ interface AiConfigState {
     category?: string;
     retailPrice?: number;
     costPrice?: number;
+    image?: string;
     message?: string;
   }>;
 }
@@ -682,7 +683,10 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     // 进价（通常API不返回）
     const costPrice = parseFloat(goodsData.cost_price) || 0;
     
-    console.log('[AI识别] 解析结果:', { name, category, retailPrice, costPrice });
+    // 商品图片（阿里云API返回的图片有效期24小时）
+    const image = goodsData.image || goodsData.img || goodsData.pic || '';
+    
+    console.log('[AI识别] 解析结果:', { name, category, retailPrice, costPrice, image });
     
     // 只有当有有效数据时才返回成功
     if (name) {
@@ -693,6 +697,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         category,
         retailPrice,
         costPrice,
+        image,
         message: '识别成功',
       };
     } else {
