@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore } from '../store';
-import { CustomerDisplay } from '../components/CustomerDisplay';
+import ClearanceModeIndicator from '../components/ClearanceModeIndicator';
+import OfflineIndicator from '../components/OfflineIndicator';
 import type { Product } from '../types';
 
 // 检查清货模式
@@ -404,6 +405,12 @@ export default function CashierPage() {
             <p className="text-xs text-gray-500">V6.0</p>
           </div>
         </aside>
+        
+        {/* 全局状态指示器 */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2">
+          <ClearanceModeIndicator />
+          <OfflineIndicator />
+        </div>
         
         {/* 右侧主内容区 */}
         <main className="flex-1 flex flex-col overflow-hidden">
