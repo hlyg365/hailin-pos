@@ -47,7 +47,7 @@ export default function DashboardPage() {
     { barcode: '6912345678901', name: '康师傅方便面', category: '食品', price: 4.5, costPrice: 3.2, quantity: 48 },
   ]);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
-  const [newProductForm, setNewProductForm] = useState({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '' });
+  const [newProductForm, setNewProductForm] = useState({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '', image: '' });
   const [ai识别中, setAi识别中] = useState(false);
   const [import识别中, setImport识别中] = useState(false);
   
@@ -70,8 +70,11 @@ export default function DashboardPage() {
       name: newProductForm.name,
       barcode: newProductForm.barcode,
       category: newProductForm.category,
-      retailPrice: newProductForm.retailPrice,
+      unit: '件',
       costPrice: newProductForm.costPrice,
+      retailPrice: newProductForm.retailPrice,
+      wholesalePrice: newProductForm.retailPrice,
+      image: newProductForm.image,
       isStandard: true,
       status: 'active',
       stock: 0,
@@ -80,7 +83,7 @@ export default function DashboardPage() {
     
     console.log('[商品管理] 商品添加成功:', newProductForm);
     setShowAddProductModal(false);
-    setNewProductForm({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '' });
+    setNewProductForm({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '', image: '' });
     alert('商品添加成功');
   };
   
@@ -102,6 +105,7 @@ export default function DashboardPage() {
         category: result.category || '食品',
         retailPrice: result.retailPrice || 0,
         costPrice: result.costPrice || 0,
+        image: result.image || '',
       }));
     } else {
       // 识别失败，只填条码，提示用户
@@ -2414,6 +2418,21 @@ export default function DashboardPage() {
                     <input type="number" value={newProductForm.costPrice || ''} onChange={(e) => setNewProductForm({...newProductForm, costPrice: parseFloat(e.target.value) || 0})} placeholder="0.00" className="w-full px-3 py-2 border rounded-lg" />
                   </div>
                 </div>
+                
+                {/* 商品图片 */}
+                {newProductForm.image && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">商品图片</label>
+                    <div className="flex items-center gap-4">
+                      <img src={newProductForm.image} alt="商品图片" className="w-24 h-24 object-contain border rounded-lg bg-white" />
+                      <div>
+                        <p className="text-sm text-gray-500">图片来源: AI识别</p>
+                        <p className="text-xs text-yellow-600">注意: 图片有效期24小时，建议保存</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">供应商</label>
                   <input type="text" value={newProductForm.supplier} onChange={(e) => setNewProductForm({...newProductForm, supplier: e.target.value})} placeholder="请输入供应商" className="w-full px-3 py-2 border rounded-lg" />
