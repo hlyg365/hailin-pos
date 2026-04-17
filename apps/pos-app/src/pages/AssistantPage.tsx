@@ -226,15 +226,15 @@ export default function AssistantPage() {
               <h3 className="font-semibold mb-3">快捷要货</h3>
               <p className="text-sm text-gray-500 mb-4">选择要补货的商品并填写数量</p>
               <div className="space-y-3">
-                {lowStockAlerts.map((alert, i) => (
+                {lowStockAlerts.map((stockAlert, i) => (
                   <div key={i} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                     <div>
-                      <p className="font-medium">{alert.productName}</p>
-                      <p className="text-sm text-gray-500">建议补货 {alert.threshold - alert.current}</p>
+                      <p className="font-medium">{stockAlert.productName}</p>
+                      <p className="text-sm text-gray-500">建议补货 {stockAlert.threshold - stockAlert.current}</p>
                     </div>
                     <button
                       className="px-4 py-2 bg-yellow-500 text-white text-sm rounded"
-                      onClick={() => alert('要货申请已提交')}
+                      onClick={() => window.alert('要货申请已提交')}
                     >
                       一键要货
                     </button>
