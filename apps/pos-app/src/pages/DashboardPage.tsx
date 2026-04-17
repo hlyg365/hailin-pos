@@ -4,6 +4,7 @@ import { useStoreStore, useRestockStore, useAlertStore } from '../store';
 
 type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth';
 type TimeRange = 'today' | 'week' | 'month' | 'year' | 'custom';
+type DepositTimeRange = 'thisMonth' | 'lastMonth' | 'threeMonths' | 'thisYear' | 'custom';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -11,10 +12,22 @@ export default function DashboardPage() {
   const { requests, approveRequest, rejectRequest } = useRestockStore();
   const { lowStockAlerts, overdueAlerts } = useAlertStore();
   
-  // 财务中心时间筛选状态
+  // 财务中心-收银明细时间筛选状态
   const [financeTimeRange, setFinanceTimeRange] = useState<TimeRange>('today');
   const [financeDateStart, setFinanceDateStart] = useState<string>(new Date().toISOString().split('T')[0]);
   const [financeDateEnd, setFinanceDateEnd] = useState<string>(new Date().toISOString().split('T')[0]);
+  
+  // 财务中心-缴款单时间筛选状态
+  const [depositTimeRange, setDepositTimeRange] = useState<DepositTimeRange>('thisMonth');
+  const [depositDateStart, setDepositDateStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [depositDateEnd, setDepositDateEnd] = useState<string>(new Date().toISOString().split('T')[0]);
+  
+  // 缴款单月份选择
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
   
   // 计算时间范围
   const financeRange = useMemo(() => {
@@ -67,6 +80,142 @@ export default function DashboardPage() {
     if (financeTimeRange === 'month') return `近30天`;
     if (financeTimeRange === 'year') return `近1年`;
     return `${financeRange.start.toLocaleDateString('zh-CN', opts)} ~ ${financeRange.end.toLocaleDateString('zh-CN', opts)}`;
+  };
+  
+  // 缴款单计算逻辑
+  const depositRange = useMemo(() => {
+    const today = new Date();
+    let start: Date, end: Date = today;
+    
+    switch (depositTimeRange) {
+      case 'thisMonth':
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = today;
+        break;
+      case 'lastMonth':
+        start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        end = new Date(today.getFullYear(), today.getMonth(), 0);
+        break;
+      case 'threeMonths':
+        start = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+        end = today;
+        break;
+      case 'thisYear':
+        start = new Date(today.getFullYear(), 0, 1);
+        end = today;
+        break;
+      case 'custom':
+        start = new Date(depositDateStart);
+        end = new Date(depositDateEnd);
+        break;
+    }
+    
+    return { start, end };
+  }, [depositTimeRange, depositDateStart, depositDateEnd]);
+  
+  // 生成模拟缴款单数据
+  const generateDepositRecords = () => {
+    const records: Array<{
+      id: string;
+      store: string;
+      storeId: string;
+      amount: number;
+      method: string;
+      status: 'pending' | 'confirmed';
+      date: string;
+      month: string;
+      cashier: string;
+    }> = [];
+    
+    const methods = ['银行转账', '现金', '支付宝', '微信'];
+    const statuses: Array<'pending' | 'confirmed'> = ['pending', 'confirmed'];
+    const cashiers = ['张三', '李四', '王五', '赵六'];
+    
+    // 生成近6个月的缴款记录
+    const today = new Date();
+    for (let m = 0; m < 6; m++) {
+      const monthDate = new Date(today.getFullYear(), today.getMonth() - m, 1);
+      const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+      const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      // 每月每个门店生成3-8条缴款记录
+      stores.forEach(store => {
+        const recordCount = Math.floor(Math.random() * 6) + 3;
+        for (let i = 0; i < recordCount; i++) {
+          const day = Math.floor(Math.random() * daysInMonth) + 1;
+          const recordDate = `${monthStr}-${String(day).padStart(2, '0')}`;
+          records.push({
+            id: `DEP${monthStr.replace('-', '')}${store.code}${String(i + 1).padStart(2, '0')}`,
+            store: store.name,
+            storeId: store.id,
+            amount: Math.round((Math.random() * 8000 + 2000) * 100) / 100,
+            method: methods[Math.floor(Math.random() * methods.length)],
+            status: m === 0 && Math.random() > 0.6 ? 'pending' : 'confirmed',
+            date: recordDate,
+            month: monthStr,
+            cashier: cashiers[Math.floor(Math.random() * cashiers.length)],
+          });
+        }
+      });
+    }
+    
+    return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+  
+  const allDepositRecords = useMemo(() => generateDepositRecords(), [stores]);
+  
+  // 根据时间范围筛选缴款记录
+  const filteredDeposits = useMemo(() => {
+    if (depositTimeRange === 'custom') {
+      return allDepositRecords.filter(r => {
+        const recordDate = new Date(r.date);
+        return recordDate >= depositRange.start && recordDate <= depositRange.end;
+      });
+    }
+    
+    const targetMonth = depositRange.start.toISOString().slice(0, 7);
+    return allDepositRecords.filter(r => r.month === targetMonth);
+  }, [depositTimeRange, depositRange, allDepositRecords]);
+  
+  // 按月汇总缴款数据
+  const monthlySummary = useMemo(() => {
+    const summary: Record<string, { total: number; confirmed: number; pending: number; count: number }> = {};
+    
+    allDepositRecords.forEach(record => {
+      if (!summary[record.month]) {
+        summary[record.month] = { total: 0, confirmed: 0, pending: 0, count: 0 };
+      }
+      summary[record.month].total += record.amount;
+      if (record.status === 'confirmed') {
+        summary[record.month].confirmed += record.amount;
+      } else {
+        summary[record.month].pending += record.amount;
+      }
+      summary[record.month].count += 1;
+    });
+    
+    return Object.entries(summary)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([month, data]) => ({
+        month,
+        ...data,
+        label: `${month.slice(0, 4)}年${parseInt(month.slice(5))}月`,
+      }));
+  }, [allDepositRecords]);
+  
+  // 当前选中月份的统计
+  const currentMonthStats = useMemo(() => {
+    const targetMonth = depositRange.start.toISOString().slice(0, 7);
+    const monthData = monthlySummary.find(m => m.month === targetMonth);
+    return monthData || { total: 0, confirmed: 0, pending: 0, count: 0 };
+  }, [depositRange, monthlySummary]);
+  
+  const formatDepositRange = () => {
+    if (depositTimeRange === 'thisMonth') return '本月';
+    if (depositTimeRange === 'lastMonth') return '上月';
+    if (depositTimeRange === 'threeMonths') return '近3月';
+    if (depositTimeRange === 'thisYear') return '本年';
+    return `${depositDateStart} ~ ${depositDateEnd}`;
   };
 
   // 模拟数据
@@ -591,46 +740,155 @@ export default function DashboardPage() {
 
             {/* 缴款单管理 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="font-semibold mb-4">门店缴款单</h3>
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <h3 className="font-semibold">门店缴款单</h3>
+                
+                {/* 时间范围选择 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { key: 'thisMonth', label: '本月' },
+                    { key: 'lastMonth', label: '上月' },
+                    { key: 'threeMonths', label: '近3月' },
+                    { key: 'thisYear', label: '本年' },
+                    { key: 'custom', label: '自定义' },
+                  ].map(item => (
+                    <button
+                      key={item.key}
+                      onClick={() => setDepositTimeRange(item.key as DepositTimeRange)}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        depositTimeRange === item.key
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                  
+                  {/* 自定义日期选择 */}
+                  {depositTimeRange === 'custom' && (
+                    <div className="flex items-center gap-2 ml-2">
+                      <input
+                        type="date"
+                        value={depositDateStart}
+                        onChange={(e) => setDepositDateStart(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                      />
+                      <span className="text-gray-400">至</span>
+                      <input
+                        type="date"
+                        value={depositDateEnd}
+                        onChange={(e) => setDepositDateEnd(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* 月度汇总统计 */}
+              <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-sm text-blue-600">查询区间</p>
+                  <p className="text-lg font-bold text-blue-800">{formatDepositRange()}</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-3">
+                  <p className="text-sm text-green-600">已确认金额</p>
+                  <p className="text-lg font-bold text-green-800">¥{currentMonthStats.confirmed.toLocaleString()}</p>
+                </div>
+                <div className="bg-yellow-50 rounded-lg p-3">
+                  <p className="text-sm text-yellow-600">待确认金额</p>
+                  <p className="text-lg font-bold text-yellow-800">¥{currentMonthStats.pending.toLocaleString()}</p>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-3">
+                  <p className="text-sm text-purple-600">记录总数</p>
+                  <p className="text-lg font-bold text-purple-800">{currentMonthStats.count} 笔</p>
+                </div>
+              </div>
+              
+              {/* 历史月度汇总 */}
+              <div className="mb-4">
+                <p className="text-sm text-gray-500 mb-2">历史月度汇总：</p>
+                <div className="flex flex-wrap gap-2">
+                  {monthlySummary.slice(0, 6).map(item => (
+                    <button
+                      key={item.month}
+                      onClick={() => {
+                        setDepositTimeRange('custom');
+                        const [year, month] = item.month.split('-');
+                        const startDate = `${year}-${month}-01`;
+                        const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
+                        setDepositDateStart(startDate);
+                        setDepositDateEnd(endDate);
+                      }}
+                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition-colors"
+                    >
+                      <span className="font-medium">{item.label}</span>
+                      <span className="ml-2 text-green-600">¥{item.confirmed.toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* 缴款记录列表 */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b text-left text-sm text-gray-500">
+                      <th className="pb-3">单号</th>
                       <th className="pb-3">门店</th>
                       <th className="pb-3">金额</th>
                       <th className="pb-3">方式</th>
                       <th className="pb-3">状态</th>
-                      <th className="pb-3">时间</th>
+                      <th className="pb-3">日期</th>
                       <th className="pb-3">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {[
-                      { store: '望京店', amount: 8500, method: '银行转账', status: 'pending', time: '10:30' },
-                      { store: '国贸店', amount: 6200, method: '银行转账', status: 'confirmed', time: '09:15' },
-                      { store: '中关村店', amount: 3800, method: '现金', status: 'pending', time: '08:45' },
-                    ].map((deposit, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="py-3">{deposit.store}</td>
-                        <td className="py-3 text-red-600">¥{deposit.amount.toLocaleString()}</td>
-                        <td className="py-3">{deposit.method}</td>
-                        <td className="py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            deposit.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
-                          }`}>
-                            {deposit.status === 'confirmed' ? '已确认' : '待确认'}
-                          </span>
-                        </td>
-                        <td className="py-3 text-gray-500">{deposit.time}</td>
-                        <td className="py-3">
-                          {deposit.status === 'pending' && (
-                            <button className="text-blue-600 hover:underline text-sm">确认收款</button>
-                          )}
+                    {filteredDeposits.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-gray-400">
+                          暂无缴款记录
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredDeposits.map(deposit => (
+                        <tr key={deposit.id} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="py-3 font-mono text-sm text-gray-600">{deposit.id}</td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-2">
+                              <span>🏪</span>
+                              <span>{deposit.store}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 text-red-600 font-medium">¥{deposit.amount.toLocaleString()}</td>
+                          <td className="py-3">{deposit.method}</td>
+                          <td className="py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              deposit.status === 'confirmed' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
+                            }`}>
+                              {deposit.status === 'confirmed' ? '已确认' : '待确认'}
+                            </span>
+                          </td>
+                          <td className="py-3 text-gray-500">{deposit.date}</td>
+                          <td className="py-3">
+                            <button className="text-blue-600 hover:underline text-sm mr-2">查看</button>
+                            {deposit.status === 'pending' && (
+                              <button className="text-green-600 hover:underline text-sm">确认收款</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
+              </div>
+              
+              {/* 导出按钮 */}
+              <div className="mt-4 pt-4 border-t flex justify-end">
+                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                  <span>📥</span> 导出{formatDepositRange()}缴款记录
+                </button>
               </div>
             </div>
           </div>
