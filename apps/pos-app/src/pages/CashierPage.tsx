@@ -262,45 +262,36 @@ export default function CashierPage() {
       {/* 主体区域：侧边栏 + 内容 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧侧边栏 */}
-        <aside className="w-56 bg-gray-800 text-white flex flex-col overflow-y-auto">
+        <aside className="w-20 bg-gray-800 text-white flex flex-col">
           {/* 侧边栏头部 */}
-          <div className="p-4 border-b border-gray-700">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🏪</span>
-              <div>
-                <p className="font-semibold text-sm">{currentStore?.name || '门店'}</p>
-                <p className="text-xs text-gray-400">{currentStore?.code || 'WJ001'}</p>
-              </div>
+          <div className="p-2 border-b border-gray-700">
+            <div className="flex flex-col items-center">
+              <span className="text-2xl">🏪</span>
+              <p className="text-xs mt-1 truncate max-w-full">{currentStore?.name || '门店'}</p>
             </div>
           </div>
           
           {/* 模块导航 */}
-          <nav className="flex-1 p-2">
-            <div className="mb-4">
-              <p className="text-xs text-gray-500 uppercase tracking-wider px-3 mb-2">功能模块</p>
-              {storeModules.map(mod => (
-                <button
-                  key={mod.id}
-                  onClick={() => setActiveModule(mod.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 transition-colors ${
-                    activeModule === mod.id
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                  }`}
-                >
-                  <span className="text-lg">{mod.icon}</span>
-                  <span className="text-sm font-medium">{mod.label}</span>
-                </button>
-              ))}
-            </div>
+          <nav className="flex-1 py-2">
+            {storeModules.map(mod => (
+              <button
+                key={mod.id}
+                onClick={() => setActiveModule(mod.id)}
+                className={`w-full flex flex-col items-center py-2 px-1 mb-1 transition-colors ${
+                  activeModule === mod.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                <span className="text-xl">{mod.icon}</span>
+                <span className="text-xs mt-1">{mod.label}</span>
+              </button>
+            ))}
           </nav>
           
           {/* 侧边栏底部 */}
-          <div className="p-4 border-t border-gray-700">
-            <div className="text-xs text-gray-500">
-              <p>版本：V6.0</p>
-              <p className="mt-1">© 2024 海邻到家</p>
-            </div>
+          <div className="p-2 border-t border-gray-700 text-center">
+            <p className="text-xs text-gray-500">V6.0</p>
           </div>
         </aside>
         
@@ -420,23 +411,62 @@ export default function CashierPage() {
               items.map(item => (
                 <div key={item.product.id} className="flex items-center gap-3 p-3 border-b">
                   <div className="flex-1">
-                    <p className="font-medium text-sm">{item.product.name}</p>
-                    <p className="text-red-600 text-sm">¥{item.product.retailPrice.toFixed(2)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{item.product.name}</p>
+                      {!item.product.isStandard && (
+                        <span className="bg-orange-100 text-orange-600 text-xs px-1.5 py-0.5 rounded">称重</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-red-600 text-sm">¥{item.product.retailPrice.toFixed(2)}</p>
+                      {!item.product.isStandard && (
+                        <span className="text-gray-500 text-xs">
+                          {item.quantity.toFixed(3)}kg × ¥{item.product.retailPrice.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    {!item.product.isStandard && (
+                      <p className="text-green-600 text-xs mt-0.5">
+                        小计：¥{(item.quantity * item.product.retailPrice).toFixed(2)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                      className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                    >
-                      -
-                    </button>
-                    <span className="w-8 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                      className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                    >
-                      +
-                    </button>
+                    {item.product.isStandard ? (
+                      <>
+                        <button
+                          onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                        >
+                          -
+                        </button>
+                        <span className="w-8 text-center">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                          className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                        >
+                          +
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => updateQuantity(item.product.id, Math.max(0.1, item.quantity - 0.1))}
+                          className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs"
+                        >
+                          -
+                        </button>
+                        <span className="w-14 text-center text-sm bg-orange-50 px-1 py-0.5 rounded">
+                          {item.quantity.toFixed(3)}kg
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.product.id, item.quantity + 0.1)}
+                          className="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xs"
+                        >
+                          +
+                        </button>
+                      </>
+                    )}
                   </div>
                   <button
                     onClick={() => removeItem(item.product.id)}
