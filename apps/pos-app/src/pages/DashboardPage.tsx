@@ -345,6 +345,133 @@ export default function DashboardPage() {
               ))}
             </div>
 
+            {/* 门店收银明细 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h3 className="font-semibold mb-4">门店收银明细（今日）</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-left text-sm text-gray-500">
+                      <th className="pb-3">门店</th>
+                      <th className="pb-3">收银总数</th>
+                      <th className="pb-3">现金收款</th>
+                      <th className="pb-3">微信支付</th>
+                      <th className="pb-3">支付宝</th>
+                      <th className="pb-3">云闪付</th>
+                      <th className="pb-3">会员卡</th>
+                      <th className="pb-3">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stores.map(store => {
+                      // 模拟各支付方式数据（实际应从订单数据统计）
+                      const total = Math.round(Math.random() * 5000 + 3000);
+                      const cash = Math.round(total * (0.15 + Math.random() * 0.1));
+                      const wechat = Math.round(total * (0.35 + Math.random() * 0.1));
+                      const alipay = Math.round(total * (0.3 + Math.random() * 0.1));
+                      const unionpay = Math.round(total * (0.05 + Math.random() * 0.05));
+                      const member = total - cash - wechat - alipay - unionpay;
+                      return (
+                        <tr key={store.id} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">🏪</span>
+                              <div>
+                                <p className="font-medium">{store.name}</p>
+                                <p className="text-xs text-gray-500">{store.code}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <span className="text-lg font-bold text-green-600">¥{total.toLocaleString()}</span>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-1">
+                              <span>💵</span>
+                              <span className="text-orange-600">¥{cash.toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-green-500">💚</span>
+                              <span className="text-green-600">¥{wechat.toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-blue-500">💙</span>
+                              <span className="text-blue-600">¥{alipay.toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-1">
+                              <span className="text-red-400">💳</span>
+                              <span className="text-gray-600">¥{unionpay.toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-1">
+                              <span>👤</span>
+                              <span className="text-purple-600">¥{member.toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className="py-3">
+                            <button className="text-blue-600 hover:underline text-sm">查看详情</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 font-semibold">
+                      <td className="py-3">合计</td>
+                      <td className="py-3 text-lg text-green-600">
+                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 5000 + 3000), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 text-orange-600">
+                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 800 + 400), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 text-green-600">
+                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 1800 + 1200), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 text-blue-600">
+                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 1500 + 1000), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 text-gray-600">
+                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 300 + 150), 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 text-purple-600">
+                        ¥{stores.reduce((sum) => sum + Math.round(Math.random() * 200 + 100), 0).toLocaleString()}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              
+              {/* 支付方式图例 */}
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm text-gray-500 mb-2">支付方式说明：</p>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <span className="flex items-center gap-1">
+                    <span>💵</span> 现金：门店收取的现金，需缴款至总部
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="text-green-500">💚</span> 微信支付：直连总部账户
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="text-blue-500">💙</span> 支付宝：直连总部账户
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="text-red-400">💳</span> 云闪付/数字人民币：直连总部账户
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span>👤</span> 会员卡：会员余额/积分抵扣
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* 缴款单管理 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold mb-4">门店缴款单</h3>
