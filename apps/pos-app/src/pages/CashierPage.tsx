@@ -905,6 +905,65 @@ interface StoreManagementModuleProps {
 function StoreManagementModule({ module, store, products, members, orders }: StoreManagementModuleProps) {
   const { inventories } = useProductStore();
   
+  // 缓存管理
+  const [cacheSize, setCacheSize] = useState('0 KB');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearSuccess, setClearSuccess] = useState(false);
+  
+  // 计算缓存大小
+  const calculateCacheSize = useCallback(() => {
+    let total = 0;
+    try {
+      for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          total += localStorage[key].length + key.length;
+        }
+      }
+      for (let key in sessionStorage) {
+        if (sessionStorage.hasOwnProperty(key)) {
+          total += sessionStorage[key].length + key.length;
+        }
+      }
+    } catch (e) {
+      console.error('计算缓存大小失败', e);
+    }
+    // 转换为 KB
+    const kb = (total / 1024).toFixed(2);
+    setCacheSize(kb);
+    return parseFloat(kb);
+  }, []);
+  
+  // 清除缓存
+  const clearCache = useCallback(() => {
+    try {
+      // 清除 localStorage
+      localStorage.clear();
+      // 清除 sessionStorage
+      sessionStorage.clear();
+      // 尝试清除 IndexedDB (如果存在)
+      if ('indexedDB' in window) {
+        const dbs = window.indexedDB.databases();
+        dbs.then(dbs => {
+          dbs.forEach(db => {
+            if (db.name) window.indexedDB.deleteDatabase(db.name);
+          });
+        }).catch(() => {});
+      }
+      setCacheSize('0.00');
+      setClearSuccess(true);
+      setTimeout(() => setClearSuccess(false), 3000);
+    } catch (e) {
+      console.error('清除缓存失败', e);
+    }
+  }, []);
+  
+  // 组件挂载时计算缓存大小
+  useEffect(() => {
+    if (module === 'settings') {
+      calculateCacheSize();
+    }
+  }, [module, calculateCacheSize]);
+  
   // 库存管理
   if (module === 'inventory') {
     const storeInventories = Array.from(inventories.entries())
@@ -1414,12 +1473,68 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
             
             <div className="border rounded-lg p-4">
               <h4 className="font-medium mb-3 text-red-600">危险操作</h4>
-              <button className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm hover:bg-red-200">
-                清除缓存
-              </button>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">清除缓存</p>
+                    <p className="text-xs text-gray-500">当前缓存: {cacheSize}</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowClearConfirm(true)}
+                    className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm hover:bg-red-200 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    清除
+                  </button>
+                </div>
+                {clearSuccess && (
+                  <div className="p-2 bg-green-100 text-green-700 rounded-lg text-sm text-center">
+                    缓存清除成功！
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+        
+        {/* 清除缓存确认弹窗 */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-80 max-w-[90vw]">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold mb-2">确认清除缓存？</h3>
+                <p className="text-sm text-gray-500 mb-6">
+                  将清除所有本地存储数据，包括购物车、历史记录等。<br/>
+                  当前缓存: <span className="font-medium">{cacheSize}</span>
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowClearConfirm(false)}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    onClick={() => {
+                      clearCache();
+                      setShowClearConfirm(false);
+                    }}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  >
+                    确认清除
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
