@@ -350,6 +350,31 @@ export default function CashierPage() {
                         <p className="text-sm opacity-80">商品金额</p>
                         <p className="text-2xl font-bold text-yellow-200">¥{(currentProduct.retailPrice * currentWeight).toFixed(2)}</p>
                       </div>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => {
+                            // 确认添加称重商品到购物车
+                            if (currentWeight > 0) {
+                              addItem(currentProduct, currentWeight);
+                              deviceManager.customerDisplay.showWaiting(totals.total + currentProduct.retailPrice * currentWeight);
+                              setCurrentProduct(null);
+                              setCurrentWeight(0);
+                            }
+                          }}
+                          className="px-4 py-2 bg-yellow-400 text-green-800 rounded-lg font-medium hover:bg-yellow-300"
+                        >
+                          加入购物车
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCurrentProduct(null);
+                            setCurrentWeight(0);
+                          }}
+                          className="px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30"
+                        >
+                          取消
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -482,11 +507,25 @@ export default function CashierPage() {
                     <button
                       key={product.id}
                       onClick={() => {
-                        addItem(product, product.isStandard ? 1 : currentWeight || 0.5);
-                        deviceManager.customerDisplay.showWaiting(totals.total);
+                        if (!product.isStandard) {
+                          // 称重商品：先设置当前商品，开始称重
+                          setCurrentProduct(product);
+                          // 模拟从电子秤读取重量
+                          setCurrentWeight(Math.random() * 2 + 0.3);
+                        } else {
+                          // 标准商品：直接添加到购物车
+                          addItem(product, 1);
+                          deviceManager.customerDisplay.showWaiting(totals.total + product.retailPrice);
+                        }
                       }}
-                      className="bg-white rounded-xl p-3 text-left hover:shadow-md transition-shadow"
+                      className="bg-white rounded-xl p-3 text-left hover:shadow-md transition-shadow relative"
                     >
+                      {/* 称重商品标记 */}
+                      {!product.isStandard && (
+                        <div className="absolute top-2 right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center">
+                          <span className="text-xs">⚖️</span>
+                        </div>
+                      )}
                       <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
                         {!product.isStandard && (
                           <span className="text-2xl">🍎</span>
@@ -500,6 +539,9 @@ export default function CashierPage() {
                         <span className="text-red-600 font-semibold">¥{product.retailPrice.toFixed(2)}</span>
                         {!product.isStandard && (
                           <span className="text-xs bg-orange-100 text-orange-600 px-1 rounded">称重</span>
+                        )}
+                        {product.isStandard && (
+                          <span className="text-xs bg-blue-100 text-blue-600 px-1 rounded">标准</span>
                         )}
                       </div>
                     </button>
@@ -553,6 +595,25 @@ export default function CashierPage() {
               </span>
             </div>
 
+            {/* 待称重提示 */}
+            {currentProduct && !currentProduct.isStandard && (
+              <div className="bg-orange-100 border-b border-orange-200 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl animate-pulse">⚖️</span>
+                    <div>
+                      <p className="text-sm font-medium text-orange-800">正在称重</p>
+                      <p className="text-xs text-orange-600">{currentProduct.name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-orange-700">{currentWeight.toFixed(3)}kg</p>
+                    <p className="text-xs text-orange-600">¥{(currentProduct.retailPrice * currentWeight).toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 购物车列表 */}
             <div className="flex-1 overflow-y-auto p-4">
               {items.length === 0 ? (
@@ -564,13 +625,22 @@ export default function CashierPage() {
               ) : (
                 <div className="space-y-3">
                   {items.map(item => (
-                    <div key={item.product.id} className="flex gap-3 bg-gray-50 rounded-lg p-3">
+                    <div key={item.product.id} className={`flex gap-3 rounded-lg p-3 ${!item.product.isStandard ? 'bg-orange-50 border border-orange-200' : 'bg-gray-50'}`}>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{item.product.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm">{item.product.name}</p>
+                          {!item.product.isStandard && (
+                            <span className="text-xs bg-orange-500 text-white px-1 rounded">称重</span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500">
-                          ¥{item.product.retailPrice.toFixed(2)}
-                          {item.product.isStandard ? ` × ${item.quantity}` : ` × ${item.quantity.toFixed(3)}kg`}
+                          ¥{item.product.retailPrice.toFixed(2)} × {item.product.isStandard ? item.quantity : `${item.quantity.toFixed(3)}kg`}
                         </p>
+                        {!item.product.isStandard && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            实时重量: {item.quantity.toFixed(3)}kg | 金额: ¥{(item.product.retailPrice * item.quantity).toFixed(2)}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-red-600">¥{(item.product.retailPrice * item.quantity).toFixed(2)}</p>
