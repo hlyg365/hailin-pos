@@ -565,9 +565,12 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
   }
 
   try {
-    // 构建请求体
+    // 构建请求参数
     let requestBody: Record<string, any> = {};
+    let url = enabledConfig.apiUrl;
+    
     try {
+      // 解析请求模板
       const template = enabledConfig.requestTemplate
         .replace(/\${barcode}/g, barcode)
         .replace(/\${store_id}/g, 'STORE001')
@@ -576,17 +579,29 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     } catch {
       requestBody = { barcode };
     }
+    
+    // GET请求：将参数拼接到URL
+    if (enabledConfig.method === 'GET') {
+      const params = new URLSearchParams();
+      Object.entries(requestBody).forEach(([key, value]) => {
+        params.append(key, String(value));
+      });
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}${params.toString()}`;
+      requestBody = {};
+    }
 
     // 构建请求头
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = {};
     
     if (enabledConfig.apiKey) {
+      // 标准 Bearer Token 认证
       headers['Authorization'] = `Bearer ${enabledConfig.apiKey}`;
+      headers['Content-Type'] = 'application/json';
     }
     if (enabledConfig.appCode) {
-      headers['X-App-Code'] = enabledConfig.appCode;
+      // 阿里云市场认证格式: APPCODE xxx
+      headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
     }
     if (enabledConfig.appSecret) {
       headers['X-App-Secret'] = enabledConfig.appSecret;
@@ -596,10 +611,10 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), enabledConfig.timeout * 1000);
 
-    const response = await fetch(enabledConfig.apiUrl, {
+    const response = await fetch(url, {
       method: enabledConfig.method,
       headers,
-      body: enabledConfig.method === 'POST' ? JSON.stringify(requestBody) : undefined,
+      body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined,
       signal: controller.signal,
     });
 
@@ -611,15 +626,30 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 
     const data = await response.json();
     
-    // 根据字段映射提取数据
+    // 根据字段映射提取数据（支持多种常见响应格式）
     const getNestedValue = (obj: any, path: string): any => {
       return path.split('.').reduce((acc, part) => acc?.[part], obj);
     };
 
-    const name = getNestedValue(data, enabledConfig.responseMapping.name) || `商品(${barcode})`;
-    const category = getNestedValue(data, enabledConfig.responseMapping.category) || '食品';
-    const retailPrice = parseFloat(getNestedValue(data, enabledConfig.responseMapping.price)) || 0;
-    const costPrice = parseFloat(getNestedValue(data, enabledConfig.responseMapping.costPrice)) || 0;
+    const name = getNestedValue(data, enabledConfig.responseMapping.name) 
+      || getNestedValue(data, 'result.name') 
+      || getNestedValue(data, 'name') 
+      || getNestedValue(data, 'data.name') 
+      || `商品(${barcode})`;
+    const category = getNestedValue(data, enabledConfig.responseMapping.category) 
+      || getNestedValue(data, 'category') 
+      || getNestedValue(data, 'result.category') 
+      || '食品';
+    const retailPrice = parseFloat(
+      getNestedValue(data, enabledConfig.responseMapping.price) 
+      || getNestedValue(data, 'price') 
+      || getNestedValue(data, 'result.price') 
+      || getNestedValue(data, 'data.price')
+    ) || 0;
+    const costPrice = parseFloat(
+      getNestedValue(data, enabledConfig.responseMapping.costPrice) 
+      || getNestedValue(data, 'cost_price')
+    ) || 0;
 
     return {
       success: true,
