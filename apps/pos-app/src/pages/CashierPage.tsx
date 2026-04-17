@@ -427,7 +427,47 @@ export default function CashierPage() {
 
           {/* 收银台界面 */}
           {activeModule === 'cashier' && (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* 称重信息面板 - 称重商品时显示 */}
+            {currentProduct && !currentProduct.isStandard && (
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-4 mb-4 rounded-xl shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
+                      <span className="text-3xl">🍎</span>
+                    </div>
+                    <div>
+                      <p className="text-sm opacity-80">当前称重商品</p>
+                      <p className="text-xl font-bold">{currentProduct.name}</p>
+                      <p className="text-sm opacity-80 mt-1">
+                        零售价：<span className="font-semibold">¥{currentProduct.retailPrice.toFixed(2)}</span>/kg
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm opacity-80">当前重量</p>
+                    <p className="text-4xl font-bold">{currentWeight.toFixed(3)}</p>
+                    <p className="text-sm opacity-80">kg</p>
+                  </div>
+                  <div className="text-right border-l border-white/30 pl-6">
+                    <p className="text-sm opacity-80">商品金额</p>
+                    <p className="text-4xl font-bold text-yellow-300">
+                      ¥{(currentWeight * currentProduct.retailPrice).toFixed(2)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleAddToCart}
+                    className="px-6 py-3 bg-white text-green-600 rounded-xl font-semibold hover:bg-green-50 flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    加入购物车
+                  </button>
+                </div>
+              </div>
+            )}
+            
         {/* 左侧商品区 */}
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* 工具栏 */}
@@ -545,26 +585,45 @@ export default function CashierPage() {
               </div>
             ) : (
               items.map(item => (
-                <div key={item.product.id} className="flex items-center gap-3 p-3 border-b">
+                <div key={item.product.id} className={`flex items-center gap-3 p-3 border-b ${!item.product.isStandard ? 'bg-orange-50 -mx-2 px-2' : ''}`}>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
+                      {!item.product.isStandard && (
+                        <span className="text-lg">🍎</span>
+                      )}
                       <p className="font-medium text-sm">{item.product.name}</p>
                       {!item.product.isStandard && (
-                        <span className="bg-orange-100 text-orange-600 text-xs px-1.5 py-0.5 rounded">称重</span>
+                        <span className="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded">称重</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-red-600 text-sm">¥{item.product.retailPrice.toFixed(2)}</p>
-                      {!item.product.isStandard && (
-                        <span className="text-gray-500 text-xs">
-                          {item.quantity.toFixed(3)}kg × ¥{item.product.retailPrice.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                    {!item.product.isStandard && (
-                      <p className="text-green-600 text-xs mt-0.5">
-                        小计：¥{(item.quantity * item.product.retailPrice).toFixed(2)}
-                      </p>
+                    
+                    {/* 称重商品详细信息 */}
+                    {!item.product.isStandard ? (
+                      <div className="mt-2 p-2 bg-white rounded-lg border border-orange-200">
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-center">
+                            <p className="text-gray-500">单价</p>
+                            <p className="font-medium text-gray-800">¥{item.product.retailPrice.toFixed(2)}<span className="text-gray-500">/kg</span></p>
+                          </div>
+                          <div className="text-center border-l border-r border-gray-200">
+                            <p className="text-gray-500">重量</p>
+                            <p className="font-bold text-orange-600">{item.quantity.toFixed(3)}<span className="text-gray-500 font-normal"> kg</span></p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-gray-500">金额</p>
+                            <p className="font-bold text-green-600">¥{(item.quantity * item.product.retailPrice).toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-orange-100 text-center text-xs text-gray-500">
+                          ¥{item.product.retailPrice.toFixed(2)} × {item.quantity.toFixed(3)}kg = ¥{(item.quantity * item.product.retailPrice).toFixed(2)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-red-600 text-sm">¥{item.product.retailPrice.toFixed(2)}</p>
+                        <span className="text-gray-500 text-xs">× {item.quantity}</span>
+                        <span className="text-gray-400 text-xs">= ¥{(item.product.retailPrice * item.quantity).toFixed(2)}</span>
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -592,8 +651,8 @@ export default function CashierPage() {
                         >
                           -
                         </button>
-                        <span className="w-14 text-center text-sm bg-orange-50 px-1 py-0.5 rounded">
-                          {item.quantity.toFixed(3)}kg
+                        <span className="w-14 text-center text-sm bg-orange-100 px-1 py-0.5 rounded font-medium">
+                          {item.quantity.toFixed(2)}kg
                         </span>
                         <button
                           onClick={() => updateQuantity(item.product.id, item.quantity + 0.1)}
