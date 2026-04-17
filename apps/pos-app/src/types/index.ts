@@ -63,6 +63,8 @@ export interface Product {
   image?: string;
   isStandard: boolean; // 是否标品（标品有条码）
   status: 'active' | 'inactive';
+  supplier?: string; // 供应商
+  stock?: number; // 库存
 }
 
 export interface Inventory {

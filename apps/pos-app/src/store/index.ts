@@ -68,6 +68,7 @@ interface ProductState {
   getInventory: (storeId: string, productId: string) => Inventory | undefined;
   checkInventory: (storeId: string, productId: string, requiredQty: number) => { available: boolean; currentQty: number };
   deductInventory: (storeId: string, productId: string, quantity: number) => boolean;
+  addProduct: (product: Product) => void;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -120,6 +121,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return { inventories: newInventories };
     });
     return true;
+  },
+  addProduct: (product: Product) => {
+    set((state) => {
+      // 检查是否已存在相同条码的商品
+      const exists = state.products.some(p => p.barcode === product.barcode);
+      if (exists) {
+        console.warn('[商品库] 商品已存在:', product.barcode);
+        return state;
+      }
+      return { products: [...state.products, product] };
+    });
   },
 }));
 
