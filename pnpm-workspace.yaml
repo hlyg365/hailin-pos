@@ -1,9 +1,2 @@
-{
-  "name": "@hailin/pnpm-workspace",
-  "version": "1.0.0",
-  "private": true,
-  "packages": [
-    "packages/*",
-    "apps/*"
-  ]
-}
+packages:
+  - 'apps/*'

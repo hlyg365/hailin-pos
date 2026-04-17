@@ -2,30 +2,19 @@
   "name": "@hailin/pos-app",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "海邻到家 - 收银台应用",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@hailin/core": "workspace:*",
-    "@hailin/cart": "workspace:*",
-    "@hailin/order": "workspace:*",
-    "@hailin/member": "workspace:*",
-    "@hailin/payment": "workspace:*",
-    "@hailin/promotion": "workspace:*",
-    "@hailin/hardware": "workspace:*",
-    "@tarojs/taro": "^4.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "zustand": "^4.4.0",
     "react-router-dom": "^6.20.0",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^2.1.0",
-    "lucide-react": "^0.294.0",
-    "qrcode.react": "^3.1.0"
+    "lucide-react": "^0.294.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
