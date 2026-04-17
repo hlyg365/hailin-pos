@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "npx serve dist -l 5000"
+    "start": "vite preview"
   },
   "dependencies": {
     "clsx": "^2.0.0",
