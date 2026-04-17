@@ -66,7 +66,6 @@ export default function CashierPage() {
         category: result.category || '食品',
         retailPrice: result.retailPrice || 0,
         costPrice: result.costPrice || 0,
-        supplier: result.supplier || '',
       }));
     } else {
       // 识别失败时填充基本信息
