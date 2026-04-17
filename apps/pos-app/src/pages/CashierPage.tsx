@@ -138,16 +138,17 @@ export default function CashierPage() {
   const handleBarcodeScan = useCallback(async (barcode: string) => {
     setAiScanResult({ barcode, loading: true });
     await new Promise(r => setTimeout(r, 300));
+    
     const exact = products.find(p => p.barcode === barcode);
     if (exact) {
       addItem(exact, 1);
-      setAiScanResult(null);
-      deviceManager.customerDisplay?.showWaiting?.(totals.total + exact.retailPrice);
+      setAiScanResult(null); // 清空扫码结果
+      deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + exact.retailPrice);
     } else {
       const similar = products.filter(p => p.barcode.includes(barcode.slice(-6))).slice(0, 3);
       setAiScanResult({ barcode, candidates: similar });
     }
-  }, [products, addItem, totals.total]);
+  }, [products, addItem]);
 
   const handleAiVision = useCallback(async () => {
     setAiVisionResult({ loading: true });
@@ -1307,7 +1308,7 @@ export default function CashierPage() {
                   <p className="text-sm opacity-80">条码已自动识别，AI正在匹配商品信息</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddProductModal(false)} className="text-white/80 hover:text-white text-2xl">×</button>
+              <button onClick={() => { setShowAddProductModal(false); setAiScanResult(null); }} className="text-white/80 hover:text-white text-2xl">×</button>
             </div>
             <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
               {/* AI识别状态 */}
@@ -1381,7 +1382,7 @@ export default function CashierPage() {
                 </ul>
               </div>
               <div className="flex gap-3 pt-4 border-t">
-                <button onClick={() => setShowAddProductModal(false)} className="flex-1 py-3 border rounded-lg hover:bg-gray-50">取消</button>
+                <button onClick={() => { setShowAddProductModal(false); setAiScanResult(null); setNewProduct({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, isStandard: true, supplier: '' }); }} className="flex-1 py-3 border rounded-lg hover:bg-gray-50">取消</button>
                 <button onClick={handleAddNewProduct} disabled={!newProduct.name || !newProduct.barcode || newProduct.retailPrice <= 0} className="flex-1 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed">确认添加</button>
               </div>
             </div>
