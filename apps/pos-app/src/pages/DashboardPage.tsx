@@ -51,12 +51,34 @@ export default function DashboardPage() {
   const [ai识别中, setAi识别中] = useState(false);
   const [import识别中, setImport识别中] = useState(false);
   
+  // 添加商品到商品库
+  const { addProduct } = useProductStore();
+  
   const handleAddProduct = () => {
     if (!newProductForm.name || !newProductForm.barcode) {
       alert('请填写商品名称和条码');
       return;
     }
-    // 添加商品逻辑
+    if (newProductForm.retailPrice <= 0) {
+      alert('请填写零售价');
+      return;
+    }
+    
+    // 添加商品到商品库
+    addProduct({
+      id: `prod_${Date.now()}`,
+      name: newProductForm.name,
+      barcode: newProductForm.barcode,
+      category: newProductForm.category,
+      retailPrice: newProductForm.retailPrice,
+      costPrice: newProductForm.costPrice,
+      isStandard: true,
+      status: 'active',
+      stock: 0,
+      supplier: newProductForm.supplier,
+    });
+    
+    console.log('[商品管理] 商品添加成功:', newProductForm);
     setShowAddProductModal(false);
     setNewProductForm({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '' });
     alert('商品添加成功');
@@ -65,10 +87,14 @@ export default function DashboardPage() {
   // 商品管理-新增商品AI识别
   const handleAiScanForNewProduct = async (barcode: string) => {
     if (!barcode) return;
+    console.log('[商品管理] 开始AI识别条码:', barcode);
     setAi识别中(true);
     const aiConfig = useAiConfigStore.getState();
     const result = await aiConfig.aiScanByBarcode(barcode);
-    if (result.success) {
+    console.log('[商品管理] AI识别结果:', result);
+    
+    if (result.success && result.name && result.retailPrice) {
+      // 识别成功，自动填充表单
       setNewProductForm(prev => ({
         ...prev,
         barcode,
@@ -79,8 +105,9 @@ export default function DashboardPage() {
         supplier: result.supplier || '',
       }));
     } else {
+      // 识别失败，只填条码，提示用户
       setNewProductForm(prev => ({ ...prev, barcode }));
-      alert(result.message || 'AI识别失败');
+      alert(result.message || 'AI识别失败，请手动填写商品信息');
     }
     setAi识别中(false);
   };
