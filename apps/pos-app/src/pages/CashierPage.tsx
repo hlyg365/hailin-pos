@@ -121,7 +121,6 @@ export default function CashierPage() {
 
   const handleBarcodeScan = useCallback(async (barcode: string) => {
     setAiScanResult({ barcode, loading: true });
-    await new Promise(r => setTimeout(r, 300));
     
     const exact = products.find(p => p.barcode === barcode);
     if (exact) {
@@ -190,25 +189,94 @@ export default function CashierPage() {
     alert(`商品 "${newProduct.name}" 已添加到商品库并加入购物车`);
   };
 
+  // 支付完成处理
   const handlePay = async () => {
     if (!selectedPay || isProcessing) return;
     setIsProcessing(true);
-    await new Promise(r => setTimeout(r, 1000));
-    const order = {
-      id: `order_${Date.now()}`, orderNo: `POS${Date.now()}`, type: 'pos' as const,
-      storeId: currentStore?.id || 'store001', memberId: currentMember?.id,
-      items: items.map(i => ({ productId: i.product.id, productName: i.product.name, barcode: i.product.barcode, quantity: i.quantity, unitPrice: i.product.retailPrice, discount: 0, subtotal: i.product.retailPrice * i.quantity })),
-      totalAmount: totals.subtotal, discountAmount: totals.clearanceDiscount + totals.memberDiscount, finalAmount: totals.total,
-      payMethod: selectedPay as 'cash' | 'wechat' | 'alipay' | 'unionpay' | 'member',
-      payStatus: 'paid' as const, status: 'paid' as const, cashierId: 'emp001',
-      createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
+    
+    try {
+      // 生成订单数据
+      const order = {
+        id: `order_${Date.now()}`,
+        orderNo: `POS${Date.now()}`,
+        type: 'pos' as const,
+        storeId: currentStore?.id || 'store001',
+        memberId: currentMember?.id,
+        items: items.map(i => ({
+          productId: i.product.id,
+          productName: i.product.name,
+          barcode: i.product.barcode,
+          quantity: i.quantity,
+          unitPrice: i.product.retailPrice,
+          discount: 0,
+          subtotal: i.product.retailPrice * i.quantity,
+        })),
+        totalAmount: totals.subtotal,
+        discountAmount: totals.clearanceDiscount + totals.memberDiscount,
+        finalAmount: totals.total,
+        payMethod: selectedPay as 'cash' | 'wechat' | 'alipay' | 'unionpay' | 'member',
+        payStatus: 'paid' as const,
+        status: 'paid' as const,
+        cashierId: 'emp001',
+        createdAt: new Date().toISOString(),
+        paidAt: new Date().toISOString(),
+      };
+      
+      // 1. 保存订单
+      createOrder(order);
+      
+      // 2. 现金支付时打开钱箱
+      if (selectedPay === 'cash') {
+        const drawerOpened = await deviceManager.cashDrawer?.open();
+        if (!drawerOpened) {
+          console.warn('[Cashier] 钱箱未能打开，请检查硬件连接');
+        }
+      }
+      
+      // 3. 打印小票（如果打印机已连接）
+      if (deviceManager.receiptPrinter?.status?.connected) {
+        await deviceManager.receiptPrinter.printReceipt({
+          orderNo: order.orderNo,
+          storeName: currentStore?.name || '海邻到家',
+          items: order.items.map(i => ({ name: i.productName, qty: i.quantity, price: i.unitPrice })),
+          total: order.finalAmount,
+          payMethod: getPayMethodName(selectedPay),
+          cashier: '收银员',
+          time: new Date(order.paidAt).toLocaleString('zh-CN'),
+        });
+      } else {
+        console.log('[Cashier] 小票打印机未连接，跳过打印');
+      }
+      
+      // 4. 更新客显屏
+      deviceManager.customerDisplay?.showPaid(order.finalAmount);
+      
+      // 完成
+      setShowPayModal(false);
+      setShowSuccess(true);
+      clearCart();
+      setTimeout(() => {
+        setShowSuccess(false);
+        deviceManager.customerDisplay?.showWelcome();
+      }, 3000);
+    } catch (error) {
+      console.error('[Cashier] 支付处理失败:', error);
+      alert('支付处理失败，请重试');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  // 获取支付方式名称
+  const getPayMethodName = (method: string): string => {
+    const names: Record<string, string> = {
+      cash: '现金',
+      wechat: '微信支付',
+      alipay: '支付宝',
+      unionpay: '云闪付',
+      member: '会员卡',
     };
-    createOrder(order);
-    setIsProcessing(false);
-    setShowPayModal(false);
-    setShowSuccess(true);
-    clearCart();
-    setTimeout(() => setShowSuccess(false), 3000);
+    return names[method] || method;
   };
 
   const handleSuspend = () => {
@@ -373,7 +441,8 @@ export default function CashierPage() {
                   {filteredProducts.map(product => (
                     <button key={product.id} onClick={() => {
                       if (!product.isStandard) {
-                        const weight = Math.round((Math.random() * 2 + 0.3) * 1000) / 1000;
+                        // 非标品（称重商品）使用电子秤数据或默认1kg
+                        const weight = deviceManager.scale?.getReading()?.weight || 1;
                         addItem(product, weight);
                         deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice * weight);
                       } else {

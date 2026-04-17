@@ -143,16 +143,26 @@ export default function DashboardPage() {
     return { start, end };
   }, [financeTimeRange, financeDateStart, financeDateEnd]);
   
-  // 根据时间范围计算统计数据
+  // 根据时间范围和门店计算真实统计数据
   const getStoreStats = (storeId: string) => {
+    const filteredOrders = orders.filter(o => {
+      const orderDate = new Date(o.createdAt);
+      return orderDate >= financeRange.start && orderDate <= financeRange.end && o.status !== 'suspended';
+    });
+    
+    const storeOrders = storeId === 'all' 
+      ? filteredOrders 
+      : filteredOrders.filter(o => o.storeId === storeId);
+    
+    const total = storeOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const cash = storeOrders.filter(o => o.payMethod === 'cash').reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const wechat = storeOrders.filter(o => o.payMethod === 'wechat').reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const alipay = storeOrders.filter(o => o.payMethod === 'alipay').reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const unionpay = storeOrders.filter(o => o.payMethod === 'unionpay').reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    const member = storeOrders.filter(o => o.payMethod === 'member').reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+    
     const dayCount = Math.ceil((financeRange.end.getTime() - financeRange.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const baseDaily = Math.round(Math.random() * 5000 + 3000);
-    const total = baseDaily * dayCount;
-    const cash = Math.round(total * (0.15 + Math.random() * 0.1));
-    const wechat = Math.round(total * (0.35 + Math.random() * 0.1));
-    const alipay = Math.round(total * (0.3 + Math.random() * 0.1));
-    const unionpay = Math.round(total * (0.05 + Math.random() * 0.05));
-    const member = total - cash - wechat - alipay - unionpay;
+    
     return { total, cash, wechat, alipay, unionpay, member, dayCount };
   };
   
@@ -481,28 +491,41 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-gray-800 mb-4">门店销售排行</h3>
               <div className="space-y-3">
-                {stores.map((store, i) => (
-                  <div key={store.id} className="flex items-center gap-4">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                      i === 0 ? 'bg-yellow-100 text-yellow-600' :
-                      i === 1 ? 'bg-gray-100 text-gray-600' :
-                      i === 2 ? 'bg-orange-100 text-orange-600' :
-                      'bg-gray-50 text-gray-400'
-                    }`}>
-                      {i + 1}
-                    </span>
-                    <div className="flex-1">
-                      <p className="font-medium">{store.name}</p>
-                      <div className="w-full bg-gray-100 rounded-full h-2 mt-1">
-                        <div
-                          className="bg-blue-500 h-2 rounded-full"
-                          style={{ width: `${Math.random() * 60 + 40}%` }}
-                        ></div>
+                {(() => {
+                  // 计算每个门店的今日销售额
+                  const today = new Date().toDateString();
+                  const storeSales = stores.map(store => {
+                    const sales = orders
+                      .filter(o => o.storeId === store.id && o.createdAt?.startsWith(today) && o.status !== 'suspended')
+                      .reduce((sum, o) => sum + (o.finalAmount || 0), 0);
+                    return { ...store, sales };
+                  }).sort((a, b) => b.sales - a.sales);
+                  
+                  const maxSales = storeSales[0]?.sales || 1;
+                  
+                  return storeSales.map((store, i) => (
+                    <div key={store.id} className="flex items-center gap-4">
+                      <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                        i === 0 ? 'bg-yellow-100 text-yellow-600' :
+                        i === 1 ? 'bg-gray-100 text-gray-600' :
+                        i === 2 ? 'bg-orange-100 text-orange-600' :
+                        'bg-gray-50 text-gray-400'
+                      }`}>
+                        {i + 1}
+                      </span>
+                      <div className="flex-1">
+                        <p className="font-medium">{store.name}</p>
+                        <div className="w-full bg-gray-100 rounded-full h-2 mt-1">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full"
+                            style={{ width: `${maxSales > 0 ? (store.sales / maxSales * 100) : 0}%` }}
+                          ></div>
+                        </div>
                       </div>
+                      <span className="text-gray-600">¥{store.sales.toFixed(0)}</span>
                     </div>
-                    <span className="text-gray-600">¥{(Math.random() * 5000 + 3000).toFixed(0)}</span>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             </div>
           </div>
