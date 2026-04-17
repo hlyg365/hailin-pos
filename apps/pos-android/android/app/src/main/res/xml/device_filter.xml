@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- USB 设备权限 -->
+    <usb-device vendor-id="1155" /> <!-- 0x0483 - STMicroelectronics -->
+    <usb-device vendor-id="1217" /> <!-- 0x04C1 - Standard Microsystems -->
+    <usb-device vendor-id="1305" /> <!-- 0x0519 - Sys科技大学 -->
+    <usb-device vendor-id="5392" /> <!-- 0x1504 - Posiflex -->
+    <usb-device vendor-id="1208" /> <!-- 0x04B8 - Seiko Epson -->
+    <usb-device vendor-id="1046" /> <!-- 0x0416 - Winbond -->
+    
+    <!-- 扫码枪常用 -->
+    <usb-device vendor-id="1504" product-id="4096" />
+    <usb-device vendor-id="1529" product-id="8512" />
+    
+    <!-- 打印机关闭 -->
+    <usb-device vendor-id="1155" product-id="15008" /> <!-- 0x3A98 - Printer -->
+</resources>
