@@ -426,41 +426,204 @@ export default function DashboardPage() {
         {/* 门店管理 */}
         {activeTab === 'stores' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">门店列表</h2>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                添加门店
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stores.map(store => (
-                <div key={store.id} className="bg-white rounded-xl p-5 shadow-sm">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-lg">{store.name}</h3>
-                      <p className="text-sm text-gray-500">{store.code}</p>
+            {/* 门店管控概览 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h3 className="font-semibold mb-4">门店管控中心</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {[
+                  { label: '门店总数', value: stores.length, icon: '🏪', color: 'blue' },
+                  { label: '营业中', value: stores.filter(s => s.status === 'active').length, icon: '✅', color: 'green' },
+                  { label: '待处理要货', value: 5, icon: '📦', color: 'orange' },
+                  { label: '库存预警', value: 3, icon: '⚠️', color: 'red' },
+                  { label: '今日订单', value: 128, icon: '🧾', color: 'purple' },
+                ].map((item, i) => (
+                  <div key={i} className={`bg-${item.color}-50 rounded-lg p-4`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xl">{item.icon}</span>
+                      <span className={`text-sm text-${item.color}-600`}>{item.label}</span>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      store.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {store.status === 'active' ? '营业中' : '已关闭'}
-                    </span>
+                    <p className={`text-2xl font-bold text-${item.color}-800`}>{item.value}</p>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    <p className="text-gray-600">📍 {store.address}</p>
-                    <p className="text-gray-600">📞 {store.phone}</p>
-                    <p className="text-gray-600">📊 {store.region}</p>
-                  </div>
-                  <div className="mt-4 pt-4 border-t flex gap-2">
-                    <button className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100">
-                      编辑
-                    </button>
-                    <button className="flex-1 py-2 bg-gray-50 text-gray-600 rounded-lg text-sm hover:bg-gray-100">
-                      详情
-                    </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 门店列表和详情 */}
+            <div className="flex gap-4">
+              {/* 左侧门店列表 */}
+              <div className="w-1/3">
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">门店列表</h4>
+                  <div className="space-y-2">
+                    {stores.map(store => (
+                      <button
+                        key={store.id}
+                        className={`w-full text-left p-3 rounded-lg transition-colors ${
+                          store.id === 'store001' ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{store.name}</p>
+                            <p className="text-xs text-gray-500">{store.code}</p>
+                          </div>
+                          <span className={`w-2 h-2 rounded-full ${
+                            store.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
+                          }`}></span>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {/* 右侧门店详情 */}
+              <div className="flex-1 space-y-4">
+                {/* 基本信息 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">望京店 (WJ001)</h4>
+                    <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">营业中</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div><span className="text-gray-500">店长：</span>张三</div>
+                    <div><span className="text-gray-500">电话：</span>010-12345678</div>
+                    <div><span className="text-gray-500">区域：</span>北京朝阳</div>
+                  </div>
+                </div>
+
+                {/* 今日经营数据 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">今日经营数据</h4>
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
+                      { label: '销售额', value: '¥8,520', icon: '💰', color: 'green' },
+                      { label: '订单数', value: '42', icon: '🧾', color: 'blue' },
+                      { label: '客单价', value: '¥202.86', icon: '👤', color: 'purple' },
+                      { label: '毛利', value: '¥1,704', icon: '📈', color: 'orange' },
+                    ].map((item, i) => (
+                      <div key={i} className={`bg-${item.color}-50 rounded-lg p-3`}>
+                        <div className="flex items-center gap-1 mb-1">
+                          <span>{item.icon}</span>
+                          <span className={`text-xs text-${item.color}-600`}>{item.label}</span>
+                        </div>
+                        <p className={`font-bold text-${item.color}-800`}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 库存预警 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">库存预警</h4>
+                    <button className="text-blue-600 text-sm hover:underline">查看全部</button>
+                  </div>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500 border-b">
+                        <th className="pb-2">商品</th>
+                        <th className="pb-2">当前库存</th>
+                        <th className="pb-2">预警值</th>
+                        <th className="pb-2">状态</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { name: '红富士苹果', stock: 15, threshold: 30, status: 'low' },
+                        { name: '散装面包', stock: 5, threshold: 20, status: 'critical' },
+                        { name: '伊利纯牛奶', stock: 45, threshold: 50, status: 'low' },
+                      ].map((item, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-2">{item.name}</td>
+                          <td className={`py-2 ${item.status === 'critical' ? 'text-red-600' : 'text-yellow-600'}`}>
+                            {item.stock}
+                          </td>
+                          <td className="py-2 text-gray-500">{item.threshold}</td>
+                          <td className="py-2">
+                            <span className={`px-2 py-0.5 rounded text-xs ${
+                              item.status === 'critical' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'
+                            }`}>
+                              {item.status === 'critical' ? '紧急' : '预警'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 待审批要货 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">待审批要货</h4>
+                    <span className="bg-orange-100 text-orange-600 text-xs px-2 py-1 rounded-full">5笔</span>
+                  </div>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500 border-b">
+                        <th className="pb-2">门店</th>
+                        <th className="pb-2">商品种类</th>
+                        <th className="pb-2">金额</th>
+                        <th className="pb-2">申请时间</th>
+                        <th className="pb-2">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { store: '望京店', items: 8, amount: 5200, time: '10:30' },
+                        { store: '国贸店', items: 5, amount: 3800, time: '09:15' },
+                        { store: '中关村店', items: 12, amount: 7500, time: '08:45' },
+                      ].map((item, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-2">{item.store}</td>
+                          <td className="py-2">{item.items}种</td>
+                          <td className="py-2 text-red-600">¥{item.amount.toLocaleString()}</td>
+                          <td className="py-2 text-gray-500">{item.time}</td>
+                          <td className="py-2">
+                            <button className="text-green-600 text-sm hover:underline mr-2">批准</button>
+                            <button className="text-gray-500 text-sm hover:underline">拒绝</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 近期订单 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold">近期订单</h4>
+                    <button className="text-blue-600 text-sm hover:underline">查看全部</button>
+                  </div>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500 border-b">
+                        <th className="pb-2">订单号</th>
+                        <th className="pb-2">门店</th>
+                        <th className="pb-2">金额</th>
+                        <th className="pb-2">支付方式</th>
+                        <th className="pb-2">时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { id: 'ORD20240117001', store: '望京店', amount: 128.5, pay: '微信', time: '14:32' },
+                        { id: 'ORD20240117002', store: '望京店', amount: 56.0, pay: '现金', time: '14:28' },
+                        { id: 'ORD20240117003', store: '国贸店', amount: 238.0, pay: '支付宝', time: '14:15' },
+                      ].map((item, i) => (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="py-2 font-mono text-xs">{item.id}</td>
+                          <td className="py-2">{item.store}</td>
+                          <td className="py-2 text-green-600">¥{item.amount}</td>
+                          <td className="py-2">{item.pay}</td>
+                          <td className="py-2 text-gray-500">{item.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         )}
