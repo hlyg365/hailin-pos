@@ -1135,6 +1135,23 @@ export default function CashierPage() {
             <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
               <div className="max-w-2xl mx-auto">
                 <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">⚙️</span> 系统设置</h2>
+                
+                {/* AI识别配置提示 */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🤖</span>
+                      <div>
+                        <p className="font-medium text-purple-800">AI条码识别配置</p>
+                        <p className="text-sm text-purple-600">请在总部后台统一配置，收银台自动同步</p>
+                      </div>
+                    </div>
+                    <Link to="/dashboard" className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
+                      前往总部后台
+                    </Link>
+                  </div>
+                </div>
+                
                 <div className="bg-white rounded-xl shadow-sm border mb-6">
                   <div className="p-4 border-b"><h3 className="font-semibold">门店信息</h3></div>
                   <div className="p-4 space-y-4">
@@ -1178,102 +1195,6 @@ export default function CashierPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="block text-sm text-gray-600 mb-1">开始时间</label><input type="time" defaultValue="20:00" className="w-full px-3 py-2 border rounded-lg" /></div>
                       <div><label className="block text-sm text-gray-600 mb-1">结束时间</label><input type="time" defaultValue="23:00" className="w-full px-3 py-2 border rounded-lg" /></div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border mb-6">
-                  <div className="p-4 border-b flex items-center justify-between">
-                    <h3 className="font-semibold">🤖 AI条码商品识别</h3>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" defaultChecked className="sr-only peer" />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                    </label>
-                  </div>
-                  <div className="p-4 space-y-4">
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
-                      <p className="text-sm text-purple-700 mb-2">🤖 AI智能识别：当扫描商品库中没有的条码时，自动调用AI接口识别商品信息</p>
-                    </div>
-                    
-                    {/* API配置 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">🔗 API接口地址</label>
-                      <div className="flex gap-2">
-                        <select className="px-3 py-2 border rounded-lg text-sm w-40">
-                          <option value="https">HTTPS</option>
-                          <option value="http">HTTP</option>
-                        </select>
-                        <input type="text" placeholder="https://api.example.com/barcode" defaultValue="https://api.hailin.com/ai/barcode" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-                      </div>
-                    </div>
-                    
-                    {/* API Key */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">🔑 API Key</label>
-                      <div className="flex gap-2">
-                        <input type="password" placeholder="请输入API Key" defaultValue="sk-xxxxxxxxxxxxxxxx" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-                        <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">测试</button>
-                      </div>
-                    </div>
-                    
-                    {/* 请求方式 */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">📤 请求方式</label>
-                        <select className="w-full px-3 py-2 border rounded-lg text-sm">
-                          <option value="POST">POST</option>
-                          <option value="GET">GET</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">⏱️ 超时时间(秒)</label>
-                        <input type="number" defaultValue={3} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                      </div>
-                    </div>
-                    
-                    {/* 请求参数模板 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">📋 请求参数模板</label>
-                      <textarea rows={3} placeholder='{"barcode": "${barcode}"}' defaultValue='{"barcode": "${barcode}", "store_id": "${store_id}"}' className="w-full px-3 py-2 border rounded-lg text-sm font-mono resize-none"></textarea>
-                      <p className="text-xs text-gray-500 mt-1">可用变量: ${`{barcode}`} ${`{store_id}`} ${`{timestamp}`}</p>
-                    </div>
-                    
-                    {/* 响应解析 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">🔍 响应字段映射</label>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                          <span className="text-gray-500">商品名称:</span>
-                          <input type="text" defaultValue="name" className="flex-1 px-2 py-1 border rounded text-xs" />
-                        </div>
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                          <span className="text-gray-500">分类:</span>
-                          <input type="text" defaultValue="category" className="flex-1 px-2 py-1 border rounded text-xs" />
-                        </div>
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                          <span className="text-gray-500">零售价:</span>
-                          <input type="text" defaultValue="price" className="flex-1 px-2 py-1 border rounded text-xs" />
-                        </div>
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                          <span className="text-gray-500">进价:</span>
-                          <input type="text" defaultValue="cost_price" className="flex-1 px-2 py-1 border rounded text-xs" />
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* 测试区域 */}
-                    <div className="border-t pt-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700">🧪 接口测试</label>
-                        <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">✓ 已连接</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <input type="text" placeholder="输入条码测试" defaultValue="6901234567890" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-                        <button className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">测试识别</button>
-                      </div>
-                      <div className="mt-2 p-3 bg-gray-50 rounded-lg text-xs font-mono">
-                        <p className="text-gray-500">返回示例:</p>
-                        <p className="text-green-600">{"name": "农夫山泉", "category": "饮料", "price": 2.0, "cost_price": 1.2}</p>
-                      </div>
                     </div>
                   </div>
                 </div>
