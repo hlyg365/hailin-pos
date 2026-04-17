@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useStoreStore, useRestockStore, useAlertStore, useMiniProgramStore, useAiConfigStore } from '../store';
 
-type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth' | 'miniprogram' | 'ai-config';
+type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth' | 'miniprogram' | 'product-import';
 type TimeRange = 'today' | 'week' | 'month' | 'year' | 'custom';
 type DepositTimeRange = 'thisMonth' | 'lastMonth' | 'threeMonths' | 'thisYear' | 'custom';
 
@@ -37,6 +37,13 @@ export default function DashboardPage() {
   const { settings: miniSettings, updateSettings: updateMiniSettings, updateBanner: updateMiniBanner } = useMiniProgramStore();
   const [miniForm, setMiniForm] = useState(miniSettings);
   const [showMiniSaveToast, setShowMiniSaveToast] = useState(false);
+  
+  // 商品采购入库
+  const aiConfig = useAiConfigStore();
+  const [importedProducts, setImportedProducts] = useState<Array<{ barcode: string; name: string; category: string; price: number; costPrice: number; quantity: number }>>([
+    { barcode: '6901234567890', name: '农夫山泉', category: '饮料', price: 2.0, costPrice: 1.5, quantity: 24 },
+    { barcode: '6912345678901', name: '康师傅方便面', category: '食品', price: 4.5, costPrice: 3.2, quantity: 48 },
+  ]);
   
   // 同步小程序设置
   useMemo(() => {
@@ -259,7 +266,7 @@ export default function DashboardPage() {
     { id: 'staff', label: '人员管理', icon: '👔' },
     { id: 'promo', label: '促销管理', icon: '🎁', link: '/dashboard/promotion' },
     { id: 'miniprogram', label: '小程序设置', icon: '📱' },
-    { id: 'ai-config', label: 'AI识别配置', icon: '🤖' },
+    { id: 'product-import', label: '商品采购入库', icon: '📦' },
     { id: 'bi', label: 'BI分析', icon: '📈', link: '/dashboard/bi' },
     { id: 'storeops', label: '门店运营', icon: '🔧', link: '/dashboard/store-ops' },
     { id: 'auth', label: '权限管理', icon: '🔐', link: '/dashboard/auth' },
@@ -2234,130 +2241,196 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ========== AI条码识别配置 ========== */}
-        {activeTab === 'ai-config' && (
+        {/* ========== 商品采购入库 ========== */}
+        {activeTab === 'product-import' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">🤖 AI条码识别配置</h2>
-              <button onClick={() => aiConfig.addConfig({ ...aiConfig.configs[0], apiKey: '' })} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                添加配置
-              </button>
+              <div>
+                <h2 className="text-xl font-bold">📦 商品采购入库</h2>
+                <p className="text-gray-500 text-sm mt-1">通过AI条码识别批量导入新采购商品</p>
+              </div>
+              <div className="flex gap-3">
+                <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+                  <span>📤</span> 批量导入
+                </button>
+                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                  <span>✓</span> 确认入库
+                </button>
+              </div>
             </div>
 
-            <p className="text-gray-500 text-sm bg-blue-50 p-3 rounded-lg">
-              💡 在此处配置AI条码识别接口，配置后将自动同步到所有收银台使用
-            </p>
-
-            {aiConfig.configs.map((config, index) => (
-              <div key={index} className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-6 pb-4 border-b">
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 font-bold">{index + 1}</span>
-                    <div>
-                      <h3 className="font-semibold">配置 {index + 1}</h3>
-                      {config.lastTestResult && (
-                        <p className={`text-xs ${config.lastTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
-                          {config.lastTestResult.success ? '✓' : '✗'} {config.lastTestResult.message}
-                        </p>
+            <div className="grid grid-cols-3 gap-6">
+              {/* 左侧：扫码录入 */}
+              <div className="col-span-2 space-y-4">
+                <div className="bg-white rounded-xl p-6 shadow-sm">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <span className="text-xl">🔍</span> 条码扫描录入
+                  </h3>
+                  
+                  <div className="flex gap-3 mb-4">
+                    <input type="text" placeholder="扫描或输入条码..." className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-lg font-mono" autoFocus />
+                    <button className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                      识别
+                    </button>
+                  </div>
+                  
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🤖</span>
+                        <div>
+                          <p className="font-medium text-purple-800">AI条码识别</p>
+                          <p className="text-sm text-purple-600">自动从条码获取商品信息</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600 bg-green-100 px-2 py-1 rounded text-sm">已启用</span>
+                        <button className="text-sm text-purple-600 hover:text-purple-800">配置</button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 已扫描商品列表 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">已扫描商品 ({importedProducts.length})</h4>
+                      <button className="text-sm text-red-600 hover:text-red-800">清空列表</button>
+                    </div>
+                    
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {importedProducts.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                          <p className="text-4xl mb-3">📦</p>
+                          <p>扫描条码开始录入商品</p>
+                        </div>
+                      ) : (
+                        importedProducts.map((product, index) => (
+                          <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border hover:border-green-400 transition">
+                            <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-2xl">📦</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{product.name}</p>
+                                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded">{product.category}</span>
+                              </div>
+                              <p className="text-sm text-gray-500 font-mono">{product.barcode}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-red-600">¥{product.price.toFixed(2)}</p>
+                              <p className="text-xs text-gray-500">进价: ¥{product.costPrice.toFixed(2)}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input type="number" defaultValue={product.quantity} className="w-16 px-2 py-1 border rounded text-center text-sm" />
+                              <button className="text-red-500 hover:text-red-700">×</button>
+                            </div>
+                          </div>
+                        ))
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm text-gray-600">启用</span>
-                      <input type="checkbox" checked={config.enabled} onChange={(e) => aiConfig.updateConfig(index, { enabled: e.target.checked })} className="w-5 h-5 text-purple-600 rounded" />
-                    </label>
-                    {aiConfig.configs.length > 1 && (
-                      <button onClick={() => aiConfig.deleteConfig(index)} className="text-red-500 hover:text-red-700 text-sm">删除</button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">🔗 API接口地址</label>
-                    <div className="flex gap-2">
-                      <select value={config.apiUrl.startsWith('https') ? 'https' : 'http'} onChange={(e) => aiConfig.updateConfig(index, { apiUrl: (e.target.value === 'https' ? 'https://' : 'http://') + config.apiUrl.replace(/^https?:\/\//, '') })} className="px-3 py-2 border rounded-lg text-sm w-28">
-                        <option value="https">HTTPS</option>
-                        <option value="http">HTTP</option>
-                      </select>
-                      <input type="text" value={config.apiUrl.replace(/^https?:\/\//, '')} onChange={(e) => aiConfig.updateConfig(index, { apiUrl: (config.apiUrl.startsWith('https') ? 'https://' : 'http://') + e.target.value })} placeholder="api.example.com/barcode" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-                    </div>
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">🔑 API Key</label>
-                    <div className="flex gap-2">
-                      <input type="password" value={config.apiKey} onChange={(e) => aiConfig.updateConfig(index, { apiKey: e.target.value })} placeholder="请输入API Key" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-                      <button onClick={() => aiConfig.setLastTestResult(index, { success: true, message: 'API Key有效', timestamp: new Date().toISOString() })} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">验证</button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">📤 请求方式</label>
-                    <select value={config.method} onChange={(e) => aiConfig.updateConfig(index, { method: e.target.value as 'POST' | 'GET' })} className="w-full px-3 py-2 border rounded-lg text-sm">
-                      <option value="POST">POST</option>
-                      <option value="GET">GET</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">⏱️ 超时时间(秒)</label>
-                    <input type="number" value={config.timeout} onChange={(e) => aiConfig.updateConfig(index, { timeout: parseInt(e.target.value) || 3 })} min={1} max={10} className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">📋 请求参数模板</label>
-                    <textarea value={config.requestTemplate} onChange={(e) => aiConfig.updateConfig(index, { requestTemplate: e.target.value })} rows={2} placeholder='{"barcode": "${barcode}"}' className="w-full px-3 py-2 border rounded-lg text-sm font-mono resize-none" />
-                    <p className="text-xs text-gray-500 mt-1">可用变量: ${`{barcode}`} ${`{store_id}`} ${`{timestamp}`}</p>
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">🔍 响应字段映射</label>
-                    <div className="grid grid-cols-4 gap-2 text-sm">
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-gray-500 text-xs mb-1">商品名称</p>
-                        <input type="text" value={config.responseMapping.name} onChange={(e) => aiConfig.updateConfig(index, { responseMapping: { ...config.responseMapping, name: e.target.value } })} className="w-full px-2 py-1 border rounded text-sm" />
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-gray-500 text-xs mb-1">分类</p>
-                        <input type="text" value={config.responseMapping.category} onChange={(e) => aiConfig.updateConfig(index, { responseMapping: { ...config.responseMapping, category: e.target.value } })} className="w-full px-2 py-1 border rounded text-sm" />
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-gray-500 text-xs mb-1">零售价</p>
-                        <input type="text" value={config.responseMapping.price} onChange={(e) => aiConfig.updateConfig(index, { responseMapping: { ...config.responseMapping, price: e.target.value } })} className="w-full px-2 py-1 border rounded text-sm" />
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-gray-500 text-xs mb-1">进价</p>
-                        <input type="text" value={config.responseMapping.costPrice} onChange={(e) => aiConfig.updateConfig(index, { responseMapping: { ...config.responseMapping, costPrice: e.target.value } })} className="w-full px-2 py-1 border rounded text-sm" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-6 border-t flex items-center justify-between">
-                  <div className="flex gap-4">
-                    <input type="text" placeholder="输入条码测试..." defaultValue="6901234567890" className="px-3 py-2 border rounded-lg text-sm w-48" />
-                    <button onClick={() => aiConfig.setLastTestResult(index, { success: true, message: '测试成功: 农夫山泉 饮料 ¥2.00', timestamp: new Date().toISOString() })} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">测试识别</button>
-                  </div>
-                  <button onClick={() => aiConfig.setLastTestResult(index, { success: true, message: '配置已保存', timestamp: new Date().toISOString() })} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">保存配置</button>
                 </div>
               </div>
-            ))}
-
-            {/* 使用说明 */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-100">
-              <h3 className="font-semibold text-purple-800 mb-3">📖 使用说明</h3>
-              <ul className="space-y-2 text-sm text-purple-700">
-                <li>1. 在此处配置AI条码识别接口，支持多个配置方案</li>
-                <li>2. 配置保存后自动同步到所有收银台，无需单独设置</li>
-                <li>3. 支持主流条码识别API（京东识货、阿里云、百度AI等）</li>
-                <li>4. 可设置备用接口，当前接口不可用时自动切换</li>
-                <li>5. 支持自定义响应字段映射，适配不同平台返回格式</li>
-              </ul>
+              
+              {/* 右侧：配置与统计 */}
+              <div className="space-y-4">
+                {/* 统计卡片 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">入库统计</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 text-sm">商品种类</span>
+                      <span className="font-bold text-xl">{importedProducts.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 text-sm">商品总数</span>
+                      <span className="font-bold text-xl">{importedProducts.reduce((sum, p) => sum + p.quantity, 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 text-sm">预估金额</span>
+                      <span className="font-bold text-xl text-red-600">¥{importedProducts.reduce((sum, p) => sum + p.costPrice * p.quantity, 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* AI配置 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">🤖 AI识别配置</h4>
+                  {aiConfig.configs.map((config, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">接口状态</span>
+                        <span className={`text-xs px-2 py-1 rounded ${config.enabled ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {config.enabled ? '已启用' : '已禁用'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">{config.apiUrl}</p>
+                      <button className="w-full text-sm text-purple-600 hover:text-purple-800">编辑配置</button>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* 供应商 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">供应商信息</h4>
+                  <select className="w-full px-3 py-2 border rounded-lg text-sm mb-3">
+                    <option value="">选择供应商</option>
+                    <option value="1">华润万家供应商</option>
+                    <option value="2">百事可乐代理商</option>
+                    <option value="3">统一企业集团</option>
+                  </select>
+                  <input type="text" placeholder="或输入供应商名称" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                
+                {/* 入库批次 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm">
+                  <h4 className="font-semibold mb-3">入库批次</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">批次号</span>
+                      <span className="font-mono">RK{new Date().getFullYear()}{String(new Date().getMonth()+1).padStart(2,'0')}{String(new Date().getDate()).padStart(2,'0')}001</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">入库时间</span>
+                      <span>{new Date().toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">操作员</span>
+                      <span>管理员</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* 操作记录 */}
+            <div className="bg-white rounded-xl p-6 shadow-sm">
+              <h3 className="font-semibold mb-4">📋 最近入库记录</h3>
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-gray-500 text-sm border-b">
+                    <th className="pb-2">批次号</th>
+                    <th className="pb-2">供应商</th>
+                    <th className="pb-2">商品数</th>
+                    <th className="pb-2">金额</th>
+                    <th className="pb-2">时间</th>
+                    <th className="pb-2">状态</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {[
+                    { id: 'RK20240116001', supplier: '华润万家', count: 45, amount: 12800, date: '2024-01-16', status: '已完成' },
+                    { id: 'RK20240115002', supplier: '百事可乐', count: 120, amount: 5600, date: '2024-01-15', status: '已完成' },
+                  ].map((record, i) => (
+                    <tr key={i} className="border-b hover:bg-gray-50">
+                      <td className="py-3 font-mono">{record.id}</td>
+                      <td className="py-3">{record.supplier}</td>
+                      <td className="py-3">{record.count}</td>
+                      <td className="py-3 text-red-600">¥{record.amount.toLocaleString()}</td>
+                      <td className="py-3 text-gray-500">{record.date}</td>
+                      <td className="py-3"><span className="bg-green-100 text-green-600 px-2 py-1 rounded text-xs">{record.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
