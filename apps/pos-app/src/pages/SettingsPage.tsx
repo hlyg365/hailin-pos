@@ -19,8 +19,8 @@ export default function SettingsPage() {
         <div className="bg-white rounded-xl shadow-sm divide-y">
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">📍</div>
-              <div><div className="font-medium">门店信息</div><div className="text-sm text-gray-500">望京店 #001</div></div>
+              <img src="/logo.png" alt="海邻到家" className="w-10 h-10" />
+              <div><div className="font-medium">海邻到家</div><div className="text-sm text-gray-500">智慧门店 V6.0</div></div>
             </div>
             <span className="text-gray-400">›</span>
           </div>

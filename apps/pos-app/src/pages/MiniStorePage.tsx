@@ -497,20 +497,13 @@ export default function MiniStorePage() {
       <header className="bg-white sticky top-0 z-30 shadow-sm">
         {/* 小程序标题栏 */}
         <div className="bg-white px-4 py-3 flex items-center justify-between">
+          <Link to="/" className="w-8 flex items-center justify-center text-gray-500">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <img src="/logo.png" alt="海邻到家" className="h-8 w-auto" />
           <div className="w-8"></div>
-          <h1 className="text-base font-bold text-black">首页</h1>
-          <div className="flex items-center gap-2">
-            <button className="w-8 h-8 flex items-center justify-center text-gray-600">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-              </svg>
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center text-gray-600">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-            </button>
-          </div>
         </div>
 
         {/* 搜索栏 - 白色圆角矩形风格 + 门店选择 */}

@@ -78,8 +78,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-white rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg">
-            <span className="text-4xl">🏪</span>
+          <div className="w-24 h-24 bg-white rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg p-2">
+            <img src="/logo.png" alt="海邻到家" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-white">海邻到家</h1>
           <p className="text-blue-200 mt-2">连锁便利店智慧收银系统 V6.0</p>
