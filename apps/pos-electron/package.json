@@ -1,0 +1,74 @@
+{
+  "name": "hailin-pos-electron",
+  "version": "1.0.0",
+  "description": "海邻到家收银台 - Electron 桌面应用",
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:mac": "electron-builder --mac",
+    "pack": "electron-builder --dir"
+  },
+  "author": "海邻到家",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "serialport": "^10.0.0",
+    "@serialport/parser-readline": "^10.0.0"
+  },
+  "build": {
+    "appId": "com.hailin.pos",
+    "productName": "海邻到家收银台",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "../apps/pos-app/dist/**/*",
+      "../apps/pos-app/public/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "../apps/pos-app/public/icon-192.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "../apps/pos-app/public/icon-192.png",
+      "category": "Office"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "../apps/pos-app/public/icon-192.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "../apps/pos-app/public/icon-192.png",
+      "uninstallerIcon": "../apps/pos-app/public/icon-192.png",
+      "installerHeaderIcon": "../apps/pos-app/public/icon-192.png"
+    },
+    "extraResources": [
+      {
+        "from": "../apps/pos-app/ai-service",
+        "to": "ai-service",
+        "filter": ["**/*"]
+      }
+    ]
+  }
+}
