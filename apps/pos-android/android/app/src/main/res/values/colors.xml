@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primaryColor">#4a90d9</color>
+    <color name="primaryDarkColor">#2d5a87</color>
+    <color name="accentColor">#f97316</color>
+    <color name="backgroundColor">#1a1a2e</color>
+    <color name="textColor">#ffffff</color>
+    <color name="cashDrawerGreen">#22c55e</color>
+    <color name="printerOrange">#f97316</color>
+    <color name="scaleBlue">#3b82f6</color>
+</resources>
