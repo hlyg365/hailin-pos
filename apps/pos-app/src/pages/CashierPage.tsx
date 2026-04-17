@@ -53,7 +53,14 @@ const isClearanceMode = (): boolean => {
   return hour >= 20 && hour < 23;
 };
 
+// 模块类型
+type StoreModule = 'cashier' | 'inventory' | 'products' | 'orders' | 'delivery' | 'reports' | 'promo' | 'members' | 'settings';
+
 export default function CashierPage() {
+  // 门店管理模块状态
+  const [activeModule, setActiveModule] = useState<StoreModule>('cashier');
+  
+  // 收银相关状态
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -72,6 +79,19 @@ export default function CashierPage() {
   const [aiServiceStatus, setAiServiceStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [scaleStatus, setScaleStatus] = useState<'idle' | 'listening' | 'triggered'>('idle');
   const [currentWeight, setCurrentWeight] = useState<number>(0);
+  
+  // 门店模块配置
+  const storeModules: { id: StoreModule; label: string; icon: string }[] = [
+    { id: 'cashier', label: '收银台', icon: '💰' },
+    { id: 'inventory', label: '库存管理', icon: '📦' },
+    { id: 'products', label: '商品管理', icon: '🏷️' },
+    { id: 'orders', label: '订单管理', icon: '🧾' },
+    { id: 'delivery', label: '配送管理', icon: '🚚' },
+    { id: 'reports', label: '报表中心', icon: '📊' },
+    { id: 'promo', label: '促销管理', icon: '🎁' },
+    { id: 'members', label: '会员管理', icon: '👥' },
+    { id: 'settings', label: '门店设置', icon: '⚙️' },
+  ];
 
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } = useCartStore();
   const { products, checkInventory, deductInventory } = useProductStore();
@@ -314,7 +334,9 @@ export default function CashierPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <h1 className="text-lg font-semibold">收银台</h1>
+          <h1 className="text-lg font-semibold">
+            {storeModules.find(m => m.id === activeModule)?.label || '收银台'}
+          </h1>
           {clearanceMode && (
             <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
               清货模式 8折
@@ -359,6 +381,37 @@ export default function CashierPage() {
           </button>
         </div>
       </div>
+      
+      {/* 门店管理模块导航 */}
+      <div className="bg-gray-100 border-b px-4 py-2">
+        <div className="flex gap-1 overflow-x-auto">
+          {storeModules.map(mod => (
+            <button
+              key={mod.id}
+              onClick={() => setActiveModule(mod.id)}
+              className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-sm transition-colors flex items-center gap-1.5 ${
+                activeModule === mod.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <span>{mod.icon}</span>
+              <span>{mod.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* 模块内容区域 */}
+      {activeModule !== 'cashier' && (
+        <StoreManagementModule 
+          module={activeModule} 
+          store={currentStore}
+          products={products}
+          members={members}
+          orders={useOrderStore.getState().orders}
+        />
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧商品区 */}
@@ -838,4 +891,389 @@ export default function CashierPage() {
       )}
     </div>
   );
+}
+
+// ============ 门店管理模块组件 ============
+interface StoreManagementModuleProps {
+  module: StoreModule;
+  store: any;
+  products: Product[];
+  members: any[];
+  orders: any[];
+}
+
+function StoreManagementModule({ module, store, products, members, orders }: StoreManagementModuleProps) {
+  const { inventories } = useProductStore();
+  
+  // 库存管理
+  if (module === 'inventory') {
+    const storeInventories = Array.from(inventories.entries())
+      .filter(([key]) => key.startsWith(store?.id || 'store001'))
+      .map(([key, inv]) => ({
+        ...inv,
+        product: products.find((p: Product) => p.id === inv.productId),
+      }));
+    
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm">
+          <div className="p-4 border-b flex items-center justify-between">
+            <h3 className="font-semibold">库存概览</h3>
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">盘点</button>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              {[
+                { label: '商品种类', value: storeInventories.length, color: 'blue' },
+                { label: '正常库存', value: storeInventories.filter((i: any) => i.status === 'normal').length, color: 'green' },
+                { label: '库存预警', value: storeInventories.filter((i: any) => i.status === 'low').length, color: 'yellow' },
+                { label: '紧急补货', value: storeInventories.filter((i: any) => i.status === 'critical').length, color: 'red' },
+              ].map((item, i) => (
+                <div key={i} className={`bg-${item.color}-50 rounded-lg p-3`}>
+                  <p className={`text-sm text-${item.color}-600`}>{item.label}</p>
+                  <p className={`text-xl font-bold text-${item.color}-800`}>{item.value}</p>
+                </div>
+              ))}
+            </div>
+            
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-gray-500 border-b">
+                  <th className="pb-2">商品</th>
+                  <th className="pb-2">分类</th>
+                  <th className="pb-2">当前库存</th>
+                  <th className="pb-2">预警阈值</th>
+                  <th className="pb-2">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                {storeInventories.slice(0, 10).map((inv: any, i: number) => (
+                  <tr key={i} className="border-b">
+                    <td className="py-3">{inv.product?.name || '未知商品'}</td>
+                    <td className="py-3 text-gray-500">{inv.product?.category || '-'}</td>
+                    <td className={`py-3 font-medium ${inv.status === 'critical' ? 'text-red-600' : inv.status === 'low' ? 'text-yellow-600' : 'text-gray-800'}`}>
+                      {inv.quantity} {inv.product?.unit}
+                    </td>
+                    <td className="py-3 text-gray-500">{inv.warningThreshold}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        inv.status === 'normal' ? 'bg-green-100 text-green-600' :
+                        inv.status === 'low' ? 'bg-yellow-100 text-yellow-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {inv.status === 'normal' ? '正常' : inv.status === 'low' ? '预警' : '紧急'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // 商品管理
+  if (module === 'products') {
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">本店商品</h3>
+            <span className="text-sm text-gray-500">共 {products.length} 种商品</span>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-sm text-gray-500 border-b">
+                <th className="pb-2">商品</th>
+                <th className="pb-2">条码</th>
+                <th className="pb-2">分类</th>
+                <th className="pb-2">售价</th>
+                <th className="pb-2">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.slice(0, 15).map((product) => (
+                <tr key={product.id} className="border-b">
+                  <td className="py-3">
+                    <div className="flex items-center gap-2">
+                      <span>{product.isStandard ? '📦' : '🍎'}</span>
+                      <span>{product.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 font-mono text-sm text-gray-500">{product.barcode || '-'}</td>
+                  <td className="py-3 text-gray-500">{product.category}</td>
+                  <td className="py-3 text-green-600 font-medium">¥{product.retailPrice}</td>
+                  <td className="py-3">
+                    <span className={`px-2 py-1 rounded text-xs ${product.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                      {product.status === 'active' ? '在售' : '停售'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+  
+  // 订单管理
+  if (module === 'orders') {
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">今日订单</h3>
+            <span className="text-sm text-gray-500">共 {orders.length || 0} 笔</span>
+          </div>
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-4xl mb-2">📋</p>
+            <p>暂无订单记录</p>
+            <p className="text-sm mt-1">完成收银后将自动生成订单</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // 配送管理（要货申请）
+  if (module === 'delivery') {
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">要货申请</h3>
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">新建要货</button>
+          </div>
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-4xl mb-2">🚚</p>
+            <p>暂无要货记录</p>
+            <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg text-sm">
+              发起要货申请
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // 报表中心
+  if (module === 'reports') {
+    const today = new Date().toLocaleDateString('zh-CN');
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">销售报表</h3>
+            <select className="px-3 py-1 border rounded text-sm">
+              <option>今日</option>
+              <option>本周</option>
+              <option>本月</option>
+            </select>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[
+              { label: '今日销售', value: '¥0.00', icon: '💰', color: 'green' },
+              { label: '订单数', value: '0', icon: '🧾', color: 'blue' },
+              { label: '客单价', value: '¥0.00', icon: '👤', color: 'purple' },
+              { label: '毛利', value: '¥0.00', icon: '📈', color: 'orange' },
+            ].map((item, i) => (
+              <div key={i} className={`bg-${item.color}-50 rounded-lg p-4`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span>{item.icon}</span>
+                  <span className={`text-sm text-${item.color}-600`}>{item.label}</span>
+                </div>
+                <p className={`text-xl font-bold text-${item.color}-800`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+          
+          <div className="border-t pt-4">
+            <h4 className="font-medium mb-3">热销商品排行</h4>
+            <div className="text-center py-4 text-gray-400">
+              <p>暂无销售数据</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // 促销管理
+  if (module === 'promo') {
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">本店促销</h3>
+            <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">晚8点清货 8折</span>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">晚8点清货模式</span>
+                <span className="bg-red-100 text-red-600 text-xs px-2 py-1 rounded">自动</span>
+              </div>
+              <p className="text-sm text-gray-500">每日 20:00 - 23:00 全场商品8折优惠</p>
+            </div>
+            
+            <div className="border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">会员折扣</span>
+                <span className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">生效中</span>
+              </div>
+              <p className="text-sm text-gray-500">钻石会员9折 / 金卡会员95折 / 银卡会员98折</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // 会员管理
+  if (module === 'members') {
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">本店会员</h3>
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">添加会员</button>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {[
+              { level: '钻石会员', count: members.filter(m => m.level === 'diamond').length, color: 'purple' },
+              { level: '金卡会员', count: members.filter(m => m.level === 'gold').length, color: 'yellow' },
+              { level: '银卡会员', count: members.filter(m => m.level === 'silver').length, color: 'gray' },
+              { level: '普通会员', count: members.filter(m => m.level === 'normal').length, color: 'blue' },
+            ].map((item, i) => (
+              <div key={i} className={`bg-${item.color}-50 rounded-lg p-3 text-center`}>
+                <p className="text-sm text-gray-500">{item.level}</p>
+                <p className={`text-xl font-bold text-${item.color}-600`}>{item.count}</p>
+              </div>
+            ))}
+          </div>
+          
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-sm text-gray-500 border-b">
+                <th className="pb-2">姓名</th>
+                <th className="pb-2">手机号</th>
+                <th className="pb-2">等级</th>
+                <th className="pb-2">积分</th>
+                <th className="pb-2">余额</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.slice(0, 10).map((member) => (
+                <tr key={member.id} className="border-b">
+                  <td className="py-3">{member.name}</td>
+                  <td className="py-3 text-gray-500">{member.phone}</td>
+                  <td className="py-3">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      member.level === 'diamond' ? 'bg-purple-100 text-purple-600' :
+                      member.level === 'gold' ? 'bg-yellow-100 text-yellow-600' :
+                      member.level === 'silver' ? 'bg-gray-100 text-gray-600' :
+                      'bg-blue-100 text-blue-600'
+                    }`}>
+                      {member.level === 'diamond' ? '💎钻石' : member.level === 'gold' ? '🥇金卡' : member.level === 'silver' ? '🥈银卡' : '普通'}
+                    </span>
+                  </td>
+                  <td className="py-3">{member.points.toLocaleString()}</td>
+                  <td className="py-3 text-green-600">¥{member.balance.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+  
+  // 门店设置
+  if (module === 'settings') {
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="bg-white rounded-xl shadow-sm p-4">
+          <h3 className="font-semibold mb-4">门店设置</h3>
+          
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-3">门店信息</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">门店名称：</span>
+                  <span className="ml-2">{store?.name || '望京店'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">门店编码：</span>
+                  <span className="ml-2">{store?.code || 'WJ001'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">门店地址：</span>
+                  <span className="ml-2">{store?.address || '北京市朝阳区'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">联系电话：</span>
+                  <span className="ml-2">{store?.phone || '010-12345678'}</span>
+                </div>
+              </div>
+              <button className="mt-3 px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">
+                编辑门店信息
+              </button>
+            </div>
+            
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-3">收款账户</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span>微信支付</span>
+                  <span className="text-green-600">已开通 ✓</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>支付宝</span>
+                  <span className="text-green-600">已开通 ✓</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>云闪付</span>
+                  <span className="text-gray-400">未开通</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-3">系统设置</h4>
+              <div className="space-y-2">
+                <label className="flex items-center justify-between">
+                  <span>晚8点清货模式</span>
+                  <input type="checkbox" defaultChecked className="w-5 h-5" />
+                </label>
+                <label className="flex items-center justify-between">
+                  <span>负库存检查</span>
+                  <input type="checkbox" defaultChecked className="w-5 h-5" />
+                </label>
+                <label className="flex items-center justify-between">
+                  <span>小票打印</span>
+                  <input type="checkbox" defaultChecked className="w-5 h-5" />
+                </label>
+              </div>
+            </div>
+            
+            <div className="border rounded-lg p-4">
+              <h4 className="font-medium mb-3 text-red-600">危险操作</h4>
+              <button className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm hover:bg-red-200">
+                清空本地数据
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return null;
 }
