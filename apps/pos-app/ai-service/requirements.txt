@@ -1,0 +1,18 @@
+# 海邻到家 AI 一体机服务依赖
+# 安装: pip install -r requirements.txt
+
+# AI 视觉识别
+ultralytics>=8.0.0          # YOLOv8 模型框架
+
+# Web 服务
+flask>=2.3.0                # Web 框架
+flask-cors>=4.0.0           # 跨域支持
+
+# 图像处理
+opencv-python>=4.8.0        # OpenCV
+
+# 串口通信（电子秤）
+pyserial>=3.5               # 串口通信
+
+# 数值计算
+numpy>=1.24.0               # 数值计算
