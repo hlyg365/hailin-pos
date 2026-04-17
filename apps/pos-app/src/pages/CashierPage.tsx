@@ -44,28 +44,23 @@ export default function CashierPage() {
   const isOnline = useOfflineStore(state => state.isOnline);
   const clearanceMode = isClearanceMode();
 
-  const { items, addItem, removeItem, updateQuantity, clearCart, getTotal } = useCartStore();
+  const { items, addItem, removeItem, updateQuantity, clearCart } = useCartStore();
   const products = useProductStore(state => state.products);
   const currentMember = useMemberStore(state => state.currentMember);
   const { orders, createOrder, suspendOrder, resumeOrder } = useOrderStore();
   const currentStore = useStoreStore(state => state.currentStore);
 
-  const { totals, hasItems } = useMemo(() => {
-    const result = getTotal();
+  // 计算购物车金额
+  const totals = useMemo(() => {
     const cartItems = useCartStore.getState().items;
-    const clearanceDiscount = isClearanceMode() ? 0.8 : 1;
-    const memberDiscount = currentMember ? (currentMember.level === 'diamond' ? 0.9 : currentMember.level === 'gold' ? 0.95 : currentMember.level === 'silver' ? 0.98 : 1) : 1;
-    const finalDiscount = clearanceDiscount * memberDiscount;
-    return {
-      totals: {
-        subtotal: result.subtotal,
-        clearanceDiscount: isClearanceMode() ? result.subtotal * 0.2 : 0,
-        memberDiscount: result.subtotal * (1 - memberDiscount),
-        total: result.subtotal * finalDiscount,
-      },
-      hasItems: cartItems.length > 0,
-    };
-  }, [getTotal, currentMember]);
+    const subtotal = cartItems.reduce((sum, item) => sum + item.product.retailPrice * item.quantity, 0);
+    const clearanceDiscount = isClearanceMode() ? subtotal * 0.2 : 0;
+    const memberDiscount = currentMember ? (currentMember.level === 'diamond' ? subtotal * 0.1 : currentMember.level === 'gold' ? subtotal * 0.05 : currentMember.level === 'silver' ? subtotal * 0.02 : 0) : 0;
+    const total = subtotal - clearanceDiscount - memberDiscount;
+    return { subtotal, clearanceDiscount, memberDiscount, total, hasItems: cartItems.length > 0 };
+  }, [currentMember]);
+
+  const hasItems = useMemo(() => useCartStore.getState().items.length > 0, []);
 
   const categories = useMemo(() => {
     return ['all', ...new Set(products.map(p => p.category))];
