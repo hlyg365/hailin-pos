@@ -606,17 +606,27 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     // 构建请求头
     const headers: Record<string, string> = {};
     
-    // 阿里云市场认证：优先使用 AppCode
+    // 阿里云市场认证：使用 AppCode
     if (enabledConfig.appCode) {
+      // 阿里云市场标准认证方式
       headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
-      headers['Content-Type'] = 'application/json';
+      // 部分阿里云API需要这些header
+      headers['X-Code'] = enabledConfig.appCode;
+      headers['Code'] = enabledConfig.appCode;
+      headers['Accept'] = 'application/json';
     } else if (enabledConfig.apiKey) {
       // 标准 Bearer Token 认证（用于其他API）
       headers['Authorization'] = `Bearer ${enabledConfig.apiKey}`;
       headers['Content-Type'] = 'application/json';
     }
+    
     if (enabledConfig.appSecret) {
       headers['X-App-Secret'] = enabledConfig.appSecret;
+    }
+    
+    // GET请求不需要Content-Type
+    if (enabledConfig.method === 'GET') {
+      delete headers['Content-Type'];
     }
 
     // 调用API
