@@ -10,7 +10,7 @@ const isClearanceMode = (): boolean => {
 };
 
 // 模块类型
-type StoreModule = 'cashier' | 'inventory' | 'products' | 'orders' | 'delivery' | 'reports' | 'promo' | 'members' | 'settings';
+type StoreModule = 'cashier' | 'inventory' | 'products' | 'orders' | 'reports' | 'promo' | 'members' | 'settings';
 
 export default function CashierPage() {
   // 门店管理模块状态
@@ -37,7 +37,6 @@ export default function CashierPage() {
     { id: 'inventory', label: '库存', icon: '📦' },
     { id: 'products', label: '商品', icon: '🏷️' },
     { id: 'orders', label: '订单', icon: '🧾' },
-    { id: 'delivery', label: '配送', icon: '🚚' },
     { id: 'reports', label: '报表', icon: '📊' },
     { id: 'promo', label: '促销', icon: '🎁' },
     { id: 'members', label: '会员', icon: '👥' },
@@ -752,6 +751,21 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
               </tbody>
             </table>
           </div>
+          
+          {/* 要货申请 */}
+          <div className="mt-6 pt-6 border-t">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">要货申请</h3>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">新建要货</button>
+            </div>
+            <div className="text-center py-8 text-gray-400">
+              <p className="text-4xl mb-2">🚚</p>
+              <p>暂无要货记录</p>
+              <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg text-sm">
+                发起要货申请
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -815,27 +829,6 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
             <p className="text-4xl mb-2">📋</p>
             <p>暂无订单记录</p>
             <p className="text-sm mt-1">完成收银后将自动生成订单</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
-  // 配送管理（要货申请）
-  if (module === 'delivery') {
-    return (
-      <div className="flex-1 overflow-auto p-4">
-        <div className="bg-white rounded-xl shadow-sm p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">要货申请</h3>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">新建要货</button>
-          </div>
-          <div className="text-center py-8 text-gray-400">
-            <p className="text-4xl mb-2">🚚</p>
-            <p>暂无要货记录</p>
-            <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg text-sm">
-              发起要货申请
-            </button>
           </div>
         </div>
       </div>
