@@ -910,6 +910,9 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearSuccess, setClearSuccess] = useState(false);
   
+  // 配送管理
+  const [deliveryTab, setDeliveryTab] = useState<'store' | 'mini' | 'platform' | 'groupbuy'>('store');
+  
   // 计算缓存大小
   const calculateCacheSize = useCallback(() => {
     let total = 0;
@@ -1157,7 +1160,6 @@ function StoreManagementModule({ module, store, products, members, orders }: Sto
   
   // 配送管理
   if (module === 'delivery') {
-    const [deliveryTab, setDeliveryTab] = useState<'store' | 'mini' | 'platform' | 'groupbuy'>('store');
     const deliveryTabs = [
       { id: 'store', label: '门店配送', icon: '🏪' },
       { id: 'mini', label: '小程序订单', icon: '📱' },
