@@ -28,7 +28,7 @@ export default function SuspendedOrdersPage() {
             <Link to="/pos/cashier" className="text-gray-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             </Link>
-            <img src="/logo.png" alt="海邻到家" className="h-8 w-auto" />
+            <img src="/logo.png" alt="海邻到家" className="h-8 w-auto" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }} />
             <div className="text-sm text-gray-500">{orders.length} 单</div>
           </div>
         </div>

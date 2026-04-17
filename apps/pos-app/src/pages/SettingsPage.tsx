@@ -19,7 +19,7 @@ export default function SettingsPage() {
         <div className="bg-white rounded-xl shadow-sm divide-y">
           <div className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="海邻到家" className="w-10 h-10" />
+              <img src="/logo.png" alt="海邻到家" className="w-10 h-10" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }} />
               <div><div className="font-medium">海邻到家</div><div className="text-sm text-gray-500">智慧门店 V6.0</div></div>
             </div>
             <span className="text-gray-400">›</span>

@@ -54,7 +54,7 @@ export default function StoreOpsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
-              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" />
+              <img src="/logo.png" alt="海邻到家" className="h-10 w-auto" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }} />
               <h1 className="text-xl font-bold text-gray-800">门店运营中心</h1>
             </div>
           </div>
