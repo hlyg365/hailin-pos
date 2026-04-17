@@ -33,15 +33,15 @@ export default function CashierPage() {
   
   // 门店模块配置
   const storeModules: { id: StoreModule; label: string; icon: string }[] = [
-    { id: 'cashier', label: '收银台', icon: '💰' },
-    { id: 'inventory', label: '库存管理', icon: '📦' },
-    { id: 'products', label: '商品管理', icon: '🏷️' },
-    { id: 'orders', label: '订单管理', icon: '🧾' },
-    { id: 'delivery', label: '配送管理', icon: '🚚' },
-    { id: 'reports', label: '报表中心', icon: '📊' },
-    { id: 'promo', label: '促销管理', icon: '🎁' },
-    { id: 'members', label: '会员管理', icon: '👥' },
-    { id: 'settings', label: '门店设置', icon: '⚙️' },
+    { id: 'cashier', label: '收银', icon: '💰' },
+    { id: 'inventory', label: '库存', icon: '📦' },
+    { id: 'products', label: '商品', icon: '🏷️' },
+    { id: 'orders', label: '订单', icon: '🧾' },
+    { id: 'delivery', label: '配送', icon: '🚚' },
+    { id: 'reports', label: '报表', icon: '📊' },
+    { id: 'promo', label: '促销', icon: '🎁' },
+    { id: 'members', label: '会员', icon: '👥' },
+    { id: 'settings', label: '设置', icon: '⚙️' },
   ];
 
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotal } = useCartStore();
