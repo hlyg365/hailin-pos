@@ -499,3 +499,69 @@ export const useSettingsStore = create<SettingsState>()(
     }
   )
 );
+
+// ============ AI条码识别配置（总部后台配置，收银台调用） ============
+interface AiBarcodeConfig {
+  enabled: boolean;
+  apiUrl: string;
+  apiKey: string;
+  method: 'POST' | 'GET';
+  timeout: number;
+  requestTemplate: string;
+  responseMapping: {
+    name: string;
+    category: string;
+    price: string;
+    costPrice: string;
+  };
+  lastTestResult: {
+    success: boolean;
+    message: string;
+    timestamp: string;
+  } | null;
+}
+
+interface AiConfigState {
+  configs: AiBarcodeConfig[];
+  addConfig: (config: AiBarcodeConfig) => void;
+  updateConfig: (index: number, updates: Partial<AiBarcodeConfig>) => void;
+  deleteConfig: (index: number) => void;
+  setLastTestResult: (index: number, result: AiBarcodeConfig['lastTestResult']) => void;
+}
+
+const defaultAiConfig: AiBarcodeConfig = {
+  enabled: true,
+  apiUrl: 'https://api.hailin.com/ai/barcode',
+  apiKey: '',
+  method: 'POST',
+  timeout: 3,
+  requestTemplate: '{"barcode": "${barcode}", "store_id": "${store_id}"}',
+  responseMapping: {
+    name: 'name',
+    category: 'category',
+    price: 'price',
+    costPrice: 'cost_price',
+  },
+  lastTestResult: null,
+};
+
+export const useAiConfigStore = create<AiConfigState>()(
+  persist(
+    (set) => ({
+      configs: [defaultAiConfig],
+      addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
+      updateConfig: (index, updates) => set((state) => ({
+        configs: state.configs.map((c, i) => i === index ? { ...c, ...updates } : c),
+      })),
+      deleteConfig: (index) => set((state) => ({
+        configs: state.configs.filter((_, i) => i !== index),
+      })),
+      setLastTestResult: (index, result) => set((state) => ({
+        configs: state.configs.map((c, i) => i === index ? { ...c, lastTestResult: result } : c),
+      })),
+    }),
+    {
+      name: 'hailin-ai-config',
+    }
+  )
+);
