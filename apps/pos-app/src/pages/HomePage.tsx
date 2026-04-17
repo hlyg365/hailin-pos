@@ -1,139 +1,197 @@
 import { Link } from 'react-router-dom';
+import { useStoreStore, useFinanceStore, useAlertStore } from '../store';
 
 export default function HomePage() {
+  const { currentStore } = useStoreStore();
+  const { todaySales, todayOrders, todayCash, depositPending } = useFinanceStore();
+  const { lowStockAlerts } = useAlertStore();
+
+  const isClearanceMode = () => {
+    const hour = new Date().getHours();
+    return hour >= 20 && hour < 23;
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+    <div className="min-h-screen bg-gray-50">
+      {/* 顶部导航 */}
+      <header className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
-                <span className="text-white text-xl font-bold">邻</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">海邻到家</h1>
-                <p className="text-xs text-gray-500">智能便利店管理系统 V2.0</p>
-              </div>
+            <div>
+              <h1 className="text-xl font-bold">海邻到家</h1>
+              <p className="text-sm text-blue-100">连锁便利店智慧收银系统 V6.0</p>
             </div>
-            <div className="text-sm text-gray-500">
-              {new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+            <div className="flex items-center gap-4">
+              {isClearanceMode() && (
+                <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full animate-pulse">
+                  清货模式 8折
+                </span>
+              )}
+              <div className="text-right">
+                <p className="text-sm text-blue-100">当前门店</p>
+                <p className="font-semibold">{currentStore?.name || '未选择'}</p>
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-800 mb-4">欢迎使用海邻到家管理系统</h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">选择一个入口进入对应的功能模块</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Link to="/pos/cashier" className="group">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-transparent hover:border-orange-500">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
+      {/* 今日概览 */}
+      <section className="container mx-auto px-4 py-6">
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">今日概览</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">💰</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">收银台</h3>
-              <p className="text-gray-500 text-sm mb-4">快速收银、会员识别、多种支付</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">快速收银</span>
-                <span className="px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">晚8清货</span>
+              <div>
+                <p className="text-sm text-gray-500">今日销售</p>
+                <p className="text-xl font-bold text-gray-800">¥{(todaySales).toLocaleString()}</p>
               </div>
             </div>
-          </Link>
-
-          <Link to="/dashboard" className="group">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-transparent hover:border-purple-500">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">🧾</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">管理后台</h3>
-              <p className="text-gray-500 text-sm mb-4">门店管理、商品管理、数据报表</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-purple-100 text-purple-600 text-xs rounded-full">多门店</span>
-                <span className="px-2 py-1 bg-purple-100 text-purple-600 text-xs rounded-full">数据报表</span>
+              <div>
+                <p className="text-sm text-gray-500">订单数</p>
+                <p className="text-xl font-bold text-gray-800">{todayOrders}</p>
               </div>
             </div>
-          </Link>
-
-          <Link to="/mini" className="group">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-transparent hover:border-green-500">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">💵</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">小程序商城</h3>
-              <p className="text-gray-500 text-sm mb-4">商品浏览、购物车、团购接龙</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">商品浏览</span>
-                <span className="px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">团购接龙</span>
+              <div>
+                <p className="text-sm text-gray-500">现金收款</p>
+                <p className="text-xl font-bold text-gray-800">¥{todayCash.toLocaleString()}</p>
               </div>
             </div>
-          </Link>
-
-          <Link to="/assistant" className="group">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-2 border-transparent hover:border-blue-500">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <span className="text-2xl">📮</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-800 mb-2">店长助手</h3>
-              <p className="text-gray-500 text-sm mb-4">库存盘点、数据报表、移动管理</p>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded-full">库存管理</span>
-                <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded-full">PWA</span>
+              <div>
+                <p className="text-sm text-gray-500">待缴款</p>
+                <p className="text-xl font-bold text-purple-600">¥{depositPending.toLocaleString()}</p>
               </div>
             </div>
-          </Link>
-        </div>
-
-        <div className="mt-16">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">快捷功能</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link to="/pos/cashier" className="flex items-center gap-3 p-4 bg-white rounded-xl shadow hover:shadow-md transition">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">💰</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">快速收银</span>
-            </Link>
-            <Link to="/dashboard/members" className="flex items-center gap-3 p-4 bg-white rounded-xl shadow hover:shadow-md transition">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">👥</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">会员管理</span>
-            </Link>
-            <Link to="/dashboard/products" className="flex items-center gap-3 p-4 bg-white rounded-xl shadow hover:shadow-md transition">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">📦</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">商品管理</span>
-            </Link>
-            <Link to="/assistant/inventory" className="flex items-center gap-3 p-4 bg-white rounded-xl shadow hover:shadow-md transition">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">📋</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">库存盘点</span>
-            </Link>
           </div>
         </div>
+      </section>
 
-        <div className="mt-12 p-6 bg-white rounded-xl shadow">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-gray-600">系统运行正常</span>
+      {/* 预警信息 */}
+      {lowStockAlerts.length > 0 && (
+        <section className="container mx-auto px-4 py-2">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-yellow-800">
+              <span className="text-xl">⚠️</span>
+              <span className="font-medium">库存预警</span>
             </div>
-            <div className="text-sm text-gray-400">V2.0 Build</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {lowStockAlerts.map(alert => (
+                <span key={alert.productId} className="bg-yellow-100 text-yellow-800 text-sm px-3 py-1 rounded-full">
+                  {alert.productName} (剩余{alert.current})
+                </span>
+              ))}
+            </div>
           </div>
+        </section>
+      )}
+
+      {/* 四端入口 */}
+      <section className="container mx-auto px-4 py-6">
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">业务入口</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link to="/pos/cashier" className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all group">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <span className="text-3xl">🛒</span>
+            </div>
+            <h3 className="font-semibold text-gray-800">收银台</h3>
+            <p className="text-sm text-gray-500 mt-1">AI智慧收银 · 聚合支付</p>
+            <div className="mt-3 flex flex-wrap gap-1">
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">AI识码</span>
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">AI视觉</span>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">离线收银</span>
+            </div>
+          </Link>
+
+          <Link to="/dashboard" className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all group">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <span className="text-3xl">📊</span>
+            </div>
+            <h3 className="font-semibold text-gray-800">总部后台</h3>
+            <p className="text-sm text-gray-500 mt-1">供应链 · 财务 · 人员</p>
+            <div className="mt-3 flex flex-wrap gap-1">
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">多门店</span>
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">数据看板</span>
+            </div>
+          </Link>
+
+          <Link to="/mini" className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all group">
+            <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <span className="text-3xl">🛍️</span>
+            </div>
+            <h3 className="font-semibold text-gray-800">小程序商城</h3>
+            <p className="text-sm text-gray-500 mt-1">线上销售 · 团购接龙</p>
+            <div className="mt-3 flex flex-wrap gap-1">
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">外卖对接</span>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">社群团购</span>
+            </div>
+          </Link>
+
+          <Link to="/assistant" className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all group">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <span className="text-3xl">📱</span>
+            </div>
+            <h3 className="font-semibold text-gray-800">店长助手</h3>
+            <p className="text-sm text-gray-500 mt-1">门店管理 · 库存盘点</p>
+            <div className="mt-3 flex flex-wrap gap-1">
+              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">要货申请</span>
+              <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">缴款</span>
+            </div>
+          </Link>
         </div>
-      </main>
+      </section>
+
+      {/* 快捷功能 */}
+      <section className="container mx-auto px-4 py-6">
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">快捷功能</h2>
+        <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+          {[
+            { icon: '📋', label: '挂单列表', to: '/pos/suspended' },
+            { icon: '👥', label: '会员管理', to: '/pos/member' },
+            { icon: '🎫', label: '会员识别', to: '/pos/member' },
+            { icon: '📦', label: '商品管理', to: '/dashboard/products' },
+            { icon: '📈', label: '销售报表', to: '/dashboard/reports' },
+            { icon: '🚚', label: '要货申请', to: '/assistant/restock' },
+            { icon: '💳', label: '缴款单', to: '/assistant/deposit' },
+            { icon: '⚙️', label: '系统设置', to: '/settings' },
+          ].map((item, i) => (
+            <Link
+              key={i}
+              to={item.to}
+              className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center"
+            >
+              <span className="text-2xl mb-2">{item.icon}</span>
+              <span className="text-sm text-gray-600">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* 系统信息 */}
+      <footer className="container mx-auto px-4 py-6 text-center text-sm text-gray-400">
+        <p>海邻到家智慧收银系统 V6.0 · 云原生 SaaS 架构</p>
+        <p className="mt-1">© 2024 Hailin Technology. All rights reserved.</p>
+      </footer>
     </div>
   );
 }
