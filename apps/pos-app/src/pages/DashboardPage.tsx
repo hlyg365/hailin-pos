@@ -38,7 +38,7 @@ export default function DashboardPage() {
   const [miniForm, setMiniForm] = useState(miniSettings);
   const [showMiniSaveToast, setShowMiniSaveToast] = useState(false);
   
-  // 商品采购入库
+  // 采购入库
   const aiConfig = useAiConfigStore();
   const [importedProducts, setImportedProducts] = useState<Array<{ barcode: string; name: string; category: string; price: number; costPrice: number; quantity: number }>>([
     { barcode: '6901234567890', name: '农夫山泉', category: '饮料', price: 2.0, costPrice: 1.5, quantity: 24 },
@@ -279,7 +279,7 @@ export default function DashboardPage() {
     { id: 'staff', label: '人员管理', icon: '👔' },
     { id: 'promo', label: '促销管理', icon: '🎁', link: '/dashboard/promotion' },
     { id: 'miniprogram', label: '小程序设置', icon: '📱' },
-    { id: 'product-import', label: '商品采购入库', icon: '📦' },
+    { id: 'product-import', label: '采购入库', icon: '📦' },
     { id: 'ai-config', label: 'AI识别配置', icon: '🤖' },
     { id: 'bi', label: 'BI分析', icon: '📈', link: '/dashboard/bi' },
     { id: 'storeops', label: '门店运营', icon: '🔧', link: '/dashboard/store-ops' },
@@ -2312,12 +2312,12 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ========== 商品采购入库 ========== */}
+        {/* ========== 采购入库 ========== */}
         {activeTab === 'product-import' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold">📦 商品采购入库</h2>
+                <h2 className="text-xl font-bold">📦 采购入库</h2>
                 <p className="text-gray-500 text-sm mt-1">通过AI条码识别批量导入新采购商品</p>
               </div>
               <div className="flex gap-3">
