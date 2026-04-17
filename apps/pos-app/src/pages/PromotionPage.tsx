@@ -9,7 +9,7 @@ export default function PromotionPage() {
   // 促销模板
   const promos = [
     { id: 'P001', name: '满50减10', type: '满减', scope: '全部商品', discount: '满50减10', startTime: '2024-01-15', endTime: '2024-01-31', status: 'active', stores: '全部' },
-    { id: 'P002', name: '饮料专区8折', type: '折扣', scope: '饮料分类', discount: '8折', startTime: '2024-01-10', endTime: '2024-02-10', status: 'active', stores: '望京店' },
+    
     { id: 'P003', name: '第2件半价', type: '买赠', scope: '方便面', discount: '第2件半价', startTime: '2024-01-01', endTime: '2024-01-31', status: 'pending', stores: '全部' },
     { id: 'P004', name: '晚8点清货', type: '时段折扣', scope: '全场', discount: '8折', startTime: '每日20:00', endTime: '每日23:00', status: 'active', stores: '全部' },
     { id: 'P005', name: '会员日专享', type: '会员专享', scope: '全场', discount: '95折', startTime: '每周五', endTime: '长期有效', status: 'active', stores: '全部' },
@@ -32,9 +32,9 @@ export default function PromotionPage() {
 
   // 商品定价
   const productPrices = [
-    { name: '农夫山泉550ml', barcode: '6921166466888', basePrice: 2.0, beijingPrice: 2.0, shanghaiPrice: 2.2, wjSpecial: 1.8 },
-    { name: '可口可乐330ml', barcode: '6921234567890', basePrice: 3.0, beijingPrice: 3.0, shanghaiPrice: 3.2, wjSpecial: 2.8 },
-    { name: '康师傅方便面', barcode: '6922345678901', basePrice: 4.5, beijingPrice: 4.5, shanghaiPrice: 4.8, wjSpecial: 4.0 },
+    
+    
+    
   ];
 
   const tabs: { id: Tab; label: string; icon: string }[] = [

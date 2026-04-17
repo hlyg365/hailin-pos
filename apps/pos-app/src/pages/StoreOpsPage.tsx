@@ -8,30 +8,26 @@ export default function StoreOpsPage() {
 
   // 调拨数据
   const transferRequests = [
-    { id: 'TR001', from: '望京店', to: '国贸店', product: '农夫山泉550ml', quantity: 20, status: 'pending', createdAt: '2024-01-17 10:30' },
-    { id: 'TR002', from: '中关村店', to: '望京店', product: '可口可乐330ml', quantity: 30, status: 'approved', createdAt: '2024-01-17 09:15' },
-    { id: 'TR003', from: '国贸店', to: '中关村店', product: '康师傅方便面', quantity: 15, status: 'completed', createdAt: '2024-01-16 14:20' },
+    
   ];
 
   // 巡店数据
   const inspections = [
-    { id: 'INS001', store: '望京店', inspector: '张督导', score: 92, date: '2024-01-16', status: 'completed', issues: 2 },
+    
     { id: 'INS002', store: '国贸店', inspector: '李督导', score: 85, date: '2024-01-15', status: 'pending', issues: 0 },
-    { id: 'INS003', store: '中关村店', inspector: '张督导', score: 78, date: '2024-01-14', status: 'rejected', issues: 5 },
+    
   ];
 
   // 电子工单
   const workOrders = [
     { id: 'WO001', type: 'notice', title: '春节假期营业时间调整通知', target: '全部门店', status: 'published', createdAt: '2024-01-17' },
-    { id: 'WO002', type: 'training', title: '新品上架培训资料', target: '望京店,国贸店', status: 'published', createdAt: '2024-01-16' },
-    { id: 'WO003', type: 'repair', title: 'POS机故障维修 - 望京店#2', target: '望京店', status: 'processing', createdAt: '2024-01-15' },
   ];
 
   // 门店档案
   const storeProfiles = [
-    { id: 'S001', name: '望京店', code: 'WJ001', address: '朝阳区望京街道', manager: '张三', area: '北京朝阳', status: 'active', openHours: '07:00-23:00' },
+    
     { id: 'S002', name: '国贸店', code: 'GJ001', address: '朝阳区国贸CBD', manager: '李四', area: '北京朝阳', status: 'active', openHours: '08:00-22:00' },
-    { id: 'S003', name: '中关村店', code: 'ZGC001', address: '海淀区中关村', manager: '王五', area: '北京海淀', status: 'active', openHours: '08:00-22:00' },
+    
     { id: 'S004', name: '五道口店', code: 'WDK001', address: '海淀区五道口', manager: '赵六', area: '北京海淀', status: 'active', openHours: '07:30-23:00' },
   ];
 

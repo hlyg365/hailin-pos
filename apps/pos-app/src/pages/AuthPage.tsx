@@ -244,10 +244,10 @@ export default function AuthPage() {
                 {[
                   { name: 'admin', realName: '系统管理员', role: '超级管理员', store: '总部', status: 'active', lastLogin: '2024-01-17 10:30' },
                   { name: 'zhangsup', realName: '张督导', role: '区域督导', store: '北京朝阳', status: 'active', lastLogin: '2024-01-17 09:15' },
-                  { name: 'zhangsan', realName: '张三', role: '门店店长', store: '望京店', status: 'active', lastLogin: '2024-01-17 08:45' },
+                  
                   { name: 'lisi', realName: '李四', role: '门店店长', store: '国贸店', status: 'active', lastLogin: '2024-01-16 22:30' },
-                  { name: 'cashier001', realName: '小王', role: '收银员', store: '望京店', status: 'active', lastLogin: '2024-01-17 07:50' },
-                  { name: 'cashier002', realName: '小李', role: '收银员', store: '望京店', status: 'inactive', lastLogin: '2024-01-10 18:00' },
+                  
+                  
                 ].map((user, i) => (
                   <tr key={i} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-mono">{user.name}</td>
@@ -289,7 +289,7 @@ export default function AuthPage() {
           </div>
           <div className="p-4 space-y-3">
             {[
-              { time: '2024-01-17 10:30', user: 'admin', action: '修改了望京店店长密码', type: 'security' },
+              
               { time: '2024-01-17 09:15', user: 'admin', action: '添加了新角色：区域督导', type: 'config' },
               { time: '2024-01-17 08:45', user: 'zhangsan', action: '登录系统', type: 'login' },
               { time: '2024-01-16 18:00', user: 'admin', action: '删除了测试账号', type: 'security' },

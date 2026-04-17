@@ -281,7 +281,7 @@ export default function MiniStorePage() {
   // 门店选择功能（基于真实门店数据）
   const [selectedStore, setSelectedStore] = useState(stores[0] || {
     id: 'store001',
-    name: '望京店',
+    
     address: '北京市朝阳区望京SOHO T1-B座',
     distance: '350m',
     phone: '010-64781234',
@@ -300,7 +300,7 @@ export default function MiniStorePage() {
     businessHours: store.businessHours || '',
     isOpen: store.status === 'active',
   })) : [
-    { id: 'store001', name: '望京店', address: '北京市朝阳区望京SOHO T1-B座', distance: '350m', phone: '010-64781234', businessHours: '24小时营业', isOpen: true },
+    
   ];
   // 团长数据
   const groupLeaderData = {
@@ -338,9 +338,9 @@ export default function MiniStorePage() {
   const [rankType, setRankType] = useState<'sales' | 'follow'>('sales');
   const rankProducts = {
     sales: [
-      { name: '农夫山泉', sales: 9999, icon: '💧' },
-      { name: '可口可乐', sales: 8566, icon: '🥤' },
-      { name: '康师傅方便面', sales: 7234, icon: '🍜' },
+      
+      
+      
     ],
     follow: [
       { name: '蒙牛纯牛奶', follow: 5666, icon: '🥛' },
@@ -351,9 +351,9 @@ export default function MiniStorePage() {
 
   // 秒杀商品
   const flashSaleItems = [
-    { name: '农夫山泉', price: 1.5, original: 2, icon: '💧', tag: '热卖' },
-    { name: '可口可乐', price: 2.5, original: 3, icon: '🥤', tag: '特价' },
-    { name: '康师傅面', price: 3.9, original: 5, icon: '🍜', tag: '5折' },
+    
+    
+    
     { name: '奥利奥', price: 5.9, original: 8, icon: '🍪', tag: '新品' },
   ];
 
@@ -361,7 +361,7 @@ export default function MiniStorePage() {
   const groupBuys = [
     { 
       id: 1, 
-      name: '农夫山泉24瓶装', 
+       
       spec: '550ml x 24瓶/箱', 
       originalPrice: 48, 
       groupPrice: 35, 
@@ -405,12 +405,12 @@ export default function MiniStorePage() {
     discount: p.category === '饮料' ? '热卖' : null,
   }));
 
-  // 订单数据
-  const orders = [
-    { id: 1, no: 'MINI20240118001', items: [{ name: '农夫山泉', qty: 2 }, { name: '可口可乐', qty: 1 }], amount: 6.5, status: '待取货', time: '10:30', store: '望京店' },
-    { id: 2, no: 'MINI20240118002', items: [{ name: '康师傅方便面', qty: 3 }], amount: 13.5, status: '配送中', time: '11:15', store: '望京店' },
-    { id: 3, no: 'MINI20240117001', items: [{ name: '蒙牛酸奶', qty: 1 }], amount: 8.0, status: '已完成', time: '昨天', store: '望京店' },
-  ];
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
+PLACEHOLDER
 
   const orderStatus = ['全部', '待付款', '待取货', '配送中', '已完成'];
 
