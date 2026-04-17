@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useStoreStore, useRestockStore, useAlertStore } from '../store';
+import { useStoreStore, useRestockStore, useAlertStore, useMiniProgramStore } from '../store';
 
 type Tab = 'overview' | 'stores' | 'products' | 'supply' | 'finance' | 'members' | 'orders' | 'staff' | 'promo' | 'bi' | 'storeops' | 'auth' | 'miniprogram';
 type TimeRange = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -32,6 +32,22 @@ export default function DashboardPage() {
   
   // 缴款单月份选择
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  
+  // 小程序设置
+  const { settings: miniSettings, updateSettings: updateMiniSettings, updateBanner: updateMiniBanner } = useMiniProgramStore();
+  const [miniForm, setMiniForm] = useState(miniSettings);
+  const [showMiniSaveToast, setShowMiniSaveToast] = useState(false);
+  
+  // 同步小程序设置
+  useMemo(() => {
+    setMiniForm(miniSettings);
+  }, [miniSettings]);
+  
+  const handleMiniSettingsSave = () => {
+    updateMiniSettings(miniForm);
+    setShowMiniSaveToast(true);
+    setTimeout(() => setShowMiniSaveToast(false), 2000);
+  };
   
   // 计算时间范围
   const financeRange = useMemo(() => {
@@ -1838,6 +1854,13 @@ export default function DashboardPage() {
         {/* 小程序设置 */}
         {activeTab === 'miniprogram' && (
           <div className="space-y-6">
+            {/* Toast */}
+            {showMiniSaveToast && (
+              <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+                ✅ 设置已保存
+              </div>
+            )}
+            
             {/* 基础信息 */}
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h3 className="font-semibold text-gray-800 mb-4">基础信息</h3>
@@ -1846,7 +1869,8 @@ export default function DashboardPage() {
                   <label className="block text-sm text-gray-600 mb-2">小程序名称</label>
                   <input 
                     type="text" 
-                    defaultValue="海邻到家便利店"
+                    value={miniForm.name}
+                    onChange={(e) => setMiniForm({ ...miniForm, name: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1854,7 +1878,8 @@ export default function DashboardPage() {
                   <label className="block text-sm text-gray-600 mb-2">小程序简介</label>
                   <input 
                     type="text" 
-                    defaultValue="24小时便利店，便利生活每一天"
+                    value={miniForm.description}
+                    onChange={(e) => setMiniForm({ ...miniForm, description: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1862,7 +1887,8 @@ export default function DashboardPage() {
                   <label className="block text-sm text-gray-600 mb-2">客服电话</label>
                   <input 
                     type="text" 
-                    defaultValue="400-888-6666"
+                    value={miniForm.servicePhone}
+                    onChange={(e) => setMiniForm({ ...miniForm, servicePhone: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1870,12 +1896,16 @@ export default function DashboardPage() {
                   <label className="block text-sm text-gray-600 mb-2">营业时间</label>
                   <input 
                     type="text" 
-                    defaultValue="24小时营业"
+                    value={miniForm.businessHours}
+                    onChange={(e) => setMiniForm({ ...miniForm, businessHours: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
-              <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <button 
+                onClick={handleMiniSettingsSave}
+                className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
                 保存基础信息
               </button>
             </div>
@@ -1896,11 +1926,7 @@ export default function DashboardPage() {
               </div>
               
               <div className="space-y-4">
-                {[
-                  { id: 1, title: '海邻到家便利店', subtitle: '便利生活每一天', link: '/mini', color: 'from-red-400 to-orange-500', status: '启用', required: true },
-                  { id: 2, title: '新人专属福利', subtitle: '首单满39减5元', link: '/mini/promo', color: 'from-purple-400 to-pink-500', status: '启用', required: false },
-                  { id: 3, title: '限时秒杀', subtitle: '每日10点准时开抢', link: '/mini/flashsale', color: 'from-yellow-400 to-red-500', status: '启用', required: false },
-                ].map((banner, index) => (
+                {miniForm.banners.map((banner, index) => (
                   <div key={banner.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                     <div className="relative">
                       <div className={`w-24 h-16 bg-gradient-to-br ${banner.color} rounded-lg flex items-center justify-center text-white`}>
@@ -1914,17 +1940,27 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2">
                         <input 
                           type="text" 
-                          defaultValue={banner.title}
+                          value={banner.title}
+                          onChange={(e) => {
+                            const newBanners = [...miniForm.banners];
+                            newBanners[index] = { ...banner, title: e.target.value };
+                            setMiniForm({ ...miniForm, banners: newBanners });
+                          }}
                           className="px-3 py-1.5 border rounded-lg text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           placeholder="Banner标题"
                         />
-                        {banner.required && (
+                        {index === 0 && (
                           <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded">必选</span>
                         )}
                       </div>
                       <input 
                         type="text" 
-                        defaultValue={banner.link}
+                        value={banner.link}
+                        onChange={(e) => {
+                          const newBanners = [...miniForm.banners];
+                          newBanners[index] = { ...banner, link: e.target.value };
+                          setMiniForm({ ...miniForm, banners: newBanners });
+                        }}
                         className="mt-2 px-3 py-1.5 border rounded-lg text-sm w-full text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="跳转链接"
                       />
@@ -1934,16 +1970,18 @@ export default function DashboardPage() {
                         <p className="text-sm text-gray-600">{banner.subtitle}</p>
                         <p className="text-xs text-gray-400">点击量: 12.8万</p>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" defaultChecked={banner.status === '启用'} disabled={banner.required} className="sr-only peer" />
-                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 peer-disabled:bg-gray-300"></div>
-                      </label>
-                      <button className="p-2 text-gray-400 hover:text-gray-600">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
+                      <button
+                        onClick={() => {
+                          const newBanners = [...miniForm.banners];
+                          newBanners[index] = { ...banner, enabled: !banner.enabled };
+                          setMiniForm({ ...miniForm, banners: newBanners });
+                        }}
+                        className={`relative w-9 h-5 rounded-full transition-colors ${banner.enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                        disabled={index === 0}
+                      >
+                        <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${banner.enabled ? 'left-5' : 'left-0.5'}`} />
                       </button>
-                      {!banner.required && (
+                      {index !== 0 && (
                         <button className="p-2 text-gray-400 hover:text-red-500">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

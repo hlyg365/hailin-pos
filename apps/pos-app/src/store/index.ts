@@ -338,3 +338,164 @@ export const useAlertStore = create<AlertState>((set) => ({
   ],
   restockRequests: [],
 }));
+
+// ============ 系统设置状态（持久化） ============
+interface SystemSettings {
+  // 基础设置
+  storeName: string;
+  storeCode: string;
+  storeAddress: string;
+  storePhone: string;
+  storeManager: string;
+  
+  // 营业时间
+  businessStartTime: string;
+  businessEndTime: string;
+  is24Hours: boolean;
+  
+  // 支付设置
+  enableWechatPay: boolean;
+  enableAlipay: boolean;
+  enableUnionPay: boolean;
+  enableCash: boolean;
+  enableMemberCard: boolean;
+  enableDigitalRMB: boolean;
+  
+  // 促销设置
+  enableClearanceMode: boolean;
+  clearanceDiscount: number;
+  enableMemberDiscount: boolean;
+  enablePointSystem: boolean;
+  
+  // 打印设置
+  printerEnabled: boolean;
+  printerName: string;
+  autoPrintReceipt: boolean;
+  
+  // 系统设置
+  voiceEnabled: boolean;
+  darkMode: boolean;
+  autoSync: boolean;
+  offlineMode: boolean;
+}
+
+interface SettingsState {
+  settings: SystemSettings;
+  updateSettings: (updates: Partial<SystemSettings>) => void;
+  resetSettings: () => void;
+}
+
+const defaultSettings: SystemSettings = {
+  storeName: '望京店',
+  storeCode: 'WJ001',
+  storeAddress: '北京市朝阳区望京街道',
+  storePhone: '010-12345678',
+  storeManager: '张三',
+  businessStartTime: '08:00',
+  businessEndTime: '23:00',
+  is24Hours: false,
+  enableWechatPay: true,
+  enableAlipay: true,
+  enableUnionPay: true,
+  enableCash: true,
+  enableMemberCard: true,
+  enableDigitalRMB: true,
+  enableClearanceMode: true,
+  clearanceDiscount: 0.8,
+  enableMemberDiscount: true,
+  enablePointSystem: true,
+  printerEnabled: true,
+  printerName: '58mm热敏打印机',
+  autoPrintReceipt: true,
+  voiceEnabled: true,
+  darkMode: false,
+  autoSync: true,
+  offlineMode: true,
+};
+
+// ============ 小程序设置状态（持久化） ============
+interface MiniProgramSettings {
+  name: string;
+  description: string;
+  servicePhone: string;
+  businessHours: string;
+  banners: Array<{
+    id: string;
+    title: string;
+    subtitle: string;
+    link: string;
+    color: string;
+    enabled: boolean;
+  }>;
+  categories: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    enabled: boolean;
+  }>;
+}
+
+interface MiniProgramState {
+  settings: MiniProgramSettings;
+  updateSettings: (updates: Partial<MiniProgramSettings>) => void;
+  updateBanner: (id: string, updates: Partial<MiniProgramSettings['banners'][0]>) => void;
+  resetSettings: () => void;
+}
+
+const defaultMiniProgramSettings: MiniProgramSettings = {
+  name: '海邻到家便利店',
+  description: '24小时便利店，便利生活每一天',
+  servicePhone: '400-888-6666',
+  businessHours: '24小时营业',
+  banners: [
+    { id: '1', title: '海邻到家便利店', subtitle: '便利生活每一天', link: '/mini', color: 'from-red-400 to-orange-500', enabled: true },
+    { id: '2', title: '新人专属福利', subtitle: '首单满39减5元', link: '/mini/promo', color: 'from-purple-400 to-pink-500', enabled: true },
+    { id: '3', title: '限时秒杀', subtitle: '每日10点准时开抢', link: '/mini/flashsale', color: 'from-yellow-400 to-red-500', enabled: true },
+  ],
+  categories: [
+    { id: '1', name: '饮料', icon: '🥤', enabled: true },
+    { id: '2', name: '零食', icon: '🍪', enabled: true },
+    { id: '3', name: '生鲜', icon: '🥬', enabled: true },
+    { id: '4', name: '日用品', icon: '🧴', enabled: true },
+    { id: '5', name: '烘焙', icon: '🍞', enabled: true },
+    { id: '6', name: '奶制品', icon: '🥛', enabled: true },
+  ],
+};
+
+export const useMiniProgramStore = create<MiniProgramState>()(
+  persist(
+    (set) => ({
+      settings: defaultMiniProgramSettings,
+      updateSettings: (updates) => set((state) => ({
+        settings: { ...state.settings, ...updates },
+      })),
+      updateBanner: (id, updates) => set((state) => ({
+        settings: {
+          ...state.settings,
+          banners: state.settings.banners.map((b) =>
+            b.id === id ? { ...b, ...updates } : b
+          ),
+        },
+      })),
+      resetSettings: () => set({ settings: defaultMiniProgramSettings }),
+    }),
+    {
+      name: 'hailin-miniprogram',
+    }
+  )
+);
+
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      settings: defaultSettings,
+      updateSettings: (updates) => set((state) => ({
+        settings: { ...state.settings, ...updates },
+      })),
+      resetSettings: () => set({ settings: defaultSettings }),
+    }),
+    {
+      name: 'hailin-settings',
+    }
+  )
+);

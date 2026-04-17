@@ -34,7 +34,7 @@
 │   ├── types/                     # TypeScript 类型定义
 │   │   └── index.ts               # 核心类型定义
 │   ├── store/                     # Zustand 状态管理
-│   │   └── index.ts               # 全局状态
+│   │   └── index.ts               # 全局状态（含持久化存储）
 │   ├── pages/                     # 页面组件
 │   │   ├── HomePage.tsx           # 首页（四端入口）
 │   │   ├── CashierPage.tsx        # 收银台（V6.0 AI增强）
@@ -176,6 +176,11 @@
 ---
 
 ## 开发指南
+
+### 持久化存储
+系统使用 Zustand + localStorage 实现数据持久化：
+- `hailin-settings`: 系统设置（支付、促销、硬件等）
+- `hailin-miniprogram`: 小程序设置（Banner、分类等）
 
 ### 安装依赖
 ```bash
