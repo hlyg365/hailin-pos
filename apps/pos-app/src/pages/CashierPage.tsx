@@ -396,6 +396,7 @@ export default function CashierPage() {
           )}
 
           {/* 收银台界面 */}
+          {activeModule === 'cashier' && (
           <div className="flex-1 flex overflow-hidden">
         {/* 左侧商品区 */}
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
@@ -615,6 +616,7 @@ export default function CashierPage() {
         </div>
       </div>
 
+          )}
       {/* 会员识别弹窗 */}
       {showMemberModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
