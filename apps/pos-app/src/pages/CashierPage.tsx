@@ -203,6 +203,32 @@ export default function CashierPage() {
           {activeModule === 'cashier' && (
             <>
               <div className="flex-1 flex flex-col overflow-hidden">
+                {/* 称重商品面板 - 显示称重状态 */}
+                <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white p-4 mb-4 rounded-xl shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center animate-pulse">
+                        <span className="text-3xl">⚖️</span>
+                      </div>
+                      <div>
+                        <p className="text-sm opacity-80">等待称重</p>
+                        <p className="text-xl font-bold">请放置商品到电子秤</p>
+                        <p className="text-sm opacity-80 mt-1">放置商品后自动加入购物车</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <p className="text-sm opacity-80">当前重量</p>
+                        <p className="text-4xl font-bold">0.000</p>
+                        <p className="text-sm opacity-80">kg</p>
+                      </div>
+                      <div className="text-right border-l border-white/30 pl-6">
+                        <p className="text-sm opacity-80">商品金额</p>
+                        <p className="text-2xl font-bold text-yellow-200">¥0.00</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {aiScanResult && (
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
                     <p className="text-blue-700 font-medium mb-2">{aiScanResult.loading ? '正在查询商品...' : `未找到商品: ${aiScanResult.barcode}`}</p>
