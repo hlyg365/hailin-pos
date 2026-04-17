@@ -322,12 +322,27 @@ export default function MiniStorePage() {
     { id: 7, name: '日用品', icon: '🧴' },
   ];
 
-  // Banner数据
+  // Banner数据 - 优化为更丰富的店铺展示
   const banners = [
+    { image: '🏪', title: '海邻到家便利店', subtitle: '便利生活每一天', color: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)' },
     { image: '🎁', title: '新人专属福利', subtitle: '首单满39减5元', color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
     { image: '⚡', title: '限时秒杀', subtitle: '每日10点准时开抢', color: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-    { image: '🚚', title: '30分钟送达', subtitle: '足不出户送到家', color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
   ];
+
+  // 排行榜数据
+  const [rankType, setRankType] = useState<'sales' | 'follow'>('sales');
+  const rankProducts = {
+    sales: [
+      { name: '农夫山泉', sales: 9999, icon: '💧' },
+      { name: '可口可乐', sales: 8566, icon: '🥤' },
+      { name: '康师傅方便面', sales: 7234, icon: '🍜' },
+    ],
+    follow: [
+      { name: '蒙牛纯牛奶', follow: 5666, icon: '🥛' },
+      { name: '奥利奥饼干', follow: 4333, icon: '🍪' },
+      { name: '统一冰红茶', follow: 3222, icon: '🧃' },
+    ],
+  };
 
   // 秒杀商品
   const flashSaleItems = [
@@ -480,76 +495,57 @@ export default function MiniStorePage() {
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative">
       {/* 顶部 - 固定定位 */}
       <header className="bg-white sticky top-0 z-30 shadow-sm">
-        {/* 门店选择栏 */}
-        <div 
-          className="px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white flex items-center justify-between cursor-pointer"
-          onClick={() => setShowStoreSelector(true)}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <span className="text-xl">🏪</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">{selectedStore.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${selectedStore.isOpen ? 'bg-green-500' : 'bg-red-500'}`}>
-                  {selectedStore.isOpen ? '营业中' : '已打烊'}
-                </span>
-              </div>
-              <p className="text-xs text-white/80 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                </svg>
-                {selectedStore.address}
-              </p>
-            </div>
-          </div>
+        {/* 小程序标题栏 */}
+        <div className="bg-white px-4 py-3 flex items-center justify-between">
+          <div className="w-8"></div>
+          <h1 className="text-base font-bold text-black">首页</h1>
           <div className="flex items-center gap-2">
-            <span className="text-xs bg-white/20 px-2 py-1 rounded">{selectedStore.distance}</span>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
+            <button className="w-8 h-8 flex items-center justify-center text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+              </svg>
+            </button>
+            <button className="w-8 h-8 flex items-center justify-center text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        {/* 搜索栏 */}
-        {showSearch ? (
-          <div className="p-3 bg-white">
-            <div className="flex items-center gap-2">
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  placeholder="搜索商品..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-100 rounded-full text-sm"
-                  autoFocus
-                />
-                <svg className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <button 
-                onClick={() => { setShowSearch(false); setSearchQuery(''); }}
-                className="px-3 py-2 text-gray-600"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="p-3">
+        {/* 搜索栏 - 白色圆角矩形风格 + 门店选择 */}
+        <div className="px-4 pb-3 bg-white">
+          <div className="flex items-center gap-3">
+            {/* 门店选择 */}
             <button 
-              onClick={() => setShowSearch(true)}
-              className="w-full px-4 py-2.5 bg-gray-100 rounded-full text-sm text-gray-400 flex items-center gap-2"
+              onClick={() => setShowStoreSelector(true)}
+              className="flex items-center gap-1 text-orange-500 shrink-0"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+              <span className="text-sm font-medium max-w-[60px] truncate">{selectedStore.name}</span>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* 搜索框 */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="搜索"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setShowSearch(true)}
+                className="w-full px-4 py-2.5 bg-gray-100 rounded-lg text-sm text-center"
+              />
+              <svg className="w-4 h-4 absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-gray-400" style={{ left: '50%' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              搜索商品
-            </button>
+            </div>
           </div>
-        )}
+        </div>
       </header>
 
       {/* 内容区 */}
@@ -560,26 +556,136 @@ export default function MiniStorePage() {
             {/* Banner轮播 */}
             <BannerCarousel banners={banners} />
 
-            {/* 快捷服务入口 */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="grid grid-cols-5 gap-3">
+            {/* 服务入口 - 两张大卡片+三个小图标 */}
+            <div className="space-y-3">
+              {/* 两张大卡片 */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* 同城配送 */}
+                <div 
+                  className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl p-4 text-white relative overflow-hidden cursor-pointer"
+                  onClick={() => {}}
+                >
+                  <div className="relative z-10">
+                    <p className="text-2xl font-bold">同城配送</p>
+                    <p className="text-sm opacity-90 mt-1">省心到家</p>
+                  </div>
+                  <div className="absolute right-2 bottom-2 text-6xl opacity-30">🛵</div>
+                  <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full" />
+                </div>
+                
+                {/* 到店自提 */}
+                <div 
+                  className="bg-gradient-to-br from-orange-400 to-orange-500 rounded-2xl p-4 text-white relative overflow-hidden cursor-pointer"
+                  onClick={() => {}}
+                >
+                  <div className="relative z-10">
+                    <p className="text-2xl font-bold">到店自提</p>
+                    <p className="text-sm opacity-90 mt-1">方便快捷</p>
+                  </div>
+                  <div className="absolute right-2 bottom-2 text-6xl opacity-30">📱</div>
+                  <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full" />
+                </div>
+              </div>
+
+              {/* 三个功能图标 */}
+              <div className="bg-white rounded-2xl p-4">
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { icon: '充', label: '在线充值', color: 'bg-purple-500', textColor: 'text-purple-500', bgColor: 'bg-purple-50' },
+                    { icon: 'V', label: '会员中心', color: 'bg-orange-500', textColor: 'text-orange-500', bgColor: 'bg-orange-50' },
+                    { icon: '🎁', label: '邀请有奖', color: 'bg-red-500', textColor: 'text-red-500', bgColor: 'bg-red-50' },
+                  ].map((item, i) => (
+                    <button key={i} className="flex flex-col items-center gap-2" onClick={() => item.label === '会员中心' && setShowMemberCode(true)}>
+                      <div className={`w-12 h-12 ${item.bgColor} rounded-2xl flex items-center justify-center ${item.color === 'bg-purple-500' ? 'rotate-45' : item.color === 'bg-orange-500' ? 'rotate-45' : ''}`}>
+                        {item.icon === 'V' || item.icon === '充' ? (
+                          <span className={`text-xl font-bold ${item.textColor}`}>{item.icon}</span>
+                        ) : (
+                          <span className="text-2xl">{item.icon}</span>
+                        )}
+                      </div>
+                      <span className="text-sm text-gray-600">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 商品分类 - 3×2 图标矩阵 */}
+            <div className="bg-white rounded-2xl p-4">
+              <div className="grid grid-cols-3 gap-4">
                 {[
-                  { icon: '🍜', label: '到店自取', color: 'from-orange-400 to-orange-500', action: null },
-                  { icon: '🚚', label: '配送到家', color: 'from-blue-400 to-blue-500', action: null },
-                  { icon: '👥', label: '社区团购', color: 'from-purple-400 to-purple-500', action: null },
-                  { icon: '🛠️', label: '社区服务', color: 'from-teal-400 to-teal-500', action: 'service' },
-                  { icon: '💰', label: '会员码', color: 'from-green-400 to-green-500', action: null },
-                ].map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={() => item.action && setActiveTab(item.action as Tab)}
-                    className="flex flex-col items-center"
+                  { icon: '🧴', label: '生活日用', color: 'from-pink-100 to-pink-200' },
+                  { icon: '🍳', label: '家居厨具', color: 'from-amber-100 to-amber-200' },
+                  { icon: '🍜', label: '熟食速食', color: 'from-orange-100 to-orange-200' },
+                  { icon: '🥤', label: '夏日饮品', color: 'from-cyan-100 to-cyan-200' },
+                  { icon: '🛠️', label: '五金文具', color: 'from-gray-100 to-gray-200' },
+                  { icon: '🧴', label: '个人护理', color: 'from-rose-100 to-rose-200' },
+                ].map((cat, i) => (
+                  <button 
+                    key={i} 
+                    className="flex flex-col items-center gap-2"
+                    onClick={() => { setActiveTab('category'); setSelectedCategory(i + 1); }}
                   >
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center text-2xl shadow-lg mb-1`}>
-                      {item.icon}
+                    <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${cat.color} flex items-center justify-center`}>
+                      <span className="text-3xl">{cat.icon}</span>
                     </div>
-                    <span className="text-xs text-gray-600">{item.label}</span>
+                    <span className="text-sm text-gray-700">{cat.label}</span>
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 排行榜模块 - 绿色主题 */}
+            <div className="bg-white rounded-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-3 flex items-center justify-between">
+                <span className="text-white font-bold text-lg">排行榜</span>
+                <button className="text-white/80 text-sm flex items-center gap-1">
+                  更多
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              {/* 排行榜标签 */}
+              <div className="px-4 pt-3 pb-2 flex gap-3">
+                <button
+                  onClick={() => setRankType('sales')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 transition-all ${
+                    rankType === 'sales' 
+                      ? 'bg-green-50 text-green-600 border-2 border-green-500' 
+                      : 'bg-gray-100 text-gray-500 border-2 border-transparent'
+                  }`}
+                >
+                  🔥 销量榜
+                </button>
+                <button
+                  onClick={() => setRankType('follow')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 transition-all ${
+                    rankType === 'follow' 
+                      ? 'bg-green-50 text-green-600 border-2 border-green-500' 
+                      : 'bg-gray-100 text-gray-500 border-2 border-transparent'
+                  }`}
+                >
+                  🔥 关注榜
+                </button>
+              </div>
+              {/* 排行榜列表 */}
+              <div className="px-4 pb-4 space-y-2">
+                {rankProducts[rankType].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                    <div className={`w-6 h-6 rounded flex items-center justify-center text-sm font-bold ${
+                      i === 0 ? 'bg-red-500 text-white' : i === 1 ? 'bg-orange-500 text-white' : i === 2 ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {i + 1}
+                    </div>
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <span className="text-xl">{item.icon}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-800">{item.name}</p>
+                      <p className="text-xs text-gray-400">{rankType === 'sales' ? `销量 ${item.sales.toLocaleString()}` : `关注 ${item.follow.toLocaleString()}`}</p>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1409,37 +1515,65 @@ export default function MiniStorePage() {
         </div>
       )}
 
-      {/* 底部导航栏 */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t shadow-lg z-40">
+      {/* 底部导航栏 - 参考图风格 */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t z-40 safe-area-inset-bottom">
         <div className="flex">
-          {[
-            { id: 'home', label: '首页', icon: '🏠' },
-            { id: 'category', label: '分类', icon: '📂' },
-            { id: 'service', label: '服务', icon: '🛠️' },
-            { id: 'cart', label: '购物车', icon: '🛒', badge: cartCount },
-            { id: 'my', label: '我的', icon: '👤' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
-              className={`relative flex-1 py-3 flex flex-col items-center gap-1 transition-colors ${
-                activeTab === tab.id ? 'text-blue-600' : 'text-gray-400'
-              }`}
-            >
-              <div className="relative">
-                <span className="text-xl">{tab.icon}</span>
-                {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {tab.badge > 9 ? '9+' : tab.badge}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs">{tab.label}</span>
-              {activeTab === tab.id && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-blue-600 rounded-full" />
-              )}
-            </button>
-          ))}
+          {/* 首页 */}
+          <button
+            onClick={() => setActiveTab('home')}
+            className={`flex-1 py-2.5 flex flex-col items-center gap-1 transition-colors ${
+              activeTab === 'home' ? 'text-red-500' : 'text-gray-500'
+            }`}
+          >
+            <svg className="w-6 h-6" fill={activeTab === 'home' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="text-xs">首页</span>
+          </button>
+
+          {/* 全部分类 */}
+          <button
+            onClick={() => setActiveTab('category')}
+            className={`flex-1 py-2.5 flex flex-col items-center gap-1 transition-colors ${
+              activeTab === 'category' ? 'text-red-500' : 'text-gray-500'
+            }`}
+          >
+            <svg className="w-6 h-6" fill={activeTab === 'category' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            </svg>
+            <span className="text-xs">全部分类</span>
+          </button>
+
+          {/* 购物车 */}
+          <button
+            onClick={() => setActiveTab('cart')}
+            className={`relative flex-1 py-2.5 flex flex-col items-center gap-1 transition-colors ${
+              activeTab === 'cart' ? 'text-red-500' : 'text-gray-500'
+            }`}
+          >
+            <svg className="w-6 h-6" fill={activeTab === 'cart' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            {cartCount > 0 && (
+              <span className="absolute top-1 right-6 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                {cartCount > 9 ? '9+' : cartCount}
+              </span>
+            )}
+            <span className="text-xs">购物车</span>
+          </button>
+
+          {/* 我的 */}
+          <button
+            onClick={() => setActiveTab('my')}
+            className={`flex-1 py-2.5 flex flex-col items-center gap-1 transition-colors ${
+              activeTab === 'my' ? 'text-red-500' : 'text-gray-500'
+            }`}
+          >
+            <svg className="w-6 h-6" fill={activeTab === 'my' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span className="text-xs">我的</span>
+          </button>
         </div>
       </div>
     </div>
