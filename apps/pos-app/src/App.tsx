@@ -12,6 +12,7 @@ import BIPage from './pages/BIPage';
 import StoreOpsPage from './pages/StoreOpsPage';
 import PromotionPage from './pages/PromotionPage';
 import AuthPage from './pages/AuthPage';
+import CustomerDisplay from './pages/CustomerDisplay';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Route path="/mini" element={<MiniStorePage />} />
         <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/customer-display" element={<CustomerDisplay />} />
       </Routes>
     </BrowserRouter>
   );
