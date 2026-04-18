@@ -599,6 +599,10 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       Object.entries(requestBody).forEach(([key, value]) => {
         params.append(key, String(value));
       });
+      // 如果有apiKey也添加到参数中（部分API支持参数方式传递Key）
+      if (enabledConfig.apiKey) {
+        params.append('key', enabledConfig.apiKey);
+      }
       const separator = url.includes('?') ? '&' : '?';
       url = `${url}${separator}${params.toString()}`;
       requestBody = {};
@@ -607,15 +611,18 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     // 构建请求头
     const headers: Record<string, string> = {};
     
-    // 阿里云市场认证：使用 AppCode
-    if (enabledConfig.appCode) {
-      // 阿里云市场标准认证方式 - APPCODE直接放在Authorization头
-      headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
-      headers['Accept'] = 'application/json';
-    } else if (enabledConfig.apiKey) {
-      // 标准 Bearer Token 认证（用于其他API）
+    // API认证方式
+    if (enabledConfig.apiKey) {
+      // 方式1: Bearer Token
       headers['Authorization'] = `Bearer ${enabledConfig.apiKey}`;
-      headers['Content-Type'] = 'application/json';
+      // 方式2: X-Api-Key (当前API使用)
+      headers['X-Api-Key'] = enabledConfig.apiKey;
+      headers['Accept'] = 'application/json';
+    }
+    
+    if (enabledConfig.appCode) {
+      // 阿里云市场 APPCODE 认证
+      headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
     }
     
     if (enabledConfig.appSecret) {
