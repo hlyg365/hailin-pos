@@ -115,23 +115,49 @@ export default function DashboardPage() {
   
   // 采购入库-扫码识别
   const [scanResult, setScanResult] = useState<{ barcode: string; name?: string; price?: number; costPrice?: number; success?: boolean; error?: string } | null>(null);
+  const [importQuantity, setImportQuantity] = useState<number>(1); // 入库数量
+  const [purchasePrice, setPurchasePrice] = useState<number>(0); // 采购价
+  
   const handleImportAiScan = async (barcode: string) => {
     if (!barcode) return;
     setScanResult({ barcode, success: false, error: '' });
     setImport识别中(true);
+    setImportQuantity(1); // 重置数量
     
     const aiConfig = useAiConfigStore.getState();
     const result = await aiConfig.aiScanByBarcode(barcode);
     
-    if (result.success && result.name && result.retailPrice) {
-      // 识别成功
-      setScanResult({ barcode, name: result.name, price: result.retailPrice, costPrice: result.costPrice, success: true });
+    if (result.success && result.name) {
+      // 识别成功，自动填充采购价（优先使用costPrice，否则用retailPrice）
+      const costPrice = result.costPrice || result.retailPrice || 0;
+      setPurchasePrice(costPrice);
+      setScanResult({ barcode, name: result.name, price: result.retailPrice || 0, costPrice: costPrice, success: true });
     } else {
       // 识别失败
+      setPurchasePrice(0);
       setScanResult({ barcode, success: false, error: result.message || 'AI识别失败，请手动输入商品信息' });
-      alert(result.message || 'AI识别失败，请手动输入商品信息');
     }
     setImport识别中(false);
+  };
+  
+  // 添加到入库列表
+  const handleAddToImportList = () => {
+    if (!scanResult?.success || !scanResult.barcode) return;
+    
+    const newProduct = {
+      barcode: scanResult.barcode,
+      name: scanResult.name || '',
+      category: '食品',
+      price: purchasePrice, // 采购价作为入库价
+      costPrice: purchasePrice,
+      quantity: importQuantity,
+      purchaseOrderId: `PO${Date.now()}`, // 采购单号
+    };
+    
+    setImportedProducts([...importedProducts, newProduct]);
+    setScanResult(null);
+    setImportQuantity(1);
+    setPurchasePrice(0);
   };
   
   // 同步小程序设置
@@ -2504,17 +2530,55 @@ export default function DashboardPage() {
                   {scanResult && (
                     scanResult.success ? (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between mb-3">
                         <div>
                           <p className="font-medium text-green-800 flex items-center gap-2">
                             <span>✅</span> {scanResult.name}
                           </p>
                           <p className="text-sm text-green-600">条码: {scanResult.barcode}</p>
-                          {scanResult.price && <p className="text-sm text-green-600">零售价: ¥{scanResult.price}</p>}
+                          {scanResult.price > 0 && <p className="text-sm text-green-600">参考零售价: ¥{scanResult.price.toFixed(2)}</p>}
                         </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => { setShowAddProductModal(true); setNewProductForm({ name: scanResult.name || '', barcode: scanResult.barcode, category: '食品', retailPrice: scanResult.price || 0, costPrice: scanResult.costPrice || 0, supplier: '' }); setScanResult(null); }} className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">添加到商品库</button>
-                          <button onClick={() => setScanResult(null)} className="px-3 py-1 border rounded text-sm hover:bg-gray-50">清除</button>
+                        <button onClick={() => setScanResult(null)} className="px-3 py-1 border rounded text-sm hover:bg-gray-50">清除</button>
+                      </div>
+                      
+                      {/* 采购入库信息输入 */}
+                      <div className="bg-white rounded-lg p-4 border border-green-200">
+                        <h4 className="font-medium text-gray-700 mb-3">📦 填写入库信息</h4>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">采购单价(元)</label>
+                            <input 
+                              type="number" 
+                              value={purchasePrice || ''} 
+                              onChange={(e) => setPurchasePrice(parseFloat(e.target.value) || 0)}
+                              placeholder="0.00"
+                              className="w-full px-3 py-2 border rounded-lg text-center font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">入库数量</label>
+                            <input 
+                              type="number" 
+                              value={importQuantity} 
+                              onChange={(e) => setImportQuantity(parseInt(e.target.value) || 1)}
+                              min={1}
+                              className="w-full px-3 py-2 border rounded-lg text-center font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">金额(元)</label>
+                            <div className="px-3 py-2 bg-gray-100 rounded-lg text-center font-bold text-red-600">
+                              ¥{(purchasePrice * importQuantity).toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="flex items-end">
+                            <button 
+                              onClick={handleAddToImportList}
+                              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                            >
+                              + 添加到入库单
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2556,8 +2620,8 @@ export default function DashboardPage() {
                   {/* 已扫描商品列表 */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium">已扫描商品 ({importedProducts.length})</h4>
-                      <button className="text-sm text-red-600 hover:text-red-800">清空列表</button>
+                      <h4 className="font-medium">入库清单 ({importedProducts.length})</h4>
+                      <button onClick={() => setImportedProducts([])} className="text-sm text-red-600 hover:text-red-800">清空列表</button>
                     </div>
                     
                     <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -2567,26 +2631,40 @@ export default function DashboardPage() {
                           <p>扫描条码开始录入商品</p>
                         </div>
                       ) : (
-                        importedProducts.map((product, index) => (
-                          <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border hover:border-green-400 transition">
-                            <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center text-2xl">📦</div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium">{product.name}</p>
-                                <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded">{product.category}</span>
-                              </div>
-                              <p className="text-sm text-gray-500 font-mono">{product.barcode}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-bold text-red-600">¥{product.price.toFixed(2)}</p>
-                              <p className="text-xs text-gray-500">进价: ¥{product.costPrice.toFixed(2)}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input type="number" defaultValue={product.quantity} className="w-16 px-2 py-1 border rounded text-center text-sm" />
-                              <button className="text-red-500 hover:text-red-700">×</button>
-                            </div>
+                        <div className="border rounded-lg overflow-hidden">
+                          {/* 表头 */}
+                          <div className="grid grid-cols-12 gap-2 p-3 bg-gray-100 text-xs font-medium text-gray-600">
+                            <div className="col-span-1">采购单号</div>
+                            <div className="col-span-3">商品信息</div>
+                            <div className="col-span-2 text-right">条码</div>
+                            <div className="col-span-2 text-right">采购价</div>
+                            <div className="col-span-1 text-center">数量</div>
+                            <div className="col-span-2 text-right">金额</div>
+                            <div className="col-span-1 text-center">操作</div>
                           </div>
-                        ))
+                          {/* 表体 */}
+                          {importedProducts.map((product, index) => (
+                            <div key={index} className="grid grid-cols-12 gap-2 p-3 border-t hover:bg-gray-50 items-center text-sm">
+                              <div className="col-span-1 text-xs text-gray-500 font-mono">{product.purchaseOrderId}</div>
+                              <div className="col-span-3">
+                                <p className="font-medium truncate">{product.name}</p>
+                                <p className="text-xs text-gray-500">{product.category}</p>
+                              </div>
+                              <div className="col-span-2 text-right font-mono text-xs">{product.barcode}</div>
+                              <div className="col-span-2 text-right font-bold text-orange-600">¥{product.price.toFixed(2)}</div>
+                              <div className="col-span-1 text-center">{product.quantity}</div>
+                              <div className="col-span-2 text-right font-bold text-red-600">¥{(product.price * product.quantity).toFixed(2)}</div>
+                              <div className="col-span-1 text-center">
+                                <button 
+                                  onClick={() => setImportedProducts(importedProducts.filter((_, i) => i !== index))}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2608,11 +2686,26 @@ export default function DashboardPage() {
                       <span className="font-bold text-xl">{importedProducts.reduce((sum, p) => sum + p.quantity, 0)}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-500 text-sm">预估金额</span>
-                      <span className="font-bold text-xl text-red-600">¥{importedProducts.reduce((sum, p) => sum + p.costPrice * p.quantity, 0).toFixed(2)}</span>
+                      <span className="text-gray-500 text-sm">采购单数</span>
+                      <span className="font-bold text-xl">{importedProducts.length > 0 ? 1 : 0}</span>
+                    </div>
+                    <div className="border-t pt-3 flex justify-between items-center">
+                      <span className="text-gray-700 font-medium">总金额</span>
+                      <span className="font-bold text-xl text-red-600">¥{importedProducts.reduce((sum, p) => sum + p.price * p.quantity, 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
+                
+                {/* 确认入库按钮 */}
+                {importedProducts.length > 0 && (
+                  <div className="bg-white rounded-xl p-4 shadow-sm border-2 border-green-200">
+                    <h4 className="font-semibold mb-3 text-green-700">确认入库</h4>
+                    <button className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
+                      确认提交入库单
+                    </button>
+                    <p className="text-xs text-gray-500 mt-2 text-center">入库后将自动更新库存</p>
+                  </div>
+                )}
                 
                 {/* AI配置 */}
                 <div className="bg-white rounded-xl p-4 shadow-sm">
