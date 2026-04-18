@@ -582,7 +582,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
   // 遍历所有启用的配置
   for (const { config, index } of enabledConfigs) {
     // 检查是否配置了必要的认证信息
-    if (!config.apiUrl) {
+    if (!config.apiUrl || !config.apiUrl.startsWith('http')) {
       lastError = '请先配置API接口地址';
       continue;
     }
