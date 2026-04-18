@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const [import识别中, setImport识别中] = useState(false);
   
   // 添加商品到商品库
-  const { addProduct } = useProductStore();
+  const { products, addProduct } = useProductStore();
   
   const handleAddProduct = () => {
     if (!newProductForm.name || !newProductForm.barcode) {

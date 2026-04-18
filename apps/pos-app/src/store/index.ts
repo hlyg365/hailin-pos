@@ -609,11 +609,8 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     
     // 阿里云市场认证：使用 AppCode
     if (enabledConfig.appCode) {
-      // 阿里云市场标准认证方式
+      // 阿里云市场标准认证方式 - APPCODE直接放在Authorization头
       headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
-      // 部分阿里云API需要这些header
-      headers['X-Code'] = enabledConfig.appCode;
-      headers['Code'] = enabledConfig.appCode;
       headers['Accept'] = 'application/json';
     } else if (enabledConfig.apiKey) {
       // 标准 Bearer Token 认证（用于其他API）
@@ -718,18 +715,19 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 
 const defaultAiConfig: AiBarcodeConfig = {
   enabled: true,
-  apiUrl: 'https://api.hailin.com/ai/barcode',
+  apiUrl: 'https://tsbarcode.market.alicloudapi.com/barcode/index',
   apiKey: '',
-  appCode: '',
+  appCode: 'e7da9411607e41a09006198dfcfe5ff',
   appSecret: '',
-  method: 'POST',
-  timeout: 3,
-  requestTemplate: '{"barcode": "${barcode}", "store_id": "${store_id}"}',
+  method: 'GET',
+  timeout: 5,
+  requestTemplate: '{"barcode": "${barcode}"}',
   responseMapping: {
-    name: 'name',
-    category: 'category',
+    name: 'goods_name',
+    category: 'category_name',
     price: 'price',
-    costPrice: 'cost_price',
+    costPrice: '',
+    image: 'image',
   },
   lastTestResult: null,
 };
