@@ -247,6 +247,11 @@ export default function CashierPage() {
   useEffect(() => {
     if (deviceConfig.autoConnect) {
       connectDevices();
+      
+      // 如果客显屏未打开，尝试打开
+      if (!deviceStatuses.customerDisplay.connected) {
+        deviceManager.openCustomerDisplay();
+      }
     }
     
     // 定时刷新设备状态
@@ -267,8 +272,8 @@ export default function CashierPage() {
     if (exact) {
       addItem(exact, 1);
       setAiScanResult(null);
-      const currentTotal = useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0);
-      deviceManager.customerDisplay?.showWaiting?.(currentTotal + exact.retailPrice);
+      // 更新客显屏显示商品信息
+      deviceManager.customerDisplay.showProduct(exact.name, exact.retailPrice);
       return;
     }
     
@@ -403,29 +408,29 @@ export default function CashierPage() {
       
       // 2. 现金支付时打开钱箱
       if (selectedPay === 'cash') {
-        const drawerOpened = await deviceManager.cashDrawer?.open();
+        const drawerOpened = await deviceManager.openCashDrawer();
         if (!drawerOpened) {
           console.warn('[Cashier] 钱箱未能打开，请检查硬件连接');
         }
       }
       
       // 3. 打印小票（如果打印机已连接）
-      if (deviceManager.receiptPrinter?.status?.connected) {
-        await deviceManager.receiptPrinter.printReceipt({
+      if (deviceStatuses.printer.connected) {
+        await deviceManager.printReceipt({
           orderNo: order.orderNo,
           storeName: currentStore?.name || '海邻到家',
-          items: order.items.map(i => ({ name: i.productName, qty: i.quantity, price: i.unitPrice })),
+          items: order.items.map(i => ({ name: i.productName, qty: i.quantity, price: i.unitPrice, total: i.subtotal })),
           total: order.finalAmount,
-          payMethod: getPayMethodName(selectedPay),
-          cashier: '收银员',
-          time: new Date(order.paidAt).toLocaleString('zh-CN'),
+          paymentMethod: getPayMethodName(selectedPay),
+          memberInfo: currentMember ? `会员: ${currentMember.name} (${currentMember.level})` : undefined,
+          datetime: new Date(order.paidAt).toLocaleString('zh-CN'),
         });
       } else {
         console.log('[Cashier] 小票打印机未连接，跳过打印');
       }
       
-      // 4. 更新客显屏
-      deviceManager.customerDisplay?.showPaid(order.finalAmount);
+      // 4. 更新客显屏 - 显示收款成功
+      deviceManager.customerDisplay.updateDisplay({ mode: 'paid', amount: order.finalAmount });
       
       // 完成
       setShowPayModal(false);
@@ -433,7 +438,7 @@ export default function CashierPage() {
       clearCart();
       setTimeout(() => {
         setShowSuccess(false);
-        deviceManager.customerDisplay?.showWelcome();
+        deviceManager.customerDisplay.updateDisplay({ mode: 'welcome' });
       }, 3000);
     } catch (error) {
       console.error('[Cashier] 支付处理失败:', error);
@@ -498,6 +503,10 @@ export default function CashierPage() {
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             <span className="hidden sm:inline">设备</span>
           </button>
+          <Link to="/settings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+            <span className="hidden sm:inline">设置</span>
+          </Link>
         </div>
       </div>
 

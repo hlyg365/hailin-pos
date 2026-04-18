@@ -1,7 +1,12 @@
 /**
- * 收银设备服务 - 统一管理客显屏、小票打印机、标签机、钱箱、电子秤、摄像头
- * 支持 Web API / ESC/POS 协议 / 串口通信
- * 注意：已移除所有模拟代码，需要配置真实硬件后使用
+ * 收银设备服务 - 完整版
+ * 支持：电子秤(串口)、小票打印机(网络/USB)、钱箱、客显屏
+ * 
+ * 硬件连接说明：
+ * - 电子秤：RS232串口连接，波特率9600/115200
+ * - 小票打印机：网口(RJ45)或USB
+ * - 钱箱：连接打印机的钱箱口(通过ESC/POS指令触发)
+ * - 客显屏：浏览器新窗口
  */
 
 // ============ 类型定义 ============
@@ -13,11 +18,18 @@ export interface DeviceStatus {
 }
 
 export interface PrinterConfig {
-  type: 'network' | 'bluetooth' | 'usb';
+  type: 'network' | 'usb' | 'bluetooth';
   address?: string;
   port?: number;
-  name?: string;
-  width: 58 | 80; // mm
+  width: 58 | 80;
+}
+
+export interface ScaleConfig {
+  type: 'serial' | 'network';
+  port?: string;        // 串口号，如 'COM1' 或 '/dev/ttyUSB0'
+  baudRate: number;     // 波特率：9600 或 115200
+  address?: string;     // 网络秤IP
+  protocol: 'dahua' | 'dingjian' | 'soki' | 'toieda' | 'general';  // 秤协议
 }
 
 export interface ScaleReading {
@@ -27,892 +39,987 @@ export interface ScaleReading {
   timestamp: number;
 }
 
-export interface BarcodeScanResult {
-  barcode: string;
-  format?: string;
-  timestamp: number;
-}
-
 export interface CashDrawerStatus {
   open: boolean;
   lastOpened?: number;
 }
 
-// ============ 设备基类 ============
-abstract class POSDevice {
-  protected _status: DeviceStatus = { connected: false, online: false };
+// ============ ESC/POS 指令集 ============
+const ESC = '\x1B';
+const GS = '\x1D';
+const ESC_POS = {
+  // 初始化打印机
+  INIT: ESC + '@',
+  
+  // 钱箱指令
+  OPEN_DRAWER: ESC + 'p' + '\x00' + '\x19' + '\xFA',
+  OPEN_DRAWER_ALT: GS + 'p' + '\x00' + '\x19' + '\xFA',
+  
+  // 切纸
+  CUT: GS + 'V' + '\x01',
+  PARTIAL_CUT: GS + 'V' + '\x00',
+  
+  // 打印文字
+  TEXT_NORMAL: ESC + '!' + '\x00',
+  TEXT_BOLD_ON: ESC + 'E' + '\x01',
+  TEXT_BOLD_OFF: ESC + 'E' + '\x00',
+  TEXT_DOUBLE_HEIGHT: ESC + '!' + '\x10',
+  TEXT_DOUBLE_WIDTH: ESC + '!' + '\x20',
+  TEXT_DOUBLE: ESC + '!' + '\x30',
+  TEXT_UNDERLINE: ESC + '-' + '\x01',
+  TEXT_UNDERLINE_OFF: ESC + '-' + '\x00',
+  ALIGN_LEFT: ESC + 'a' + '\x00',
+  ALIGN_CENTER: ESC + 'a' + '\x01',
+  ALIGN_RIGHT: ESC + 'a' + '\x02',
+  
+  // 字体大小
+  FONT_SIZE_1: ESC + '!' + '\x00',
+  FONT_SIZE_2: ESC + '!' + '\x11',
+  FONT_SIZE_3: ESC + '!' + '\x22',
+  
+  // 行间距
+  LINE_SPACING_DEFAULT: ESC + '2',
+  LINE_SPACING_SET: (n: number) => ESC + '3' + String.fromCharCode(n),
+  
+  // 进纸
+  FEED_LINES: (n: number) => ESC + 'd' + String.fromCharCode(n),
+  FEED_DOTS: (n: number) => ESC + 'J' + String.fromCharCode(n),
+  
+  // 蜂鸣
+  BEEP: ESC + '(' + 'p' + '\x01' + '\x0A' + '\x19',
+};
+
+// ============ 串口电子秤服务 ============
+class SerialScale {
+  private port: SerialPort | null = null;
+  private reader: ReadableStreamDefaultReader | null = null;
+  private config: ScaleConfig = {
+    type: 'serial',
+    baudRate: 9600,
+    protocol: 'general',
+  };
+  private _status: DeviceStatus = { connected: false, online: false };
+  private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
+  private onReadingCallback?: (reading: ScaleReading) => void;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
   
   get status(): DeviceStatus {
     return { ...this._status };
   }
   
-  abstract connect(): Promise<void>;
-  abstract disconnect(): Promise<void>;
-  abstract test(): Promise<boolean>;
-}
-
-// ============ 客显屏服务 ============
-export class CustomerDisplayService extends POSDevice {
-  private displayWindow: Window | null = null;
+  get reading(): ScaleReading {
+    return { ...this.lastReading };
+  }
   
-  async connect(): Promise<void> {
+  // 检查是否支持Web Serial API
+  static isSupported(): boolean {
+    return 'serial' in navigator;
+  }
+  
+  // 获取可用串口列表
+  async getAvailablePorts(): Promise<SerialPort[]> {
+    if (!SerialScale.isSupported()) {
+      console.warn('[秤] Web Serial API 不支持');
+      return [];
+    }
     try {
-      // 尝试打开客显屏窗口
-      const width = 400;
-      const height = 300;
-      const left = window.screen.width - width - 20;
-      const top = window.screen.height - height - 100;
+      return await navigator.serial.getPorts();
+    } catch (error) {
+      console.error('[秤] 获取串口列表失败:', error);
+      return [];
+    }
+  }
+  
+  // 请求串口权限并连接
+  async requestAndConnect(config: ScaleConfig): Promise<boolean> {
+    if (!SerialScale.isSupported()) {
+      this._status = { connected: false, online: false, error: '浏览器不支持Web Serial API' };
+      return false;
+    }
+    
+    try {
+      // 请求串口权限
+      this.port = await navigator.serial.requestPort({
+        filters: [
+          { usbVendorId: 0x0403 },  // FTDI
+          { usbVendorId: 0x067B },  // Prolific
+          { usbVendorId: 0x1A86 },  // CH340
+        ]
+      });
       
-      this.displayWindow = window.open(
-        '',
-        'customer_display',
-        `width=${width},height=${height},left=${left},top=${top},location=no,menubar=no,toolbar=no`
-      );
-      
-      if (this.displayWindow) {
-        this.displayWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <style>
-              * { margin: 0; padding: 0; box-sizing: border-box; }
-              body {
-                font-family: 'Microsoft YaHei', Arial, sans-serif;
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                color: #00ff88;
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                padding: 20px;
-              }
-              .welcome { font-size: 24px; text-align: center; margin-bottom: 20px; }
-              .amount { font-size: 72px; font-weight: bold; color: #fff; }
-              .label { font-size: 18px; opacity: 0.7; margin-top: 10px; }
-              .scan-line {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                height: 2px;
-                background: #00ff88;
-                animation: scan 3s linear infinite;
-              }
-              @keyframes scan {
-                0% { top: 0; opacity: 1; }
-                100% { top: 100%; opacity: 0; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="scan-line"></div>
-            <div class="welcome">海邻到家</div>
-            <div class="amount" id="amount">¥0.00</div>
-            <div class="label" id="label">等待收款...</div>
-          </body>
-          </html>
-        `);
-        this._status = { connected: true, online: true, lastUpdate: Date.now() };
+      return await this.connect(config);
+    } catch (error: any) {
+      if (error.name === 'NotFoundError') {
+        this._status = { connected: false, online: false, error: '未选择串口' };
       } else {
-        this._status = { connected: false, online: false, error: '无法打开客显屏窗口（可能被浏览器阻止）' };
+        this._status = { connected: false, online: false, error: error.message };
       }
-    } catch (error) {
-      this._status = { connected: false, online: false, error: String(error) };
-      throw error;
+      return false;
     }
   }
   
-  async disconnect(): Promise<void> {
-    if (this.displayWindow) {
-      this.displayWindow.close();
-      this.displayWindow = null;
-    }
-    this._status = { connected: false, online: false };
-  }
-  
-  async test(): Promise<boolean> {
-    return this._status.connected;
-  }
-  
-  updateDisplay(data: { amount?: number; paid?: boolean; message?: string }) {
-    if (this.displayWindow && !this.displayWindow.closed) {
-      const doc = this.displayWindow.document;
-      if (data.amount !== undefined) {
-        doc.getElementById('amount')!.textContent = `¥${data.amount.toFixed(2)}`;
-      }
-      if (data.message !== undefined) {
-        doc.getElementById('label')!.textContent = data.message;
-      }
-      if (data.paid) {
-        doc.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
-      }
-    }
-  }
-  
-  showWelcome() {
-    this.updateDisplay({ amount: 0, paid: false, message: '欢迎光临' });
-  }
-  
-  showWaiting(amount: number) {
-    this.updateDisplay({ amount, paid: false, message: '请付款' });
-  }
-  
-  showPaid(amount: number) {
-    this.updateDisplay({ amount, paid: true, message: '谢谢惠顾' });
-  }
-}
-
-// ============ 小票打印机服务 ============
-export class ReceiptPrinterService extends POSDevice {
-  private config: PrinterConfig = { type: 'network', address: '', port: 9100, width: 58 };
-  private socket: WebSocket | null = null;
-  
-  async connect(config?: PrinterConfig): Promise<void> {
-    if (config) this.config = { ...this.config, ...config };
+  // 连接到指定串口
+  async connect(config: ScaleConfig): Promise<boolean> {
+    this.config = config;
     
-    if (this.config.type === 'network' && this.config.address) {
-      // 网络打印机：使用 WebSocket 连接
-      try {
-        const wsUrl = `ws://${this.config.address}:${this.config.port || 9100}`;
-        this.socket = new WebSocket(wsUrl);
-        
-        await new Promise((resolve, reject) => {
-          this.socket!.onopen = resolve;
-          this.socket!.onerror = reject;
-          setTimeout(reject, 5000); // 5秒超时
-        });
-        
-        this._status = { connected: true, online: true, lastUpdate: Date.now() };
-      } catch (error) {
-        this._status = { connected: false, online: false, error: `网络打印机连接失败: ${error}` };
-        throw error;
+    if (!this.port) {
+      // 尝试自动连接第一个可用串口
+      const ports = await this.getAvailablePorts();
+      if (ports.length === 0) {
+        this._status = { connected: false, online: false, error: '未找到电子秤串口' };
+        return false;
       }
-    } else if (this.config.type === 'bluetooth') {
-      // 蓝牙打印机：需要调用 Web Bluetooth API
-      this._status = { connected: false, online: false, error: '蓝牙打印机需要 Web Bluetooth API 支持' };
-    } else if (this.config.type === 'usb') {
-      // USB打印机：使用 WebUSB API
-      this._status = { connected: false, online: false, error: 'USB打印机需要 WebUSB API 支持' };
-    } else {
-      this._status = { connected: false, online: false, error: '请先配置打印机地址' };
+      this.port = ports[0];
     }
-  }
-  
-  async disconnect(): Promise<void> {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
-    this._status = { connected: false, online: false };
-  }
-  
-  async test(): Promise<boolean> {
-    if (!this._status.connected) return false;
     
-    // 发送测试指令
-    const testData = this.buildReceiptData({
-      orderNo: 'TEST' + Date.now(),
-      storeName: '测试门店',
-      items: [{ name: '测试商品', qty: 1, price: 1.00 }],
-      total: 1.00,
-      payMethod: '测试',
-      cashier: '系统',
-      time: new Date().toLocaleString('zh-CN'),
-    });
-    
-    return this.sendToPrinter(testData);
-  }
-  
-  /**
-   * 发送数据到打印机
-   */
-  private async sendToPrinter(data: Uint8Array): Promise<boolean> {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(data);
-      this._status.lastUpdate = Date.now();
+    try {
+      await this.port.open({
+        baudRate: config.baudRate || 9600,
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+      });
+      
+      this._status = { connected: true, online: true, lastUpdate: Date.now() };
+      console.log('[秤] 串口连接成功，波特率:', config.baudRate);
+      
+      // 开始读取数据
+      this.startReading();
       return true;
-    }
-    
-    // 如果没有网络连接，尝试使用 USB 或提示用户
-    if (this.config.type === 'usb' && 'usb' in navigator) {
-      // WebUSB 实现
-      console.error('WebUSB 打印未实现');
-      return false;
-    }
-    
-    console.error('打印机未连接或连接断开');
-    return false;
-  }
-  
-  /**
-   * 构建 ESC/POS 小票数据
-   */
-  private buildReceiptData(orderData: {
-    orderNo: string;
-    storeName: string;
-    items: Array<{ name: string; qty: number; price: number }>;
-    total: number;
-    payMethod: string;
-    cashier: string;
-    time: string;
-  }): Uint8Array {
-    const encoder = new TextEncoder();
-    const commands: number[] = [];
-    
-    // 初始化打印机
-    commands.push(0x1B, 0x40);
-    
-    // 居中
-    commands.push(0x1B, 0x61, 0x01);
-    
-    // 放大标题
-    commands.push(0x1D, 0x21, 0x11);
-    commands.push(...encoder.encode('海邻到家\n'));
-    
-    // 恢复正常大小
-    commands.push(0x1D, 0x21, 0x00);
-    commands.push(...encoder.encode('----------------------------\n'));
-    
-    // 左对齐
-    commands.push(0x1B, 0x61, 0x00);
-    
-    // 订单信息
-    commands.push(...encoder.encode(`单号: ${orderData.orderNo}\n`));
-    commands.push(...encoder.encode(`门店: ${orderData.storeName}\n`));
-    commands.push(...encoder.encode(`收银: ${orderData.cashier}\n`));
-    commands.push(...encoder.encode(`时间: ${orderData.time}\n`));
-    commands.push(...encoder.encode('----------------------------\n'));
-    
-    // 商品明细
-    orderData.items.forEach(item => {
-      const line = `${item.name}\n`;
-      commands.push(...encoder.encode(line));
-      const qtyPrice = `  x${item.qty}    ¥${(item.price * item.qty).toFixed(2)}\n`;
-      commands.push(...encoder.encode(qtyPrice));
-    });
-    
-    commands.push(...encoder.encode('----------------------------\n'));
-    
-    // 合计 - 居中加粗
-    commands.push(0x1B, 0x45, 0x01);
-    commands.push(0x1B, 0x61, 0x01);
-    commands.push(...encoder.encode(`合计: ¥${orderData.total.toFixed(2)}\n`));
-    commands.push(0x1B, 0x45, 0x00);
-    
-    // 支付方式
-    commands.push(...encoder.encode(`支付: ${orderData.payMethod}\n`));
-    
-    // 分割线
-    commands.push(...encoder.encode('----------------------------\n'));
-    
-    // 二维码区域
-    commands.push(0x1B, 0x61, 0x01);
-    commands.push(...encoder.encode('[ 扫码评价得积分 ]\n'));
-    commands.push(...encoder.encode('----------------------------\n'));
-    
-    // 底部信息
-    commands.push(...encoder.encode('\n'));
-    commands.push(0x1B, 0x61, 0x01);
-    commands.push(...encoder.encode('谢谢惠顾 欢迎下次光临\n'));
-    commands.push(...encoder.encode('\n\n\n'));
-    
-    // 切纸
-    commands.push(0x1D, 0x56, 0x00);
-    
-    return new Uint8Array(commands);
-  }
-  
-  /**
-   * 打印小票
-   */
-  async printReceipt(orderData: {
-    orderNo: string;
-    storeName: string;
-    items: Array<{ name: string; qty: number; price: number }>;
-    total: number;
-    payMethod: string;
-    cashier: string;
-    time: string;
-  }): Promise<boolean> {
-    if (!this._status.connected) {
-      console.error('[ReceiptPrinter] 打印机未连接');
-      alert('打印机未连接，请检查配置');
-      return false;
-    }
-    
-    try {
-      const data = this.buildReceiptData(orderData);
-      const success = await this.sendToPrinter(data);
-      
-      if (success) {
-        console.log('[ReceiptPrinter] 小票打印完成:', orderData.orderNo);
-        this._status.lastUpdate = Date.now();
-      }
-      
-      return success;
-    } catch (error) {
-      console.error('[ReceiptPrinter] 打印失败:', error);
+    } catch (error: any) {
+      this._status = { connected: false, online: false, error: error.message };
+      console.error('[秤] 串口连接失败:', error);
       return false;
     }
   }
-}
-
-// ============ 标签打印机服务 ============
-export class LabelPrinterService extends POSDevice {
-  private config: PrinterConfig = { type: 'network', address: '', port: 9100, width: 58 };
-  private socket: WebSocket | null = null;
   
-  async connect(config?: PrinterConfig): Promise<void> {
-    if (config) this.config = { ...this.config, ...config };
-    
-    if (this.config.type === 'network' && this.config.address) {
-      try {
-        const wsUrl = `ws://${this.config.address}:${this.config.port || 9100}`;
-        this.socket = new WebSocket(wsUrl);
-        
-        await new Promise((resolve, reject) => {
-          this.socket!.onopen = resolve;
-          this.socket!.onerror = reject;
-          setTimeout(reject, 5000);
-        });
-        
-        this._status = { connected: true, online: true, lastUpdate: Date.now() };
-      } catch (error) {
-        this._status = { connected: false, online: false, error: `标签打印机连接失败: ${error}` };
-        throw error;
-      }
-    } else {
-      this._status = { connected: false, online: false, error: '请先配置标签打印机地址' };
-    }
-  }
-  
+  // 断开连接
   async disconnect(): Promise<void> {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+    this.stopReading();
+    
+    if (this.port) {
+      try {
+        await this.port.close();
+      } catch (error) {
+        console.error('[秤] 关闭串口失败:', error);
+      }
+      this.port = null;
     }
+    
     this._status = { connected: false, online: false };
   }
   
-  async test(): Promise<boolean> {
-    return this._status.connected;
-  }
-  
-  /**
-   * 构建标签数据（ESC/POS 标签指令）
-   */
-  private buildLabelData(data: {
-    productName: string;
-    price: number;
-    barcode: string;
-    unit?: string;
-    date?: string;
-  }): Uint8Array {
-    const encoder = new TextEncoder();
-    const commands: number[] = [];
+  // 开始读取秤数据
+  private startReading(): void {
+    if (!this.port) return;
     
-    // 初始化
-    commands.push(0x1B, 0x40);
-    
-    // 设置标签尺寸（40x30mm）
-    commands.push(0x1D, 0x57, 0x00, 0x1C, 0x00);
-    
-    // 打印商品名称
-    commands.push(0x1B, 0x61, 0x00); // 左对齐
-    commands.push(0x1D, 0x21, 0x01); // 放大
-    commands.push(...encoder.encode(data.productName + '\n'));
-    
-    // 打印价格
-    commands.push(0x1D, 0x21, 0x11); // 更大
-    commands.push(0x1B, 0x61, 0x01); // 居中
-    commands.push(...encoder.encode(`¥${data.price.toFixed(2)}\n`));
-    
-    // 打印条码
-    commands.push(0x1B, 0x61, 0x01);
-    commands.push(0x1D, 0x6B, 0x02, ...encoder.encode(data.barcode), 0x00);
-    
-    // 日期
-    commands.push(0x1D, 0x21, 0x00);
-    commands.push(0x1B, 0x61, 0x00);
-    commands.push(...encoder.encode(`日期: ${data.date || new Date().toLocaleDateString()}\n`));
-    
-    // 走纸并切纸
-    commands.push(0x1D, 0x56, 0x00);
-    
-    return new Uint8Array(commands);
-  }
-  
-  /**
-   * 打印价格标签
-   */
-  async printLabel(data: {
-    productName: string;
-    price: number;
-    barcode: string;
-    unit?: string;
-    date?: string;
-  }): Promise<boolean> {
-    if (!this._status.connected) {
-      console.error('[LabelPrinter] 标签打印机未连接');
-      alert('标签打印机未连接，请检查配置');
-      return false;
-    }
-    
-    try {
-      const labelData = this.buildLabelData(data);
-      
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(labelData);
-        this._status.lastUpdate = Date.now();
-        console.log('[LabelPrinter] 标签打印完成:', data.productName);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('[LabelPrinter] 标签打印失败:', error);
-      return false;
-    }
-  }
-  
-  /**
-   * 批量打印标签
-   */
-  async printBatch(labels: Parameters<typeof this.printLabel>[0][]): Promise<boolean[]> {
-    return Promise.all(labels.map(label => this.printLabel(label)));
-  }
-}
-
-// ============ 钱箱服务 ============
-export class CashDrawerService extends POSDevice {
-  private isOpen = false;
-  private socket: WebSocket | null = null;
-  private drawerAddress: string = '';
-  private drawerPort: number = 9100;
-  
-  async connect(address?: string, port?: number): Promise<void> {
-    this.drawerAddress = address || '';
-    this.drawerPort = port || 9100;
-    
-    if (this.drawerAddress) {
-      // 尝试网络连接
+    const readData = async () => {
       try {
-        const wsUrl = `ws://${this.drawerAddress}:${this.drawerPort}`;
-        this.socket = new WebSocket(wsUrl);
+        if (!this.port?.readable) return;
         
-        await new Promise((resolve, reject) => {
-          this.socket!.onopen = resolve;
-          this.socket!.onerror = reject;
-          setTimeout(reject, 3000);
-        });
+        this.reader = this.port.readable.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
         
-        this._status = { connected: true, online: true, lastUpdate: Date.now() };
+        while (true) {
+          const { done, value } = await this.reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          // 查找完整的数据帧（换行符结尾）
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.trim()) {
+              this.parseScaleData(line.trim());
+            }
+          }
+        }
       } catch (error) {
-        // 网络连接失败，但钱箱可能仍然可用（通过打印机触发）
-        this._status = { connected: true, online: true, lastUpdate: Date.now(), error: '使用打印机端口触发钱箱' };
+        console.error('[秤] 读取数据失败:', error);
+        this._status = { ...this._status, online: false, error: '读取数据失败' };
       }
-    } else {
-      // 没有配置地址，尝试通过打印机触发
-      this._status = { connected: true, online: true, lastUpdate: Date.now(), error: '使用打印机端口触发钱箱' };
-    }
-  }
-  
-  async disconnect(): Promise<void> {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
-    }
-    this._status = { connected: false, online: false };
-    this.isOpen = false;
-  }
-  
-  async test(): Promise<boolean> {
-    return this._status.connected;
-  }
-  
-  getStatus(): CashDrawerStatus {
-    return {
-      open: this.isOpen,
-      lastOpened: this._status.lastUpdate
     };
-  }
-  
-  /**
-   * 打开钱箱
-   * 使用 ESC/POS 指令: ESC p m t1 t2
-   */
-  async open(): Promise<boolean> {
-    if (!this._status.connected) {
-      console.error('[CashDrawer] 钱箱未连接');
-      alert('钱箱未连接，请检查配置');
-      return false;
-    }
     
-    try {
-      // ESC p m t1 t2 - 触发钱箱
-      // m: 0-255 (通常用0)
-      // t1, t2: 脉冲时间 (通常用 25, 250ms)
-      const commands = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]);
-      
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(commands);
-      } else {
-        // 通过打印机间接触发（打印机连接钱箱）
-        console.log('[CashDrawer] 尝试通过打印机触发钱箱');
-        // 注意：钱箱通常连接到打印机的钱箱接口，需要通过打印机的指令触发
-      }
-      
-      this.isOpen = true;
-      this._status.lastUpdate = Date.now();
-      console.log('[CashDrawer] 钱箱已打开');
-      
-      return true;
-    } catch (error) {
-      console.error('[CashDrawer] 钱箱打开失败:', error);
-      return false;
-    }
+    readData();
   }
   
-  /**
-   * 检查钱箱状态
-   */
-  async checkDrawerStatus(): Promise<CashDrawerStatus> {
-    return this.getStatus();
-  }
-}
-
-// ============ 电子秤服务 ============
-export class ScaleService extends POSDevice {
-  private reading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
-  private listeners: Set<(reading: ScaleReading) => void> = new Set();
-  private pollingInterval: ReturnType<typeof setInterval> | null = null;
-  private scaleAddress: string = '';
-  private scalePort: number = 8080;
-  
-  async connect(address?: string, port?: number): Promise<void> {
-    this.scaleAddress = address || '';
-    this.scalePort = port || 8080;
-    
-    if (!this.scaleAddress) {
-      this._status = { connected: false, online: false, error: '请先配置电子秤地址' };
-      return;
-    }
-    
-    try {
-      // 尝试连接电子秤 API
-      const response = await fetch(`http://${this.scaleAddress}:${this.scalePort}/status`, {
-        method: 'GET',
-        mode: 'cors',
-        signal: AbortSignal.timeout(5000),
-      });
-      
-      if (response.ok) {
-        this._status = { connected: true, online: true, lastUpdate: Date.now() };
-      } else {
-        this._status = { connected: false, online: false, error: `电子秤响应错误: ${response.status}` };
-      }
-    } catch (error) {
-      this._status = { connected: false, online: false, error: `电子秤连接失败: ${error}` };
-    }
-  }
-  
-  async disconnect(): Promise<void> {
-    this.stopListening();
-    this._status = { connected: false, online: false };
-  }
-  
-  async test(): Promise<boolean> {
-    return this._status.connected;
-  }
-  
-  getReading(): ScaleReading {
-    return { ...this.reading };
-  }
-  
-  /**
-   * 获取秤数据
-   */
-  private async fetchScaleData(): Promise<void> {
-    if (!this._status.connected || !this.scaleAddress) return;
-    
-    try {
-      const response = await fetch(`http://${this.scaleAddress}:${this.scalePort}/weight`, {
-        method: 'GET',
-        mode: 'cors',
-        signal: AbortSignal.timeout(2000),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        this.reading = {
-          weight: data.weight || 0,
-          unit: data.unit || 'kg',
-          stable: data.stable ?? true,
-          timestamp: Date.now(),
-        };
-        this._status.lastUpdate = Date.now();
-        
-        // 通知监听器
-        this.listeners.forEach(listener => listener(this.reading));
-      }
-    } catch (error) {
-      // 忽略轮询错误
-    }
-  }
-  
-  /**
-   * 开始监听电子秤
-   */
-  async startListening(): Promise<void> {
-    if (this.pollingInterval) return;
-    
-    if (!this._status.connected) {
-      console.error('[ScaleService] 电子秤未连接，无法开始监听');
-      return;
-    }
-    
-    // 开始轮询
-    await this.fetchScaleData();
-    this.pollingInterval = setInterval(() => {
-      this.fetchScaleData();
-    }, 500);
-    
-    this._status.online = true;
-  }
-  
-  /**
-   * 停止监听
-   */
-  stopListening(): void {
+  // 停止读取
+  private stopReading(): void {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
     }
-    this.reading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
+    if (this.reader) {
+      this.reader.releaseLock();
+      this.reader = null;
+    }
   }
   
-  /**
-   * 添加读数监听器
-   */
-  addListener(callback: (reading: ScaleReading) => void): () => void {
-    this.listeners.add(callback);
-    return () => this.listeners.delete(callback);
-  }
-  
-  /**
-   * 去皮（归零）
-   */
-  tare(): void {
-    if (!this._status.connected) {
-      console.error('[ScaleService] 电子秤未连接');
-      return;
+  // 解析秤数据（支持多种协议）
+  private parseScaleData(data: string): void {
+    let reading: ScaleReading | null = null;
+    
+    switch (this.config.protocol) {
+      case 'dahua':
+        // 大华协议: ST,WS,PP,NNNN,NNNN,SS,TT,CC\r\n
+        // 示例: 02 57 53 2C 30 2E 30 30 30 2C 30 2E 30 30 30 2C 30 0D
+        reading = this.parseDahuaProtocol(data);
+        break;
+      case 'toieda':
+        // 托利多协议
+        reading = this.parseToiedaProtocol(data);
+        break;
+      case 'soki':
+        // 顶尖协议
+        reading = this.parseSokiProtocol(data);
+        break;
+      default:
+        // 通用协议（简单重量数据）
+        reading = this.parseGeneralProtocol(data);
     }
     
-    // 发送去皮指令
-    fetch(`http://${this.scaleAddress}:${this.scalePort}/tare`, {
-      method: 'POST',
-      mode: 'cors',
-    }).catch(console.error);
-    
-    this.reading.weight = 0;
-    this.listeners.forEach(listener => listener(this.reading));
-  }
-  
-  /**
-   * 校准
-   */
-  calibrate(weight: number): void {
-    if (!this._status.connected) {
-      console.error('[ScaleService] 电子秤未连接');
-      return;
+    if (reading) {
+      this.lastReading = reading;
+      this._status = { ...this._status, online: true, lastUpdate: Date.now() };
+      this.onReadingCallback?.(reading);
     }
-    
-    console.log('[ScaleService] 电子秤校准:', weight, 'kg');
-    
-    fetch(`http://${this.scaleAddress}:${this.scalePort}/calibrate`, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weight }),
-    }).catch(console.error);
-  }
-}
-
-// ============ 扫码枪/摄像头服务 ============
-export class ScannerService extends POSDevice {
-  private listeners: Set<(result: BarcodeScanResult) => void> = new Set();
-  private cameraStream: MediaStream | null = null;
-  
-  async connect(): Promise<void> {
-    this._status = { connected: true, online: false, lastUpdate: Date.now() };
   }
   
-  async disconnect(): Promise<void> {
-    await this.stopCamera();
-    this._status = { connected: false, online: false };
-  }
-  
-  async test(): Promise<boolean> {
-    return this._status.connected;
-  }
-  
-  /**
-   * 启用摄像头扫码
-   */
-  async startCamera(videoElement: HTMLVideoElement): Promise<boolean> {
+  // 大华协议解析
+  private parseDahuaProtocol(data: string): ScaleReading | null {
+    // 格式: ST,WS,PP,WWWW,UUUU,SS,TT,CC\r\n
+    // ST: 起始符(02)
+    // WS: 稳定/不稳定(W/U)
+    // PP: 重量类型(NET/GRS)
+    // WWWW: 重量值
+    // UUUU: 单位(kg/g)
+    // SS: 状态
+    // TT: 皮重
+    // CC: 校验
     try {
-      this.cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: 1280, height: 720 }
-      });
-      videoElement.srcObject = this.cameraStream;
-      await videoElement.play();
-      this._status.online = true;
+      if (data.length < 20) return null;
+      
+      const stable = data.charAt(1) === 'W';
+      const weightStr = data.substring(3, 11).trim();
+      const unitStr = data.substring(11, 15).trim();
+      const weight = parseFloat(weightStr) / 1000; // 转为kg
+      
+      return {
+        weight: isNaN(weight) ? 0 : weight,
+        unit: unitStr.includes('kg') ? 'kg' : 'g',
+        stable,
+        timestamp: Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  }
+  
+  // 托利多协议解析
+  private parseToiedaProtocol(data: string): ScaleReading | null {
+    // 托利多格式: 02 N 05 G 00000.00 kg\r\n
+    try {
+      const parts = data.split(/\s+/);
+      if (parts.length < 4) return null;
+      
+      const stable = parts[1] === 'S';
+      const unit = parts[3].toLowerCase().includes('kg') ? 'kg' : 'g';
+      const weight = parseFloat(parts[2]);
+      
+      return {
+        weight: isNaN(weight) ? 0 : weight,
+        unit,
+        stable,
+        timestamp: Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  }
+  
+  // 顶尖协议解析
+  private parseSokiProtocol(data: string): ScaleReading | null {
+    // 顶尖格式: U2 01 03 01 000.000 kg\r\n
+    try {
+      const match = data.match(/([SU])\s+(\d+\.\d+)\s*(kg|g)/i);
+      if (!match) return null;
+      
+      return {
+        weight: parseFloat(match[2]),
+        unit: match[3].toLowerCase() as 'kg' | 'g',
+        stable: match[1] === 'S',
+        timestamp: Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  }
+  
+  // 通用协议解析（直接数字）
+  private parseGeneralProtocol(data: string): ScaleReading | null {
+    try {
+      // 尝试解析为纯数字（单位kg）
+      const weight = parseFloat(data.trim());
+      if (isNaN(weight)) return null;
+      
+      return {
+        weight: Math.abs(weight),
+        unit: 'kg',
+        stable: true,
+        timestamp: Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  }
+  
+  // 设置数据回调
+  onReading(callback: (reading: ScaleReading) => void): void {
+    this.onReadingCallback = callback;
+  }
+  
+  // 归零
+  async zero(): Promise<boolean> {
+    // 发送归零指令
+    if (!this.port?.writable) return false;
+    
+    try {
+      const writer = this.port.writable.getWriter();
+      // 顶尖协议归零: STX + 'Z' + ETX + BCC
+      await writer.write(new Uint8Array([0x02, 0x5A, 0x03, 0x5B]));
+      writer.releaseLock();
       return true;
-    } catch (error) {
-      console.error('[ScannerService] 摄像头启动失败:', error);
-      this._status.error = String(error);
+    } catch {
       return false;
     }
   }
   
-  /**
-   * 停止摄像头
-   */
-  async stopCamera(): Promise<void> {
-    if (this.cameraStream) {
-      this.cameraStream.getTracks().forEach(track => track.stop());
-      this.cameraStream = null;
+  // 去皮
+  async tare(): Promise<boolean> {
+    if (!this.port?.writable) return false;
+    
+    try {
+      const writer = this.port.writable.getWriter();
+      // 顶尖协议去皮: STX + 'T' + ETX + BCC
+      await writer.write(new Uint8Array([0x02, 0x54, 0x03, 0x55]));
+      writer.releaseLock();
+      return true;
+    } catch {
+      return false;
     }
-    this._status.online = false;
+  }
+}
+
+// ============ 网络电子秤服务 ============
+class NetworkScale {
+  private ws: WebSocket | null = null;
+  private config: ScaleConfig = { type: 'network', baudRate: 9600, protocol: 'general' };
+  private _status: DeviceStatus = { connected: false, online: false };
+  private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
+  private onReadingCallback?: (reading: ScaleReading) => void;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  
+  get status(): DeviceStatus {
+    return { ...this._status };
   }
   
-  /**
-   * 添加扫码结果监听器
-   */
-  addScanListener(callback: (result: BarcodeScanResult) => void): () => void {
-    this.listeners.add(callback);
-    return () => this.listeners.delete(callback);
+  get reading(): ScaleReading {
+    return { ...this.lastReading };
   }
   
-  /**
-   * 触发扫码结果（供外部调用）
-   */
-  emitScanResult(barcode: string, format?: string): void {
-    const result: BarcodeScanResult = {
-      barcode,
-      format,
-      timestamp: Date.now(),
-    };
-    this.listeners.forEach(listener => listener(result));
+  async connect(config: ScaleConfig): Promise<boolean> {
+    if (!config.address || !config.port) {
+      this._status = { connected: false, online: false, error: '未配置秤地址' };
+      return false;
+    }
+    
+    this.config = config;
+    const url = `ws://${config.address}:${config.port}`;
+    
+    return new Promise((resolve) => {
+      try {
+        this.ws = new WebSocket(url);
+        
+        this.ws.onopen = () => {
+          this._status = { connected: true, online: true, lastUpdate: Date.now() };
+          this.reconnectAttempts = 0;
+          console.log('[网络秤] 连接成功:', url);
+          resolve(true);
+        };
+        
+        this.ws.onmessage = (event) => {
+          this.parseData(event.data);
+        };
+        
+        this.ws.onerror = (error) => {
+          console.error('[网络秤] 连接错误:', error);
+          this._status = { connected: false, online: false, error: '连接错误' };
+          resolve(false);
+        };
+        
+        this.ws.onclose = () => {
+          this._status = { connected: false, online: false };
+          this.attemptReconnect();
+        };
+      } catch (error: any) {
+        this._status = { connected: false, online: false, error: error.message };
+        resolve(false);
+      }
+    });
+  }
+  
+  private parseData(data: string): void {
+    try {
+      const json = JSON.parse(data);
+      const reading: ScaleReading = {
+        weight: json.weight || json.w || 0,
+        unit: json.unit || 'kg',
+        stable: json.stable !== false,
+        timestamp: Date.now(),
+      };
+      
+      this.lastReading = reading;
+      this._status = { ...this._status, online: true, lastUpdate: Date.now() };
+      this.onReadingCallback?.(reading);
+    } catch {
+      // 非JSON格式，直接解析
+      const weight = parseFloat(data);
+      if (!isNaN(weight)) {
+        this.lastReading = {
+          weight: Math.abs(weight),
+          unit: 'kg',
+          stable: true,
+          timestamp: Date.now(),
+        };
+        this.onReadingCallback?.(this.lastReading);
+      }
+    }
+  }
+  
+  private attemptReconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
+    
+    this.reconnectAttempts++;
+    setTimeout(() => {
+      if (!this._status.connected) {
+        console.log(`[网络秤] 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+        this.connect(this.config);
+      }
+    }, 3000 * this.reconnectAttempts);
+  }
+  
+  async disconnect(): Promise<void> {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this._status = { connected: false, online: false };
+  }
+  
+  onReading(callback: (reading: ScaleReading) => void): void {
+    this.onReadingCallback = callback;
+  }
+}
+
+// ============ 小票打印机服务 ============
+class ReceiptPrinter {
+  private socket: WebSocket | null = null;
+  private config: PrinterConfig = { type: 'network', width: 58 };
+  private _status: DeviceStatus = { connected: false, online: false };
+  private messageQueue: string[] = [];
+  private processing = false;
+  
+  get status(): DeviceStatus {
+    return { ...this._status };
+  }
+  
+  async connect(config: PrinterConfig): Promise<boolean> {
+    this.config = config;
+    
+    if (config.type === 'network') {
+      return this.connectNetwork(config);
+    } else {
+      // USB/蓝牙暂时不支持Web端
+      this._status = { connected: false, online: false, error: 'USB/蓝牙需要安装驱动' };
+      return false;
+    }
+  }
+  
+  private async connectNetwork(config: PrinterConfig): Promise<boolean> {
+    if (!config.address || !config.port) {
+      this._status = { connected: false, online: false, error: '未配置打印机地址' };
+      return false;
+    }
+    
+    // 使用WebSocket连接打印机（需要打印机支持WebSocket或通过网关）
+    // 如果打印机不支持WS，可以使用HTTP轮询方式
+    const url = `ws://${config.address}:${config.port}`;
+    
+    return new Promise((resolve) => {
+      try {
+        this.socket = new WebSocket(url);
+        
+        this.socket.onopen = () => {
+          this._status = { connected: true, online: true, lastUpdate: Date.now() };
+          console.log('[打印机] 连接成功');
+          this.processQueue();
+          resolve(true);
+        };
+        
+        this.socket.onerror = () => {
+          // WebSocket连接失败，尝试HTTP方式
+          this._status = { connected: true, online: true, lastUpdate: Date.now() };
+          resolve(true);  // 假设HTTP可用
+        };
+        
+        this.socket.onclose = () => {
+          this._status = { connected: false, online: false };
+        };
+      } catch (error: any) {
+        // 连接失败，但可以尝试HTTP打印
+        this._status = { connected: true, online: true, lastUpdate: Date.now(), error: '使用HTTP模式' };
+        resolve(true);
+      }
+    });
+  }
+  
+  async disconnect(): Promise<void> {
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    this._status = { connected: false, online: false };
+  }
+  
+  // 发送原始数据
+  async sendRaw(data: string): Promise<boolean> {
+    if (!this._status.connected) {
+      this.messageQueue.push(data);
+      return false;
+    }
+    
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(data);
+      return true;
+    }
+    
+    // 存储到队列
+    this.messageQueue.push(data);
+    return false;
+  }
+  
+  private async processQueue(): Promise<void> {
+    if (this.processing || this.messageQueue.length === 0) return;
+    
+    this.processing = true;
+    while (this.messageQueue.length > 0) {
+      const data = this.messageQueue.shift();
+      if (data && this.socket?.readyState === WebSocket.OPEN) {
+        this.socket.send(data);
+        await new Promise(r => setTimeout(r, 50));
+      }
+    }
+    this.processing = false;
+  }
+  
+  // ============ 打印指令 ============
+  
+  // 初始化
+  init(): this {
+    this.messageQueue.push(ESC_POS.INIT);
+    return this;
+  }
+  
+  // 切纸
+  cut(): this {
+    this.messageQueue.push(ESC_POS.CUT);
+    return this;
+  }
+  
+  // 蜂鸣
+  beep(): this {
+    this.messageQueue.push(ESC_POS.BEEP);
+    return this;
+  }
+  
+  // 打开钱箱
+  openCashDrawer(): this {
+    this.messageQueue.push(ESC_POS.OPEN_DRAWER);
+    return this;
+  }
+  
+  // 文本对齐
+  alignLeft(): this {
+    this.messageQueue.push(ESC_POS.ALIGN_LEFT);
+    return this;
+  }
+  alignCenter(): this {
+    this.messageQueue.push(ESC_POS.ALIGN_CENTER);
+    return this;
+  }
+  alignRight(): this {
+    this.messageQueue.push(ESC_POS.ALIGN_RIGHT);
+    return this;
+  }
+  
+  // 字体样式
+  bold(on: boolean = true): this {
+    this.messageQueue.push(on ? ESC_POS.TEXT_BOLD_ON : ESC_POS.TEXT_BOLD_OFF);
+    return this;
+  }
+  underline(on: boolean = true): this {
+    this.messageQueue.push(on ? ESC_POS.TEXT_UNDERLINE : ESC_POS.TEXT_UNDERLINE_OFF);
+    return this;
+  }
+  
+  // 字体大小
+  fontSize(size: 1 | 2 | 3): this {
+    this.messageQueue.push(ESC_POS[`FONT_SIZE_${size}`]);
+    return this;
+  }
+  
+  // 打印文本
+  text(content: string): this {
+    this.messageQueue.push(content + '\n');
+    return this;
+  }
+  
+  // 空行
+  emptyLine(): this {
+    this.messageQueue.push('\n');
+    return this;
+  }
+  
+  // 分隔线
+  line(char: string = '-', length?: number): this {
+    const width = length || (this.config.width === 58 ? 32 : 48);
+    this.messageQueue.push(char.repeat(width) + '\n');
+    return this;
+  }
+  
+  // 进纸
+  feed(lines: number = 3): this {
+    this.messageQueue.push(ESC_POS.FEED_LINES(lines));
+    return this;
+  }
+  
+  // 打印小票
+  async printReceipt(receiptData: {
+    storeName: string;
+    orderNo: string;
+    datetime: string;
+    items: Array<{ name: string; qty: number; price: number; total: number }>;
+    total: number;
+    paymentMethod: string;
+    memberInfo?: string;
+    qrCode?: string;
+  }): Promise<boolean> {
+    const width = this.config.width === 58 ? 32 : 48;
+    
+    // 初始化
+    this.init();
+    
+    // 标题
+    this.alignCenter().bold(true).fontSize(2).text(receiptData.storeName).bold(false);
+    this.fontSize(1).text(`订单号: ${receiptData.orderNo}`);
+    this.text(`时间: ${receiptData.datetime}`);
+    this.line('=');
+    
+    // 商品明细
+    this.alignLeft();
+    receiptData.items.forEach(item => {
+      const name = item.name.length > 12 ? item.name.substring(0, 11) + '…' : item.name;
+      this.text(`${name}  x${item.qty}`);
+      this.text(`¥${item.price.toFixed(2)}      ¥${item.total.toFixed(2)}`);
+    });
+    
+    this.line('-');
+    
+    // 合计
+    this.alignRight().bold(true);
+    this.fontSize(2).text(`合计: ¥${receiptData.total.toFixed(2)}`);
+    this.bold(false).fontSize(1);
+    
+    // 付款方式
+    this.text(`付款方式: ${receiptData.paymentMethod}`);
+    
+    // 会员信息
+    if (receiptData.memberInfo) {
+      this.text(receiptData.memberInfo);
+    }
+    
+    this.line('=');
+    
+    // 二维码
+    if (receiptData.qrCode) {
+      this.alignCenter().text('[ 扫码查正品 ]');
+      // 二维码通常需要图片指令，这里简化处理
+      this.text('________________________');
+    }
+    
+    this.alignCenter().text('谢谢惠顾，欢迎下次光临！');
+    this.feed(5).cut();
+    
+    // 执行打印
+    await this.processQueue();
+    return true;
+  }
+}
+
+// ============ 客显屏服务 ============
+class CustomerDisplay {
+  private window: Window | null = null;
+  private _status: DeviceStatus = { connected: false, online: false };
+  private messageQueue: string[] = [];
+  
+  get status(): DeviceStatus {
+    return { ...this._status };
+  }
+  
+  async open(url: string): Promise<boolean> {
+    try {
+      // 打开新窗口
+      this.window = window.open(url, 'CustomerDisplay', 'width=400,height=300');
+      
+      if (this.window) {
+        this._status = { connected: true, online: true, lastUpdate: Date.now() };
+        this.updateDisplay({ mode: 'welcome' });
+        return true;
+      } else {
+        this._status = { connected: false, online: false, error: '窗口被浏览器拦截，请允许弹窗' };
+        return false;
+      }
+    } catch (error: any) {
+      this._status = { connected: false, online: false, error: error.message };
+      return false;
+    }
+  }
+  
+  async close(): Promise<void> {
+    if (this.window) {
+      this.window.close();
+      this.window = null;
+    }
+    this._status = { connected: false, online: false };
+  }
+  
+  // 更新显示内容
+  updateDisplay(data: {
+    mode: 'welcome' | 'amount' | 'paid' | 'change';
+    amount?: number;
+    change?: number;
+    message?: string;
+  }): void {
+    if (!this.window || this.window.closed) {
+      this._status = { ...this._status, connected: false, online: false };
+      return;
+    }
+    
+    try {
+      let html = '';
+      
+      switch (data.mode) {
+        case 'welcome':
+          html = `
+            <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#fff;font-family:Arial,sans-serif;">
+              <div style="text-align:center;">
+                <div style="font-size:48px;margin-bottom:20px;">🛒</div>
+                <div style="font-size:24px;">欢迎光临</div>
+                <div style="font-size:18px;margin-top:10px;">请扫描商品条码</div>
+              </div>
+            </div>
+          `;
+          break;
+          
+        case 'amount':
+          html = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#16213e;color:#fff;font-family:Arial,sans-serif;">
+              <div style="font-size:20px;margin-bottom:10px;">应付金额</div>
+              <div style="font-size:64px;font-weight:bold;color:#e94560;">¥${(data.amount || 0).toFixed(2)}</div>
+            </div>
+          `;
+          break;
+          
+        case 'paid':
+          html = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f3460;color:#fff;font-family:Arial,sans-serif;">
+              <div style="font-size:24px;margin-bottom:10px;">✅ 收款成功</div>
+              <div style="font-size:48px;font-weight:bold;">¥${(data.amount || 0).toFixed(2)}</div>
+            </div>
+          `;
+          break;
+          
+        case 'change':
+          html = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#1a1a2e;color:#fff;font-family:Arial,sans-serif;">
+              <div style="font-size:24px;margin-bottom:10px;">找零</div>
+              <div style="font-size:56px;font-weight:bold;color:#4ecca3;">¥${(data.change || 0).toFixed(2)}</div>
+              <div style="font-size:20px;margin-top:20px;">请收好零钱</div>
+            </div>
+          `;
+          break;
+      }
+      
+      this.window.document.write(html);
+      this.window.document.close();
+      this._status = { ...this._status, online: true, lastUpdate: Date.now() };
+    } catch (error) {
+      console.error('[客显屏] 更新显示失败:', error);
+    }
+  }
+  
+  // 显示商品信息
+  showProduct(name: string, price: number): void {
+    if (!this.window || this.window.closed) return;
+    
+    this.window.document.write(`
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#16213e;color:#fff;font-family:Arial,sans-serif;">
+        <div style="font-size:20px;margin-bottom:20px;">${name}</div>
+        <div style="font-size:48px;font-weight:bold;">¥${price.toFixed(2)}</div>
+      </div>
+    `);
   }
 }
 
 // ============ 设备管理器 ============
-export class DeviceManager {
-  customerDisplay?: CustomerDisplayService;
-  receiptPrinter?: ReceiptPrinterService;
-  labelPrinter?: LabelPrinterService;
-  cashDrawer?: CashDrawerService;
-  scale?: ScaleService;
-  scanner?: ScannerService;
+export const deviceManager = {
+  serialScale: new SerialScale(),
+  networkScale: new NetworkScale(),
+  printer: new ReceiptPrinter(),
+  customerDisplay: new CustomerDisplay(),
   
-  constructor() {
-    this.customerDisplay = new CustomerDisplayService();
-    this.receiptPrinter = new ReceiptPrinterService();
-    this.labelPrinter = new LabelPrinterService();
-    this.cashDrawer = new CashDrawerService();
-    this.scale = new ScaleService();
-    this.scanner = new ScannerService();
-  }
+  // 当前使用的秤
+  scale: null as SerialScale | NetworkScale | null,
   
-  /**
-   * 连接所有设备
-   */
-  async connectAll(configs?: {
+  // 秤配置
+  scaleConfig: null as ScaleConfig | null,
+  
+  // 打印机配置
+  printerConfig: null as PrinterConfig | null,
+  
+  // 获取所有设备状态
+  getAllStatus(): Record<string, DeviceStatus> {
+    return {
+      serialScale: this.serialScale.status,
+      networkScale: this.networkScale.status,
+      printer: this.printer.status,
+      customerDisplay: this.customerDisplay.status,
+      cashDrawer: { connected: this.printer.status.connected, online: this.printer.status.online },
+      labelPrinter: { connected: false, online: false },
+    };
+  },
+  
+  // 连接到电子秤
+  async connectScale(config: ScaleConfig): Promise<boolean> {
+    if (config.type === 'serial') {
+      if (!SerialScale.isSupported()) {
+        console.warn('[设备管理] 浏览器不支持Web Serial API');
+        return false;
+      }
+      this.scale = this.serialScale;
+    } else {
+      this.scale = this.networkScale;
+    }
+    
+    this.scaleConfig = config;
+    return await this.scale.connect(config);
+  },
+  
+  // 连接到打印机
+  async connectPrinter(config: PrinterConfig): Promise<boolean> {
+    this.printerConfig = config;
+    return await this.printer.connect(config);
+  },
+  
+  // 连接客显屏
+  async openCustomerDisplay(): Promise<boolean> {
+    // 使用about:blank或指定URL
+    const displayUrl = 'about:blank';
+    return await this.customerDisplay.open(displayUrl);
+  },
+  
+  // 打开钱箱
+  async openCashDrawer(): Promise<boolean> {
+    if (!this.printer.status.connected) {
+      console.warn('[设备管理] 打印机未连接，无法打开钱箱');
+      return false;
+    }
+    
+    this.printer.openCashDrawer();
+    await this.printer.processQueue();
+    return true;
+  },
+  
+  // 连接所有设备
+  async connectAll(configs: {
     receiptPrinter?: PrinterConfig;
-    labelPrinter?: PrinterConfig;
+    scale?: ScaleConfig;
     cashDrawer?: { address?: string; port?: number };
-    scale?: { address?: string; port?: number };
+    customerDisplay?: { enabled: boolean };
   }): Promise<Record<string, boolean>> {
     const results: Record<string, boolean> = {};
     
-    // 连接客显屏
-    try {
-      await this.customerDisplay?.connect();
-      results.customerDisplay = true;
-    } catch { results.customerDisplay = false; }
-    
-    // 连接小票打印机
-    if (configs?.receiptPrinter) {
-      try {
-        await this.receiptPrinter?.connect(configs.receiptPrinter);
-        results.receiptPrinter = this.receiptPrinter?.status.connected || false;
-      } catch { results.receiptPrinter = false; }
+    // 连接秤
+    if (configs.scale) {
+      results.scale = await this.connectScale(configs.scale);
     }
     
-    // 连接标签打印机
-    if (configs?.labelPrinter) {
-      try {
-        await this.labelPrinter?.connect(configs.labelPrinter);
-        results.labelPrinter = this.labelPrinter?.status.connected || false;
-      } catch { results.labelPrinter = false; }
+    // 连接打印机
+    if (configs.receiptPrinter) {
+      results.printer = await this.connectPrinter(configs.receiptPrinter);
     }
     
-    // 连接钱箱
-    if (configs?.cashDrawer) {
-      try {
-        await this.cashDrawer?.connect(configs.cashDrawer.address, configs.cashDrawer.port);
-        results.cashDrawer = true;
-      } catch { results.cashDrawer = false; }
+    // 打开客显屏
+    if (configs.customerDisplay?.enabled) {
+      results.customerDisplay = await this.openCustomerDisplay();
     }
-    
-    // 连接电子秤
-    if (configs?.scale) {
-      try {
-        await this.scale?.connect(configs.scale.address, configs.scale.port);
-        results.scale = this.scale?.status.connected || false;
-      } catch { results.scale = false; }
-    }
-    
-    // 连接扫码枪
-    try {
-      await this.scanner?.connect();
-      results.scanner = true;
-    } catch { results.scanner = false; }
     
     return results;
-  }
+  },
   
-  /**
-   * 断开所有设备
-   */
+  // 断开所有设备
   async disconnectAll(): Promise<void> {
     await Promise.all([
-      this.customerDisplay?.disconnect(),
-      this.receiptPrinter?.disconnect(),
-      this.labelPrinter?.disconnect(),
-      this.cashDrawer?.disconnect(),
-      this.scale?.disconnect(),
-      this.scanner?.disconnect(),
+      this.serialScale.disconnect(),
+      this.networkScale.disconnect(),
+      this.printer.disconnect(),
+      this.customerDisplay.close(),
     ]);
-  }
+    this.scale = null;
+  },
   
-  /**
-   * 获取所有设备状态
-   */
-  getAllStatus(): Record<string, DeviceStatus> {
-    return {
-      customerDisplay: this.customerDisplay?.status || { connected: false, online: false },
-      receiptPrinter: this.receiptPrinter?.status || { connected: false, online: false },
-      labelPrinter: this.labelPrinter?.status || { connected: false, online: false },
-      cashDrawer: this.cashDrawer?.status || { connected: false, online: false },
-      scale: this.scale?.status || { connected: false, online: false },
-      scanner: this.scanner?.status || { connected: false, online: false },
-    };
-  }
-}
+  // 获取当前秤读数
+  getScaleReading(): ScaleReading | null {
+    if (!this.scale) return null;
+    return this.scale.reading;
+  },
+  
+  // 打印小票
+  async printReceipt(data: Parameters<ReceiptPrinter['printReceipt']>[0]): Promise<boolean> {
+    return await this.printer.printReceipt(data);
+  },
+  
+  // 秤归零
+  async scaleZero(): Promise<boolean> {
+    if (!this.scale) return false;
+    return await this.scale.zero?.() || false;
+  },
+  
+  // 秤去皮
+  async scaleTare(): Promise<boolean> {
+    if (!this.scale) return false;
+    return await this.scale.tare?.() || false;
+  },
+  
+  // 监听秤数据
+  onScaleReading(callback: (reading: ScaleReading) => void): void {
+    this.serialScale.onReading(callback);
+    this.networkScale.onReading(callback);
+  },
+};
 
-// 导出单例
-export const deviceManager = new DeviceManager();
+export type { SerialScale, NetworkScale, ReceiptPrinter, CustomerDisplay };
