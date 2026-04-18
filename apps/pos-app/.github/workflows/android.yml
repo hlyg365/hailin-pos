@@ -70,8 +70,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
-          name: "海邻到家收银台 APK"
-          tag_name: v${{ github.run_number }}
+          name: "海邻到家收银台 APK v${{ github.run_number }}"
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
