@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">客显屏</string>
+    <string name="welcome_message">欢迎光临</string>
+    <string name="waiting_payment">等待付款</string>
+    <string name="payment_success">付款成功</string>
+    <string name="payment_failed">付款失败</string>
+    <string name="total_amount">应付金额</string>
+    <string name="scan_qrcode">请扫码支付</string>
+    <string name="thank_you">谢谢惠顾</string>
+</resources>
