@@ -10,7 +10,7 @@ async function main() {
   const fileBuffer = readFileSync("/tmp/hailin-apk/app-debug.apk");
   const key = await storage.uploadFile({
     fileContent: fileBuffer,
-    fileName: "hailin-pos-v50.apk",
+    fileName: "hailin-pos-v51.apk",
     contentType: "application/vnd.android.package-archive",
   });
   console.log("Key:", key);

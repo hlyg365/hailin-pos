@@ -24,7 +24,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
         working-directory: apps/pos-app
 
       - name: Build Web App
@@ -44,20 +44,15 @@ jobs:
       - name: Build Debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
+          ./gradlew assembleDebug --no-daemon --refresh-dependencies
         working-directory: apps/pos-app/android
         env:
           JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.10-7/x64
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-        with:
-          name: hailin-pos-apk
-          path: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
-          retention-days: 7
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: hailin-pos-apk
           path: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
