@@ -721,8 +721,8 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         continue;
       }
       
-      // 提取商品数据
-      const goodsData = data.data || data;
+      // 提取商品数据（支持多种格式）
+      const goodsData = data.data || data.showapi_res_body || data;
       const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
       const category = goodsData.category_name || goodsData.category || '食品';
       const retailPrice = parseFloat(goodsData.price) || 0;
@@ -811,7 +811,7 @@ export const useAiConfigStore = create<AiConfigState>()(
   persist(
     (set, get) => ({
       configs: defaultAiConfigs,
-      version: 4, // 版本号，用于强制重置缓存
+      version: 5, // 版本号，用于强制重置缓存
       addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
       updateConfig: (index, updates) => set((state) => ({
         configs: state.configs.map((c, i) => i === index ? { ...c, ...updates } : c),
