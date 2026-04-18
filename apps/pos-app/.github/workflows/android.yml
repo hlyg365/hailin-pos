@@ -10,29 +10,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        run: npm install -g pnpm@9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
+          node-version: '24'
 
       - name: Install dependencies
+        working-directory: apps/pos-app
         run: pnpm install
 
       - name: Build Web App
+        working-directory: apps/pos-app
         run: pnpm build
 
       - name: Sync to Android
+        working-directory: apps/pos-app
         run: pnpm exec cap sync android
 
       - name: Setup Java
@@ -42,9 +44,11 @@ jobs:
           java-version: '17'
 
       - name: Change gradlew permission
+        working-directory: apps/pos-app
         run: chmod +x android/gradlew
 
       - name: Build Debug APK
+        working-directory: apps/pos-app
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon
@@ -55,17 +59,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hailin-pos-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/debug/*.apk
+          files: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
           name: "海邻到家收银台 APK v${{ github.run_number }}"
           tag_name: v${{ github.run_number }}
           draft: false
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
