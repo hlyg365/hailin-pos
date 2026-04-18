@@ -1,583 +1,522 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useSettingsStore, useAiConfigStore } from '../store';
+import { useDeviceConfigStore, useStoreStore, useAiConfigStore } from '../store';
+import { deviceManager, type ScaleConfig, type PrinterConfig } from '../services/posDevices';
 
 export default function SettingsPage() {
-  const { settings, updateSettings, resetSettings } = useSettingsStore();
-  const { configs, updateConfig, addConfig, deleteConfig } = useAiConfigStore();
-  const [activeTab, setActiveTab] = useState<'basic' | 'payment' | 'promotion' | 'system' | 'ai'>('basic');
-  const [hasChanges, setHasChanges] = useState(false);
-  const [showSaveToast, setShowSaveToast] = useState(false);
-  const [tempSettings, setTempSettings] = useState(settings);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    apiUrl: '',
-    apiKey: '',
-    method: 'GET',
-    enabled: true,
+  const currentStore = useStoreStore(state => state.currentStore);
+  const storeSettings = useStoreStore(state => state.storeSettings);
+  const updateStoreSettings = useStoreStore(state => state.updateStoreSettings);
+  
+  const deviceConfig = useDeviceConfigStore();
+  const aiConfig = useAiConfigStore();
+  
+  // 设备状态
+  const [deviceStatuses, setDeviceStatuses] = useState<Record<string, { connected: boolean; online: boolean; error?: string }>>({
+    serialScale: { connected: false, online: false },
+    networkScale: { connected: false, online: false },
+    printer: { connected: false, online: false },
+    customerDisplay: { connected: false, online: false },
   });
-
-  useEffect(() => {
-    setTempSettings(settings);
-  }, [settings]);
-
-  const handleChange = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
-    setTempSettings(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
-  };
-
-  const handleSave = () => {
-    updateSettings(tempSettings);
-    setHasChanges(false);
-    setShowSaveToast(true);
-    setTimeout(() => setShowSaveToast(false), 2000);
-  };
-
-  const handleSaveAiConfig = () => {
-    setHasChanges(false);
-    setShowSaveToast(true);
-    setTimeout(() => setShowSaveToast(false), 2000);
-  };
-
-  const handleReset = () => {
-    if (confirm('确定要恢复默认设置吗？')) {
-      resetSettings();
-      setHasChanges(false);
-    }
-  };
-
-  const handleAddConfig = () => {
-    setFormData({ name: '', apiUrl: '', apiKey: '', method: 'GET', enabled: true });
-    setEditingIndex(null);
-    setShowAddModal(true);
-  };
-
-  const handleEditConfig = (index: number) => {
-    const config = configs[index];
-    setFormData({
-      name: config.name || '',
-      apiUrl: config.apiUrl,
-      apiKey: config.apiKey || '',
-      method: config.method,
-      enabled: config.enabled,
-    });
-    setEditingIndex(index);
-    setShowAddModal(true);
-  };
-
-  const handleSaveConfig = () => {
-    if (!formData.apiUrl) {
-      alert('请输入API接口地址');
-      return;
-    }
-    if (editingIndex !== null) {
-      updateConfig(editingIndex, {
-        name: formData.name,
-        apiUrl: formData.apiUrl,
-        apiKey: formData.apiKey,
-        method: formData.method as 'GET' | 'POST',
-        enabled: formData.enabled,
-      });
-    } else {
-      addConfig({
-        name: formData.name,
-        apiUrl: formData.apiUrl,
-        apiKey: formData.apiKey,
-        method: formData.method as 'GET' | 'POST',
-        enabled: formData.enabled,
-        appCode: '',
-        appSecret: '',
-        timeout: 10,
-        requestTemplate: '{"barcode": "${barcode}"}',
-        responseMapping: { name: 'goods_name', category: 'category', price: 'price', costPrice: '', image: 'image' },
-        callCount: 0,
-        successCount: 0,
-        lastTestResult: null,
-      });
-    }
-    setShowAddModal(false);
-    handleSaveAiConfig();
-  };
-
-  const handleToggleEnabled = (index: number) => {
-    updateConfig(index, { enabled: !configs[index].enabled });
-    handleSaveAiConfig();
-  };
-
-  const tabs = [
-    { id: 'basic', label: '门店', icon: '🏪' },
-    { id: 'payment', label: '支付', icon: '💳' },
-    { id: 'promotion', label: '促销', icon: '🎉' },
-    { id: 'ai', label: 'AI识别', icon: '🤖' },
-    { id: 'system', label: '系统', icon: '⚙️' },
+  
+  // 秤实时读数
+  const [scaleReading, setScaleReading] = useState<{ weight: number; unit: string; stable: boolean }>({
+    weight: 0, unit: 'kg', stable: false
+  });
+  
+  // 测试打印状态
+  const [printing, setPrinting] = useState(false);
+  const [printResult, setPrintResult] = useState<string>('');
+  
+  // 秤协议选项
+  const scaleProtocols = [
+    { value: 'general', label: '通用协议' },
+    { value: 'dahua', label: '大华协议' },
+    { value: 'toieda', label: '托利多协议' },
+    { value: 'soki', label: '顶尖协议' },
   ];
-
+  
+  // 波特率选项
+  const baudRates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+  
+  // 刷新设备状态
+  useEffect(() => {
+    const updateStatus = () => {
+      setDeviceStatuses(deviceManager.getAllStatus());
+    };
+    
+    updateStatus();
+    const interval = setInterval(updateStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  // 秤数据监听
+  useEffect(() => {
+    deviceManager.onScaleReading((reading) => {
+      setScaleReading({
+        weight: reading.weight,
+        unit: reading.unit,
+        stable: reading.stable,
+      });
+    });
+  }, []);
+  
+  // 连接串口秤
+  const connectSerialScale = async () => {
+    try {
+      const config: ScaleConfig = {
+        type: 'serial',
+        baudRate: deviceConfig.scale.baudRate || 9600,
+        protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'general',
+      };
+      
+      const success = await deviceManager.serialScale.requestAndConnect(config);
+      
+      if (success) {
+        deviceConfig.updateConfig('scale', { enabled: true });
+        setDeviceStatuses(deviceManager.getAllStatus());
+      } else {
+        alert('连接电子秤失败，请检查串口连接');
+      }
+    } catch (error: any) {
+      alert('连接失败: ' + error.message);
+    }
+  };
+  
+  // 连接网络秤
+  const connectNetworkScale = async () => {
+    const config: ScaleConfig = {
+      type: 'network',
+      address: deviceConfig.scale.address,
+      port: deviceConfig.scale.port || 8080,
+      protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'general',
+    };
+    
+    const success = await deviceManager.connectScale(config);
+    
+    if (success) {
+      deviceConfig.updateConfig('scale', { enabled: true });
+      setDeviceStatuses(deviceManager.getAllStatus());
+    } else {
+      alert('连接网络秤失败，请检查IP地址');
+    }
+  };
+  
+  // 连接打印机
+  const connectPrinter = async () => {
+    const config: PrinterConfig = {
+      type: 'network',
+      address: deviceConfig.receiptPrinter.address,
+      port: deviceConfig.receiptPrinter.port || 9100,
+      width: deviceConfig.receiptPrinter.width || 58,
+    };
+    
+    const success = await deviceManager.connectPrinter(config);
+    
+    if (success) {
+      deviceConfig.updateConfig('receiptPrinter', { enabled: true });
+      setDeviceStatuses(deviceManager.getAllStatus());
+    } else {
+      alert('连接打印机失败，请检查IP地址');
+    }
+  };
+  
+  // 打开客显屏
+  const openCustomerDisplay = async () => {
+    const success = await deviceManager.openCustomerDisplay();
+    
+    if (success) {
+      deviceConfig.updateConfig('customerDisplay', { enabled: true });
+      setDeviceStatuses(deviceManager.getAllStatus());
+    } else {
+      alert('打开客显屏失败，请允许浏览器弹窗');
+    }
+  };
+  
+  // 打开钱箱
+  const testOpenCashDrawer = async () => {
+    const success = await deviceManager.openCashDrawer();
+    setPrintResult(success ? '钱箱已打开' : '钱箱打开失败');
+    setTimeout(() => setPrintResult(''), 3000);
+  };
+  
+  // 测试打印
+  const testPrint = async () => {
+    setPrinting(true);
+    setPrintResult('正在打印...');
+    
+    try {
+      await deviceManager.printReceipt({
+        storeName: currentStore?.name || '海邻到家',
+        orderNo: 'TEST' + Date.now().toString().slice(-8),
+        datetime: new Date().toLocaleString('zh-CN'),
+        items: [
+          { name: '测试商品', qty: 1, price: 9.9, total: 9.9 },
+          { name: '农夫山泉', qty: 2, price: 2.0, total: 4.0 },
+        ],
+        total: 13.9,
+        paymentMethod: '测试',
+        memberInfo: '会员享98折优惠',
+      });
+      setPrintResult('打印成功！');
+    } catch (error) {
+      setPrintResult('打印失败');
+    }
+    
+    setPrinting(false);
+    setTimeout(() => setPrintResult(''), 3000);
+  };
+  
+  // 秤操作
+  const handleScaleZero = () => deviceManager.scaleZero();
+  const handleScaleTare = () => deviceManager.scaleTare();
+  
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Toast 提示 */}
-      {showSaveToast && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-pulse">
-          ✅ 设置已保存
-        </div>
-      )}
-
       {/* 顶部导航 */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <Link to="/pos/cashier" className="text-gray-600">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </Link>
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="海邻到家" className="h-8 w-auto" />
-              <span className="font-semibold">系统设置</span>
-            </div>
-            <div className="w-6"></div>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/" className="text-blue-600 hover:text-blue-700">← 返回</Link>
+            <h1 className="text-lg font-semibold">收银设备设置</h1>
           </div>
+          <div className="text-sm text-gray-500">{currentStore?.name || '未选择门店'}</div>
         </div>
-
-        {/* Tab 切换 */}
-        <div className="max-w-2xl mx-auto px-4">
-          <div className="flex border-b">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'text-blue-600 border-b-2 border-blue-600'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <span className="mr-1">{tab.icon}</span>
-                {tab.label}
-              </button>
+      </header>
+      
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* 设备概览 */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold mb-4">设备连接状态</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { name: '电子秤', icon: '⚖️', status: deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected },
+              { name: '小票打印机', icon: '🖨️', status: deviceStatuses.printer.connected },
+              { name: '客显屏', icon: '📺', status: deviceStatuses.customerDisplay.connected },
+              { name: '钱箱', icon: '💰', status: deviceStatuses.printer.connected },
+            ].map((device) => (
+              <div key={device.name} className={`p-4 rounded-lg ${device.status ? 'bg-green-50' : 'bg-gray-50'}`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{device.icon}</span>
+                  <div>
+                    <p className="font-medium">{device.name}</p>
+                    <p className={`text-sm ${device.status ? 'text-green-600' : 'text-gray-400'}`}>
+                      {device.status ? '已连接' : '未连接'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-4 py-6">
-        {/* 门店设置 */}
-        {activeTab === 'basic' && (
+        
+        {/* 电子秤设置 */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-2xl">⚖️</span> 电子秤设置
+            </h2>
+            <span className={`px-3 py-1 rounded-full text-sm ${deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected ? '已连接' : '未连接'}
+            </span>
+          </div>
+          
           <div className="space-y-4">
-            <SectionCard title="门店信息">
-              <InputField
-                label="门店名称"
-                value={tempSettings.storeName}
-                onChange={(v) => handleChange('storeName', v)}
-                placeholder="请输入门店名称"
-              />
-              <InputField
-                label="门店编码"
-                value={tempSettings.storeCode}
-                onChange={(v) => handleChange('storeCode', v)}
-                placeholder="请输入门店编码"
-              />
-              <InputField
-                label="门店地址"
-                value={tempSettings.storeAddress}
-                onChange={(v) => handleChange('storeAddress', v)}
-                placeholder="请输入门店地址"
-              />
-              <InputField
-                label="联系电话"
-                value={tempSettings.storePhone}
-                onChange={(v) => handleChange('storePhone', v)}
-                placeholder="请输入联系电话"
-              />
-              <InputField
-                label="店长姓名"
-                value={tempSettings.storeManager}
-                onChange={(v) => handleChange('storeManager', v)}
-                placeholder="请输入店长姓名"
-              />
-            </SectionCard>
-
-            <SectionCard title="营业时间">
-              <ToggleField
-                label="24小时营业"
-                description="门店是否24小时营业"
-                checked={tempSettings.is24Hours}
-                onChange={(v) => handleChange('is24Hours', v)}
-              />
-              {!tempSettings.is24Hours && (
-                <div className="grid grid-cols-2 gap-4">
-                  <InputField
-                    label="营业开始"
-                    type="time"
-                    value={tempSettings.businessStartTime}
-                    onChange={(v) => handleChange('businessStartTime', v)}
+            {/* 连接方式 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">连接方式</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={deviceConfig.scale.type === 'serial'}
+                    onChange={() => deviceConfig.updateConfig('scale', { type: 'serial' })}
+                    className="text-blue-600"
                   />
-                  <InputField
-                    label="营业结束"
-                    type="time"
-                    value={tempSettings.businessEndTime}
-                    onChange={(v) => handleChange('businessEndTime', v)}
+                  <span>串口 (USB/RS232)</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={deviceConfig.scale.type === 'network'}
+                    onChange={() => deviceConfig.updateConfig('scale', { type: 'network' })}
+                    className="text-blue-600"
                   />
+                  <span>网口 (TCP/IP)</span>
+                </label>
+              </div>
+            </div>
+            
+            {/* 串口配置 */}
+            {deviceConfig.scale.type === 'serial' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">通讯协议</label>
+                  <select
+                    value={deviceConfig.scale.protocol || 'general'}
+                    onChange={(e) => deviceConfig.updateConfig('scale', { protocol: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {scaleProtocols.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
-            </SectionCard>
-          </div>
-        )}
-
-        {/* 支付设置 */}
-        {activeTab === 'payment' && (
-          <div className="space-y-4">
-            <SectionCard title="支付方式">
-              <ToggleField
-                label="微信支付"
-                description="启用微信支付收款"
-                checked={tempSettings.enableWechatPay}
-                onChange={(v) => handleChange('enableWechatPay', v)}
-              />
-              <ToggleField
-                label="支付宝"
-                description="启用支付宝收款"
-                checked={tempSettings.enableAlipay}
-                onChange={(v) => handleChange('enableAlipay', v)}
-              />
-              <ToggleField
-                label="云闪付"
-                description="启用云闪付收款"
-                checked={tempSettings.enableUnionPay}
-                onChange={(v) => handleChange('enableUnionPay', v)}
-              />
-              <ToggleField
-                label="现金支付"
-                description="启用现金收款"
-                checked={tempSettings.enableCash}
-                onChange={(v) => handleChange('enableCash', v)}
-              />
-              <ToggleField
-                label="会员卡支付"
-                description="允许会员卡余额支付"
-                checked={tempSettings.enableMemberCard}
-                onChange={(v) => handleChange('enableMemberCard', v)}
-              />
-              <ToggleField
-                label="数字人民币"
-                description="启用数字人民币收款"
-                checked={tempSettings.enableDigitalRMB}
-                onChange={(v) => handleChange('enableDigitalRMB', v)}
-              />
-            </SectionCard>
-
-            <SectionCard title="会员服务">
-              <ToggleField
-                label="会员折扣"
-                description="启用会员等级折扣"
-                checked={tempSettings.enableMemberDiscount}
-                onChange={(v) => handleChange('enableMemberDiscount', v)}
-              />
-              <ToggleField
-                label="积分系统"
-                description="消费累积积分"
-                checked={tempSettings.enablePointSystem}
-                onChange={(v) => handleChange('enablePointSystem', v)}
-              />
-            </SectionCard>
-          </div>
-        )}
-
-        {/* 促销设置 */}
-        {activeTab === 'promotion' && (
-          <div className="space-y-4">
-            <SectionCard title="晚8点清货模式">
-              <ToggleField
-                label="启用清货模式"
-                description="20:00-23:00 自动8折"
-                checked={tempSettings.enableClearanceMode}
-                onChange={(v) => handleChange('enableClearanceMode', v)}
-              />
-              {tempSettings.enableClearanceMode && (
-                <div className="mt-4 p-4 bg-green-50 rounded-lg">
-                  <div className="text-green-800 font-medium">清货模式说明</div>
-                  <div className="text-green-600 text-sm mt-1">
-                    启用后，每天晚上8点至11点期间，全场商品自动享受 {Math.round((1 - tempSettings.clearanceDiscount) * 100)}% 折扣优惠。
-                  </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
+                  <select
+                    value={deviceConfig.scale.baudRate || 9600}
+                    onChange={(e) => deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {baudRates.map((rate) => (
+                      <option key={rate} value={rate}>{rate} bps</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">请确保与电子秤本机设置一致（常用9600或115200）</p>
                 </div>
-              )}
-            </SectionCard>
-
-            <SectionCard title="促销活动">
-              <div className="text-center py-8 text-gray-500">
-                <div className="text-4xl mb-2">🎁</div>
-                <p>促销活动配置</p>
-                <p className="text-sm mt-1">可在总部后台配置更多促销规则</p>
-                <Link
-                  to="/dashboard/promotion"
-                  className="inline-block mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm"
-                >
-                  前往促销管理
-                </Link>
-              </div>
-            </SectionCard>
-          </div>
-        )}
-
-        {/* 系统设置 */}
-        {activeTab === 'system' && (
-          <div className="space-y-4">
-            <SectionCard title="硬件设备">
-              <ToggleField
-                label="启用打印机"
-                description="自动打印小票"
-                checked={tempSettings.printerEnabled}
-                onChange={(v) => handleChange('printerEnabled', v)}
-              />
-              {tempSettings.printerEnabled && (
-                <InputField
-                  label="打印机名称"
-                  value={tempSettings.printerName}
-                  onChange={(v) => handleChange('printerName', v)}
-                  placeholder="请输入打印机名称"
-                />
-              )}
-              <ToggleField
-                label="自动打印小票"
-                description="交易完成后自动打印"
-                checked={tempSettings.autoPrintReceipt}
-                onChange={(v) => handleChange('autoPrintReceipt', v)}
-              />
-            </SectionCard>
-
-            <SectionCard title="系统偏好">
-              <ToggleField
-                label="语音播报"
-                description="交易完成后语音播报金额"
-                checked={tempSettings.voiceEnabled}
-                onChange={(v) => handleChange('voiceEnabled', v)}
-              />
-              <ToggleField
-                label="自动同步"
-                description="网络恢复后自动同步离线数据"
-                checked={tempSettings.autoSync}
-                onChange={(v) => handleChange('autoSync', v)}
-              />
-              <ToggleField
-                label="离线收银"
-                description="启用断网后继续收银功能"
-                checked={tempSettings.offlineMode}
-                onChange={(v) => handleChange('offlineMode', v)}
-              />
-            </SectionCard>
-
-            {/* AI条码识别配置 */}
-            <SectionCard title="AI条码识别平台">
-              <div className="space-y-3">
-                {configs.map((config, index) => (
-                  <div key={index} className={`p-3 rounded-lg border ${config.enabled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleToggleEnabled(index)}
-                          className={`w-10 h-6 rounded-full transition-colors ${config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                        >
-                          <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${config.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
-                        </button>
-                        <span className="font-medium">{config.name || `平台${index + 1}`}</span>
-                        {config.enabled && <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded">使用中</span>}
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleEditConfig(index)} className="text-blue-500 text-sm">编辑</button>
-                        {configs.length > 1 && (
-                          <button onClick={() => { deleteConfig(index); handleSaveAiConfig(); }} className="text-red-500 text-sm">删除</button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-500 mt-1 truncate">{config.apiUrl}</p>
-                    {config.apiKey && <p className="text-xs text-gray-400 mt-1">Key: {config.apiKey.slice(0, 8)}***</p>}
-                  </div>
-                ))}
-                <button onClick={handleAddConfig} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2">
-                  <span className="text-xl">+</span> 添加识别平台
-                </button>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="接口说明">
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>• 支持添加多个AI条码识别平台</p>
-                <p>• 开启多个平台时，系统按顺序自动切换使用</p>
-                <p>• 当前推荐接口：apione.apibyte.cn</p>
-                <p>• 支持格式：{`{code:200, data:{goods_name,category,price,image}}`}</p>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="关于">
-              <div className="text-center py-4">
-                <img src="/logo.png" alt="海邻到家" className="w-16 h-16 mx-auto mb-2" />
-                <div className="font-semibold">海邻到家</div>
-                <div className="text-sm text-gray-500">智慧门店系统 V6.0</div>
-                <div className="text-xs text-gray-400 mt-2">构建零售新体验</div>
-              </div>
-            </SectionCard>
-          </div>
-        )}
-
-        {/* 保存按钮 */}
-        {hasChanges && (
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
-            <div className="max-w-2xl mx-auto flex gap-3">
-              {activeTab !== 'ai' && (
+                
                 <button
-                  onClick={handleReset}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                  onClick={connectSerialScale}
+                  disabled={!('serial' in navigator)}
+                  className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
                 >
-                  恢复默认
+                  {'serial' in navigator ? '选择串口并连接' : '浏览器不支持串口'}
                 </button>
-              )}
-              <button
-                onClick={activeTab === 'ai' ? handleSaveAiConfig : handleSave}
-                className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-medium"
-              >
-                保存设置
-              </button>
+                
+                {!('serial' in navigator) && (
+                  <div className="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
+                    ⚠️ Web Serial API 需要Chrome/Edge等现代浏览器支持。请使用Chrome、Edge或Opera浏览器。
+                  </div>
+                )}
+              </>
+            )}
+            
+            {/* 网络秤配置 */}
+            {deviceConfig.scale.type === 'network' && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">IP地址</label>
+                    <input
+                      type="text"
+                      placeholder="192.168.1.100"
+                      value={deviceConfig.scale.address || ''}
+                      onChange={(e) => deviceConfig.updateConfig('scale', { address: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">端口</label>
+                    <input
+                      type="number"
+                      placeholder="8080"
+                      value={deviceConfig.scale.port || 8080}
+                      onChange={(e) => deviceConfig.updateConfig('scale', { port: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">通讯协议</label>
+                  <select
+                    value={deviceConfig.scale.protocol || 'general'}
+                    onChange={(e) => deviceConfig.updateConfig('scale', { protocol: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {scaleProtocols.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <button
+                  onClick={connectNetworkScale}
+                  className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                >
+                  连接网络秤
+                </button>
+              </>
+            )}
+            
+            {/* 秤读数显示 */}
+            {(deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected) && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="font-medium">实时重量</span>
+                  <span className={`px-2 py-1 rounded text-sm ${scaleReading.stable ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {scaleReading.stable ? '稳定' : '不稳定'}
+                  </span>
+                </div>
+                <div className="text-4xl font-bold text-center mb-4">
+                  {scaleReading.weight.toFixed(3)} {scaleReading.unit}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleScaleZero} className="flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300">归零</button>
+                  <button onClick={handleScaleTare} className="flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300">去皮</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* 小票打印机设置 */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-2xl">🖨️</span> 小票打印机设置
+            </h2>
+            <span className={`px-3 py-1 rounded-full text-sm ${deviceStatuses.printer.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {deviceStatuses.printer.connected ? '已连接' : '未连接'}
+            </span>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">IP地址</label>
+                <input
+                  type="text"
+                  placeholder="192.168.1.200"
+                  value={deviceConfig.receiptPrinter.address || ''}
+                  onChange={(e) => deviceConfig.updateConfig('receiptPrinter', { address: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">端口</label>
+                <input
+                  type="number"
+                  placeholder="9100"
+                  value={deviceConfig.receiptPrinter.port || 9100}
+                  onChange={(e) => deviceConfig.updateConfig('receiptPrinter', { port: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">纸张宽度</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={deviceConfig.receiptPrinter.width === 58}
+                    onChange={() => deviceConfig.updateConfig('receiptPrinter', { width: 58 })}
+                    className="text-blue-600"
+                  />
+                  <span>58mm (小票)</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={deviceConfig.receiptPrinter.width === 80}
+                    onChange={() => deviceConfig.updateConfig('receiptPrinter', { width: 80 })}
+                    className="text-blue-600"
+                  />
+                  <span>80mm (长票)</span>
+                </label>
+              </div>
+            </div>
+            
+            <button
+              onClick={connectPrinter}
+              className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            >
+              连接打印机
+            </button>
+            
+            {/* 测试按钮 */}
+            {deviceStatuses.printer.connected && (
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={testPrint}
+                  disabled={printing}
+                  className="py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+                >
+                  {printing ? '打印中...' : '测试打印'}
+                </button>
+                <button
+                  onClick={testOpenCashDrawer}
+                  className="py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                >
+                  弹出钱箱
+                </button>
+              </div>
+            )}
+            
+            {printResult && (
+              <div className="p-3 bg-blue-50 rounded-lg text-center text-blue-700">{printResult}</div>
+            )}
+            
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium mb-2">打印机连接说明</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• 网络打印机：确保打印机与收银机在同一网络，填写打印机IP地址</li>
+                <li>• 默认端口：9100（大多数网络打印机标准端口）</li>
+                <li>• 钱箱：钱箱连接到打印机的钱箱口，打开钱箱即触发打印</li>
+              </ul>
             </div>
           </div>
-        )}
-
-        {/* 底部退出登录 */}
-        <div className="mt-8">
-          <Link
-            to="/pos/login"
-            className="block w-full py-3 bg-red-50 text-red-500 text-center rounded-xl font-medium"
+        </div>
+        
+        {/* 客显屏设置 */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-2xl">📺</span> 客显屏设置
+            </h2>
+            <span className={`px-3 py-1 rounded-full text-sm ${deviceStatuses.customerDisplay.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {deviceStatuses.customerDisplay.connected ? '已打开' : '未打开'}
+            </span>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-4">
+                客显屏会在新窗口中显示商品信息和金额，顾客可以看到购买详情。
+              </p>
+              <button
+                onClick={openCustomerDisplay}
+                className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+              >
+                {deviceStatuses.customerDisplay.connected ? '重新打开客显屏' : '打开客显屏'}
+              </button>
+            </div>
+            
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h4 className="font-medium mb-2">分屏设置说明</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Windows: 系统设置 → 显示 → 选择"扩展这些显示器"</li>
+                <li>• Mac: 系统设置 → 显示器 →  arrangement → 勾选"镜像内建显示器"</li>
+                <li>• 客显屏会自动在新窗口中显示</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        
+        {/* 保存设置 */}
+        <div className="flex gap-4">
+          <button
+            onClick={() => deviceConfig.setAutoConnect(true)}
+            className={`flex-1 py-3 rounded-lg font-medium ${
+              deviceConfig.autoConnect 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700'
+            }`}
           >
-            退出登录
+            自动连接设备
+          </button>
+          <Link
+            to="/pos/cashier"
+            className="flex-1 py-3 bg-green-500 text-white rounded-lg font-medium text-center hover:bg-green-600"
+          >
+            返回收银台测试
           </Link>
         </div>
       </main>
-
-      {/* 添加/编辑平台模态框 */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
-              <h3 className="font-semibold">{editingIndex !== null ? '编辑识别平台' : '添加识别平台'}</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-            </div>
-            <div className="p-4 space-y-4">
-              <InputField label="平台名称" value={formData.name} onChange={(v) => setFormData({ ...formData, name: v })} placeholder="如：阿里云市场" />
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API接口地址 *</label>
-                <input
-                  type="text"
-                  value={formData.apiUrl}
-                  onChange={(e) => setFormData({ ...formData, apiUrl: e.target.value })}
-                  placeholder="https://api.example.com/barcode"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <InputField label="API Key" value={formData.apiKey} onChange={(v) => setFormData({ ...formData, apiKey: v })} placeholder="可选，填了可提高调用额度" />
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">请求方式</label>
-                <select
-                  value={formData.method}
-                  onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                >
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">启用此平台</span>
-                <button
-                  onClick={() => setFormData({ ...formData, enabled: !formData.enabled })}
-                  className={`w-12 h-6 rounded-full transition-colors ${formData.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${formData.enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                </button>
-              </div>
-            </div>
-            <div className="px-4 py-3 bg-gray-50 border-t flex gap-3">
-              <button onClick={() => setShowAddModal(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg">取消</button>
-              <button onClick={handleSaveConfig} className="flex-1 py-2 bg-blue-500 text-white rounded-lg">保存</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 分组卡片组件
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-      <div className="px-4 py-3 bg-gray-50 border-b">
-        <h3 className="font-medium text-gray-800">{title}</h3>
-      </div>
-      <div className="p-4 space-y-4">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// 输入框组件
-function InputField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-      />
-    </div>
-  );
-}
-
-// 开关组件
-function ToggleField({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="font-medium text-gray-800">{label}</div>
-        <div className="text-sm text-gray-500">{description}</div>
-      </div>
-      <button
-        onClick={() => onChange(!checked)}
-        className={`relative w-12 h-6 rounded-full transition-colors ${
-          checked ? 'bg-blue-500' : 'bg-gray-300'
-        }`}
-      >
-        <span
-          className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-            checked ? 'left-7' : 'left-1'
-          }`}
-        />
-      </button>
     </div>
   );
 }

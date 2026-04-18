@@ -1004,8 +1004,11 @@ interface DeviceConfigState {
   };
   scale: {
     enabled: boolean;
+    type: 'serial' | 'network';
     address: string;
     port: number;
+    baudRate: number;
+    protocol: string;
   };
   customerDisplay: {
     enabled: boolean;
@@ -1039,8 +1042,11 @@ export const useDeviceConfigStore = create<DeviceConfigState>()(
       },
       scale: {
         enabled: false,
+        type: 'serial',
         address: '',
         port: 8080,
+        baudRate: 9600,
+        protocol: 'general',
       },
       customerDisplay: {
         enabled: true,
