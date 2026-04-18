@@ -651,8 +651,11 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       const isWanWeiYiYuan = config.apiUrl.includes('showapi.com');
       if (isWanWeiYiYuan) {
         // 强制使用POST + form格式
-        headers['Content-Type'] = 'application/x-www-form-urlencoded';
-        headers['appkey'] = config.apiKey; // 强制设置appkey
+        headers['content-type'] = 'application/x-www-form-urlencoded'; // 注意是小写
+        // appKey放在URL参数中
+        if (config.apiKey && !url.includes('appKey=')) {
+          url = url + (url.includes('?') ? '&' : '?') + 'appKey=' + config.apiKey;
+        }
       } else if (config.method === 'GET') {
         delete headers['Content-Type'];
       } else {
@@ -816,7 +819,7 @@ export const useAiConfigStore = create<AiConfigState>()(
   persist(
     (set, get) => ({
       configs: defaultAiConfigs,
-      version: 6, // 版本号，用于强制重置缓存
+      version: 7, // 版本号，用于强制重置缓存
       addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
       updateConfig: (index, updates) => set((state) => ({
         configs: state.configs.map((c, i) => i === index ? { ...c, ...updates } : c),
