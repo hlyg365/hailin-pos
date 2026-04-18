@@ -761,12 +761,24 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       }
       
       // 提取商品数据（支持多种格式）
-      const goodsData = data.data || data.showapi_res_body || data;
-      const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
-      const category = goodsData.category_name || goodsData.category || '食品';
-      const retailPrice = parseFloat(goodsData.price) || 0;
-      const costPrice = parseFloat(goodsData.cost_price) || 0;
-      const image = goodsData.image || goodsData.img || goodsData.pic || '';
+      // 可能的结构：
+      // 1. { showapi_res_body: { data: {...} } } - 万维易源格式
+      // 2. { data: {...} } - 通用格式
+      // 3. { goods_name: "...", ... } - 直接返回
+      let goodsData = data.data || data.showapi_res_body || data;
+      
+      // 如果 goodsData 中有 data 字段，说明商品信息嵌套了一层
+      if (goodsData.data && typeof goodsData.data === 'object') {
+        goodsData = goodsData.data;
+      }
+      
+      console.log('[AI识别] 提取的goodsData:', JSON.stringify(goodsData));
+      
+      const name = goodsData.goods_name || goodsData.name || goodsData.product_name || goodsData.goodsName || '';
+      const category = goodsData.category_name || goodsData.category || goodsData.cat || '食品';
+      const retailPrice = parseFloat(goodsData.price) || parseFloat(goodsData.retail_price) || 0;
+      const costPrice = parseFloat(goodsData.cost_price) || parseFloat(goodsData.costPrice) || 0;
+      const image = goodsData.image || goodsData.img || goodsData.pic || goodsData.goodsImg || '';
       
       if (name) {
         console.log('[AI识别] 配置' + (index + 1) + ' 识别成功!');
