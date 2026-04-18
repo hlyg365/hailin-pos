@@ -224,8 +224,11 @@ export default function CashierPage() {
           width: deviceConfig.receiptPrinter.width,
         } : undefined,
         scale: deviceConfig.scale.enabled ? {
+          type: 'network',
           address: deviceConfig.scale.address,
-          port: deviceConfig.scale.port,
+          tcpPort: deviceConfig.scale.tcpPort || deviceConfig.scale.port,
+          baudRate: deviceConfig.scale.baudRate || 9600,
+          protocol: deviceConfig.scale.protocol || 'general',
         } : undefined,
         cashDrawer: deviceConfig.cashDrawer.enabled ? {
           address: deviceConfig.cashDrawer.address,

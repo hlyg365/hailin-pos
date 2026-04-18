@@ -3,11 +3,16 @@
  * 支持：电子秤(串口)、小票打印机(网络/USB)、钱箱、客显屏
  * 
  * 硬件连接说明：
- * - 电子秤：RS232串口连接，波特率9600/115200
+ * - 电子秤：RS232串口连接或网口TCP，波特率9600/115200
  * - 小票打印机：网口(RJ45)或USB
  * - 钱箱：连接打印机的钱箱口(通过ESC/POS指令触发)
  * - 客显屏：浏览器新窗口
+ * 
+ * Android: 使用原生Capacitor插件进行TCP/USB通讯
+ * Web: 使用Web Serial API / WebSocket (仅模拟)
  */
+
+import { deviceApi } from '../plugins/plugin-bridge';
 
 // ============ 类型定义 ============
 export interface DeviceStatus {
@@ -29,6 +34,7 @@ export interface ScaleConfig {
   port?: string;        // 串口号，如 'COM1' 或 '/dev/ttyUSB0'
   baudRate: number;     // 波特率：9600 或 115200
   address?: string;     // 网络秤IP
+  tcpPort?: number;     // 网络秤TCP端口
   protocol: 'dahua' | 'dingjian' | 'soki' | 'toieda' | 'general';  // 秤协议
 }
 
@@ -415,13 +421,14 @@ class SerialScale {
 
 // ============ 网络电子秤服务 ============
 class NetworkScale {
-  private ws: WebSocket | null = null;
+  private deviceId: string | null = null;
   private config: ScaleConfig = { type: 'network', baudRate: 9600, protocol: 'general' };
   private _status: DeviceStatus = { connected: false, online: false };
   private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
   private onReadingCallback?: (reading: ScaleReading) => void;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private dataListener: (() => void) | null = null;
   
   get status(): DeviceStatus {
     return { ...this._status };
@@ -432,44 +439,55 @@ class NetworkScale {
   }
   
   async connect(config: ScaleConfig): Promise<boolean> {
-    if (!config.address || !config.port) {
+    if (!config.address || !config.tcpPort) {
       this._status = { connected: false, online: false, error: '未配置秤地址' };
       return false;
     }
     
     this.config = config;
-    const url = `ws://${config.address}:${config.port}`;
     
-    return new Promise((resolve) => {
-      try {
-        this.ws = new WebSocket(url);
+    try {
+      // 使用原生插件连接TCP设备
+      const result = await deviceApi.connectTcp({
+        id: 'scale_' + Date.now(),
+        host: config.address,
+        port: config.tcpPort,
+        timeout: 5000,
+      });
+      
+      if (result.success) {
+        this.deviceId = result.id;
+        this._status = { connected: true, online: true, lastUpdate: Date.now() };
+        this.reconnectAttempts = 0;
+        console.log('[网络秤] 连接成功:', result.message);
         
-        this.ws.onopen = () => {
-          this._status = { connected: true, online: true, lastUpdate: Date.now() };
-          this.reconnectAttempts = 0;
-          console.log('[网络秤] 连接成功:', url);
-          resolve(true);
-        };
+        // 监听数据
+        this.dataListener = deviceApi.addListener('deviceData', (event) => {
+          if (event.id === this.deviceId) {
+            this.parseData(event.data);
+          }
+        });
         
-        this.ws.onmessage = (event) => {
-          this.parseData(event.data);
-        };
+        // 监听断开
+        deviceApi.addListener('deviceDisconnected', (event) => {
+          if (event.id === this.deviceId) {
+            this._status = { connected: false, online: false };
+            this.deviceId = null;
+            this.dataListener?.();
+            this.attemptReconnect();
+          }
+        });
         
-        this.ws.onerror = (error) => {
-          console.error('[网络秤] 连接错误:', error);
-          this._status = { connected: false, online: false, error: '连接错误' };
-          resolve(false);
-        };
-        
-        this.ws.onclose = () => {
-          this._status = { connected: false, online: false };
-          this.attemptReconnect();
-        };
-      } catch (error: any) {
-        this._status = { connected: false, online: false, error: error.message };
-        resolve(false);
+        return true;
+      } else {
+        this._status = { connected: false, online: false, error: result.message };
+        return false;
       }
-    });
+    } catch (error: any) {
+      console.error('[网络秤] 连接失败:', error);
+      this._status = { connected: false, online: false, error: error.message };
+      return false;
+    }
   }
   
   private parseData(data: string): void {
@@ -486,8 +504,16 @@ class NetworkScale {
       this._status = { ...this._status, online: true, lastUpdate: Date.now() };
       this.onReadingCallback?.(reading);
     } catch {
-      // 非JSON格式，直接解析
-      const weight = parseFloat(data);
+      // 非JSON格式，解析十六进制数据
+      this.parseHexData(data);
+    }
+  }
+  
+  private parseHexData(data: string): void {
+    // 尝试解析为秤协议数据
+    // 大华协议或其他协议的十六进制数据
+    try {
+      const weight = parseFloat(data.trim());
       if (!isNaN(weight)) {
         this.lastReading = {
           weight: Math.abs(weight),
@@ -495,8 +521,11 @@ class NetworkScale {
           stable: true,
           timestamp: Date.now(),
         };
+        this._status = { ...this._status, online: true, lastUpdate: Date.now() };
         this.onReadingCallback?.(this.lastReading);
       }
+    } catch {
+      // 解析失败
     }
   }
   
@@ -504,18 +533,20 @@ class NetworkScale {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
     
     this.reconnectAttempts++;
+    console.log(`[网络秤] 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     setTimeout(() => {
-      if (!this._status.connected) {
-        console.log(`[网络秤] 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-        this.connect(this.config);
-      }
+      this.connect(this.config);
     }, 3000 * this.reconnectAttempts);
   }
   
   async disconnect(): Promise<void> {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.deviceId) {
+      await deviceApi.disconnect({ id: this.deviceId });
+      this.deviceId = null;
+    }
+    if (this.dataListener) {
+      this.dataListener();
+      this.dataListener = null;
     }
     this._status = { connected: false, online: false };
   }
@@ -527,11 +558,12 @@ class NetworkScale {
 
 // ============ 小票打印机服务 ============
 class ReceiptPrinter {
-  private socket: WebSocket | null = null;
+  private deviceId: string | null = null;
   private config: PrinterConfig = { type: 'network', width: 58 };
   private _status: DeviceStatus = { connected: false, online: false };
   private messageQueue: string[] = [];
   private processing = false;
+  private dataListener: (() => void) | null = null;
   
   get status(): DeviceStatus {
     return { ...this._status };
@@ -543,8 +575,7 @@ class ReceiptPrinter {
     if (config.type === 'network') {
       return this.connectNetwork(config);
     } else {
-      // USB/蓝牙暂时不支持Web端
-      this._status = { connected: false, online: false, error: 'USB/蓝牙需要安装驱动' };
+      this._status = { connected: false, online: false, error: 'USB/蓝牙需要原生驱动' };
       return false;
     }
   }
@@ -555,61 +586,77 @@ class ReceiptPrinter {
       return false;
     }
     
-    // 使用WebSocket连接打印机（需要打印机支持WebSocket或通过网关）
-    // 如果打印机不支持WS，可以使用HTTP轮询方式
-    const url = `ws://${config.address}:${config.port}`;
-    
-    return new Promise((resolve) => {
-      try {
-        this.socket = new WebSocket(url);
+    try {
+      // 使用原生插件连接TCP设备
+      const result = await deviceApi.connectTcp({
+        id: 'printer_' + Date.now(),
+        host: config.address,
+        port: config.port,
+        timeout: 5000,
+      });
+      
+      if (result.success) {
+        this.deviceId = result.id;
+        this._status = { connected: true, online: true, lastUpdate: Date.now() };
+        console.log('[打印机] 连接成功:', result.message);
         
-        this.socket.onopen = () => {
-          this._status = { connected: true, online: true, lastUpdate: Date.now() };
-          console.log('[打印机] 连接成功');
-          this.processQueue();
-          resolve(true);
-        };
+        // 监听数据接收
+        this.dataListener = deviceApi.addListener('deviceData', (event) => {
+          console.log('[打印机] 收到数据:', event);
+        });
         
-        this.socket.onerror = () => {
-          // WebSocket连接失败，尝试HTTP方式
-          this._status = { connected: true, online: true, lastUpdate: Date.now() };
-          resolve(true);  // 假设HTTP可用
-        };
+        // 监听断开连接
+        deviceApi.addListener('deviceDisconnected', (event) => {
+          if (event.id === this.deviceId) {
+            this._status = { connected: false, online: false, error: '连接断开' };
+            this.deviceId = null;
+          }
+        });
         
-        this.socket.onclose = () => {
-          this._status = { connected: false, online: false };
-        };
-      } catch (error: any) {
-        // 连接失败，但可以尝试HTTP打印
-        this._status = { connected: true, online: true, lastUpdate: Date.now(), error: '使用HTTP模式' };
-        resolve(true);
+        // 处理队列
+        this.processQueue();
+        return true;
+      } else {
+        this._status = { connected: false, online: false, error: result.message };
+        return false;
       }
-    });
+    } catch (error: any) {
+      console.error('[打印机] 连接失败:', error);
+      this._status = { connected: false, online: false, error: error.message };
+      return false;
+    }
   }
   
   async disconnect(): Promise<void> {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+    if (this.deviceId) {
+      await deviceApi.disconnect({ id: this.deviceId });
+      this.deviceId = null;
+    }
+    if (this.dataListener) {
+      this.dataListener();
+      this.dataListener = null;
     }
     this._status = { connected: false, online: false };
   }
   
   // 发送原始数据
   async sendRaw(data: string): Promise<boolean> {
-    if (!this._status.connected) {
+    if (!this.deviceId) {
       this.messageQueue.push(data);
       return false;
     }
     
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(data);
+    try {
+      await deviceApi.send({
+        id: this.deviceId,
+        data,
+        encoding: 'UTF-8',
+      });
       return true;
+    } catch (error) {
+      console.error('[打印机] 发送失败:', error);
+      return false;
     }
-    
-    // 存储到队列
-    this.messageQueue.push(data);
-    return false;
   }
   
   private async processQueue(): Promise<void> {
@@ -618,8 +665,8 @@ class ReceiptPrinter {
     this.processing = true;
     while (this.messageQueue.length > 0) {
       const data = this.messageQueue.shift();
-      if (data && this.socket?.readyState === WebSocket.OPEN) {
-        this.socket.send(data);
+      if (data) {
+        await this.sendRaw(data);
         await new Promise(r => setTimeout(r, 50));
       }
     }
