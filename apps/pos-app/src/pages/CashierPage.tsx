@@ -266,9 +266,13 @@ export default function CashierPage() {
       handleBarcodeScan(data.barcode);
     });
     
-    // 监听秤数据事件
-    deviceEvents.on('weightChanged', (data) => {
+    // 监听秤数据事件，显示原始十六进制用于调试
+    deviceEvents.on('weightChanged', (data: { weight: number; unit: string; stable: boolean; raw?: string; timestamp: number }) => {
       console.log('[收银台] 秤数据:', data);
+      // 开发模式下显示原始十六进制数据
+      if (data.raw) {
+        console.log('[秤原始数据]', data.raw);
+      }
     });
     
     return () => {

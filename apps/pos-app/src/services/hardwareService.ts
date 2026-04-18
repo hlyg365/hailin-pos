@@ -8,10 +8,21 @@ import { registerPlugin } from '@capacitor/core';
 // ==================== 插件类型定义 ====================
 
 interface ScaleWeight {
-  weight: number;
-  unit: string;
-  stable: boolean;
-  timestamp: number;
+  weight: number;      // 重量值（kg）
+  unit: string;         // 单位 (kg/lb/g)
+  stable: boolean;      // 是否稳定
+  timestamp: number;    // 时间戳
+  raw?: string;         // 原始十六进制数据（如 "02 47 53 2B 30 31 32 2E 35 30 30 03"）
+}
+
+// 电子秤协议数据解析结果
+interface ScaleProtocol {
+  status: 'stable' | 'unstable' | 'tare' | 'zero';  // 状态
+  negative: boolean;   // 正负
+  weight: number;      // 数值
+  decimals: number;    // 小数位数
+  unit: string;        // 单位
+  raw: string;         // 原始十六进制
 }
 
 interface DeviceStatus {
@@ -320,6 +331,100 @@ export class ScaleService {
   
   get currentWeight(): ScaleWeight | null {
     return this.lastWeight;
+  }
+  
+  /**
+   * 静态解析器：解析电子秤十六进制数据（前端调试用）
+   * 
+   * 协议格式：
+   * [STX][状态][符号][整数][小数][小数位][单位][校验][ETX]
+   * 示例: 02 47 53 2B 30 31 32 2E 35 30 30 03
+   *        帧头  G  S  +  0   1   2  .  5   0   0  帧尾
+   * 
+   * @param hexString 十六进制字符串，格式如 "02 47 53 2B 30 31 32 2E 35 30 30 03"
+   * @returns 解析后的秤数据，或 null 如果解析失败
+   */
+  static parseHex(hexString: string): ScaleProtocol | null {
+    try {
+      // 解析十六进制字符串
+      const bytes = hexString.split(/\s+/).map(b => parseInt(b, 16));
+      
+      if (bytes.length < 10) {
+        console.warn('[秤解析] 数据太短:', bytes.length);
+        return null;
+      }
+      
+      const STX = 0x02;
+      const ETX = 0x03;
+      
+      // 验证帧头帧尾
+      if (bytes[0] !== STX || bytes[bytes.length - 1] !== ETX) {
+        console.warn('[秤解析] 帧头帧尾验证失败');
+        return null;
+      }
+      
+      // 验证校验位（异或校验）
+      let calculatedCheck = 0;
+      for (let i = 1; i < bytes.length - 2; i++) {
+        calculatedCheck ^= bytes[i];
+      }
+      const realCheck = bytes[bytes.length - 2];
+      
+      if (calculatedCheck !== realCheck) {
+        console.warn(`[秤解析] 校验失败: 计算值=0x${calculatedCheck.toString(16)}, 实际值=0x${realCheck.toString(16)}`);
+        return null;
+      }
+      
+      // 解析状态位
+      const statusMap: Record<number, ScaleProtocol['status']> = {
+        0x47: 'stable',  // 'G'
+        0x53: 'stable',  // 'S'
+        0x55: 'unstable', // 'U'
+        0x44: 'tare',    // 'D'
+        0x5A: 'zero',    // 'Z'
+      };
+      const status = statusMap[bytes[1]] || 'unstable';
+      
+      // 解析符号
+      const negative = bytes[2] === 0x2D || bytes[2] === 0x2d; // '-'
+      
+      // 解析重量数值
+      let weightStr = '';
+      for (let i = 2; i < bytes.length - 3; i++) {
+        const b = bytes[i];
+        if ((b >= 0x30 && b <= 0x39) || b === 0x2E) { // 0-9 或 .
+          weightStr += String.fromCharCode(b);
+        }
+      }
+      
+      const weight = negative ? -parseFloat(weightStr) : parseFloat(weightStr);
+      
+      // 解析单位
+      const unitMap: Record<number, string> = {
+        0x4B: 'kg',
+        0x6B: 'kg',
+        0x4C: 'lb',
+        0x6C: 'lb',
+        0x47: 'g',
+        0x67: 'g',
+        0x4F: 'oz',
+        0x6F: 'oz',
+      };
+      const unit = unitMap[bytes[bytes.length - 3]] || 'kg';
+      
+      return {
+        status,
+        negative,
+        weight,
+        decimals: weightStr.includes('.') ? weightStr.split('.')[1].length : 0,
+        unit,
+        raw: hexString,
+      };
+      
+    } catch (error) {
+      console.error('[秤解析] 解析异常:', error);
+      return null;
+    }
   }
 }
 

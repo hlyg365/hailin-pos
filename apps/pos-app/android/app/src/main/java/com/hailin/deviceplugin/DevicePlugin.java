@@ -4,6 +4,7 @@ import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.hardware.display.DisplayManager;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Handler;
@@ -208,7 +209,7 @@ public class DevicePlugin extends Plugin {
         
         // 停止读取线程
         ReaderThread reader = readerThreads.remove("scale_" + connectionId);
-        if (reader != null) reader.stop();
+        if (reader != null) reader.stopReading();
         
         call.resolve(new JSObject().put("success", true).put("message", "秤已断开"));
     }
@@ -472,13 +473,16 @@ public class DevicePlugin extends Plugin {
             out.write(width);
             
             // 选择条码类型并打印
-            byte[] cmd;
             if ("EAN13".equals(type)) {
-                cmd = new byte[]{GS, 0x6B, 0x02, (byte) dataBytes.length};
+                out.write(GS);
+                out.write(0x6B);
+                out.write(0x02);
+                out.write(dataBytes.length);
             } else {
-                cmd = new byte[]{GS, 0x6B, 0x00};
+                out.write(GS);
+                out.write(0x6B);
+                out.write(0x00);
             }
-            out.write(cmd);
             out.write(dataBytes);
             
             out.flush();
@@ -884,7 +888,7 @@ public class DevicePlugin extends Plugin {
     public void showOnCustomerDisplay(PluginCall call) {
         String mode = call.getString("mode", "welcome");
         String title = call.getString("title", "");
-        double amount = call.getDouble("amount", 0);
+        double amount = call.getDouble("amount", 0.0);
         String qrCodeUrl = call.getString("qrCodeUrl", "");
         
         if (currentPresentation != null && currentPresentation.isShowing()) {
@@ -894,7 +898,9 @@ public class DevicePlugin extends Plugin {
         } else {
             // 尝试显示到副屏
             try {
-                Display[] displays = appContext.getDisplayManager().getDisplays();
+                // 获取所有显示设备
+                DisplayManager dm = (DisplayManager) appContext.getSystemService(Context.DISPLAY_SERVICE);
+                Display[] displays = dm.getDisplays();
                 for (Display display : displays) {
                     if (display.getDisplayId() != Display.DEFAULT_DISPLAY) {
                         mainHandler.post(() -> {
@@ -1008,7 +1014,7 @@ public class DevicePlugin extends Plugin {
         serialPool.clear();
         
         for (ReaderThread reader : readerThreads.values()) {
-            reader.stop();
+            reader.stopReading();
         }
         readerThreads.clear();
         
@@ -1062,12 +1068,21 @@ public class DevicePlugin extends Plugin {
         long timestamp;
     }
     
-    // ==================== 内部类：秤读取线程 ====================
+    // ==================== 内部类：秤读取线程（支持粘包/断包处理）====================
     
     class ReaderThread extends Thread {
         private volatile boolean running = true;
         private SerialConnection serial;
         private String protocol;
+        
+        // 环形缓冲区：处理粘包和断包
+        private byte[] circularBuffer = new byte[256];
+        private int bufferWritePos = 0;  // 写入位置
+        private int bufferReadPos = 0;   // 已解析位置
+        
+        // 协议配置（可根据不同品牌电子秤调整）
+        private static final byte STX = 0x02;  // 帧头
+        private static final byte ETX = 0x03;  // 帧尾
         
         ReaderThread(SerialConnection serial, String protocol) {
             this.serial = serial;
@@ -1076,51 +1091,256 @@ public class DevicePlugin extends Plugin {
         
         @Override
         public void run() {
-            byte[] buffer = new byte[64];
+            byte[] readBuffer = new byte[64];
             while (running && serial.connected) {
                 try {
                     if (serial.input != null) {
-                        int len = serial.input.read(buffer);
+                        int len = serial.input.read(readBuffer);
                         if (len > 0) {
-                            parseScaleData(buffer, len);
+                            // 将新数据追加到环形缓冲区
+                            appendToBuffer(readBuffer, len);
+                            // 循环解析所有完整数据包
+                            processBuffer();
                         }
                     }
-                    Thread.sleep(100);
+                    Thread.sleep(50);  // 50ms 采样频率
                 } catch (Exception e) {
                     if (running) Log.e(TAG, "秤读取异常", e);
                 }
             }
         }
         
-        void parseScaleData(byte[] data, int len) {
-            String raw = new String(data, 0, len);
-            Log.d(TAG, "秤原始数据: " + raw);
-            
-            // 解析秤协议数据
-            // 通用协议格式: ST,GS,+0.500,kg\r\n
-            Pattern pattern = Pattern.compile("(ST|GS),([0-9]),([+-]?\\d+\\.\\d{3}),(\\w+)");
-            Matcher matcher = pattern.matcher(raw);
-            
-            if (matcher.find()) {
-                ScaleWeight weight = new ScaleWeight();
-                weight.weight = Double.parseDouble(matcher.group(3));
-                weight.unit = matcher.group(4);
-                weight.stable = "GS".equals(matcher.group(1));
-                weight.timestamp = System.currentTimeMillis();
+        /**
+         * 第一步：将新数据追加到缓冲区（处理粘包/断包）
+         */
+        private void appendToBuffer(byte[] data, int len) {
+            for (int i = 0; i < len; i++) {
+                circularBuffer[bufferWritePos] = data[i];
+                bufferWritePos = (bufferWritePos + 1) % circularBuffer.length;
                 
-                serial.lastWeight = weight;
-                
-                // 发送重量事件
-                JSObject event = new JSObject();
-                event.put("weight", weight.weight);
-                event.put("unit", weight.unit);
-                event.put("stable", weight.stable);
-                event.put("timestamp", weight.timestamp);
-                notifyListeners("scaleData", event);
+                // 防止覆盖未解析的数据
+                if (bufferWritePos == bufferReadPos) {
+                    Log.w(TAG, "秤缓冲区溢出，清空缓冲区");
+                    bufferReadPos = bufferWritePos;
+                }
             }
         }
         
-        void stop() {
+        /**
+         * 第二步：循环检测并解析所有完整数据包
+         */
+        private void processBuffer() {
+            while (hasCompletePacket()) {
+                byte[] packet = extractPacket();
+                if (packet != null && packet.length > 0) {
+                    ScaleWeight weight = parsePacket(packet);
+                    if (weight != null) {
+                        serial.lastWeight = weight;
+                        
+                        // 发送重量事件到前端
+                        JSObject event = new JSObject();
+                        event.put("weight", weight.weight);
+                        event.put("unit", weight.unit);
+                        event.put("stable", weight.stable);
+                        event.put("timestamp", weight.timestamp);
+                        event.put("raw", bytesToHex(packet));
+                        notifyListeners("scaleData", event);
+                    }
+                }
+            }
+        }
+        
+        /**
+         * 检测缓冲区中是否有完整的数据包
+         */
+        private boolean hasCompletePacket() {
+            int start = -1, end = -1;
+            int pos = bufferReadPos;
+            int count = 0;
+            int capacity = circularBuffer.length;
+            
+            while (count < capacity) {
+                byte b = circularBuffer[pos];
+                
+                if (start == -1 && b == STX) {
+                    start = pos;  // 找到帧头
+                } else if (start != -1 && b == ETX) {
+                    end = pos;    // 找到帧尾
+                    break;
+                }
+                
+                pos = (pos + 1) % capacity;
+                count++;
+            }
+            
+            return (start != -1 && end != -1 && end > start);
+        }
+        
+        /**
+         * 提取一个完整的数据包
+         */
+        private byte[] extractPacket() {
+            int start = -1, end = -1;
+            int pos = bufferReadPos;
+            int count = 0;
+            int capacity = circularBuffer.length;
+            
+            // 找到帧头和帧尾
+            while (count < capacity) {
+                byte b = circularBuffer[pos];
+                
+                if (start == -1 && b == STX) {
+                    start = pos;
+                } else if (start != -1 && b == ETX) {
+                    end = pos;
+                    break;
+                }
+                
+                pos = (pos + 1) % capacity;
+                count++;
+            }
+            
+            if (start == -1 || end == -1) {
+                return null;
+            }
+            
+            // 计算数据包长度
+            int len = (end - start + 1);
+            if (len < 0) len += capacity;
+            
+            // 提取数据包
+            byte[] packet = new byte[len];
+            for (int i = 0; i < len; i++) {
+                packet[i] = circularBuffer[(start + i) % capacity];
+            }
+            
+            // 更新读取位置
+            bufferReadPos = (end + 1) % capacity;
+            
+            return packet;
+        }
+        
+        /**
+         * 第三步：解析数据包（核心解析逻辑）
+         */
+        private ScaleWeight parsePacket(byte[] packet) {
+            try {
+                // 记录原始数据日志
+                Log.d(TAG, "秤数据包: " + bytesToHex(packet));
+                
+                // 基础检查
+                if (packet.length < 10) {
+                    Log.w(TAG, "数据包太短: " + packet.length);
+                    return null;
+                }
+                
+                // 第三步A：验证帧头帧尾
+                if (packet[0] != STX || packet[packet.length - 1] != ETX) {
+                    Log.w(TAG, "帧头帧尾验证失败");
+                    return null;
+                }
+                
+                // 第三步B：校验数据完整性（异或校验 BCC）
+                // 校验范围：第1字节到倒数第2字节（排除帧头、帧尾）
+                byte calculatedCheck = 0;
+                for (int i = 1; i < packet.length - 2; i++) {
+                    calculatedCheck ^= packet[i];
+                }
+                byte realCheck = packet[packet.length - 2];
+                
+                if (calculatedCheck != realCheck) {
+                    Log.w(TAG, String.format("校验失败: 计算值=0x%02X, 实际值=0x%02X", 
+                            calculatedCheck & 0xFF, realCheck & 0xFF));
+                    return null;
+                }
+                
+                // 第三步C：提取重量字段（ASCII解码）
+                // 常见协议格式：
+                // [STX][状态][符号][整数][小数][小数位][单位][校验][ETX]
+                // 示例: 02 47 53 2B 30 31 32 2E 35 30 30 03
+                //        帧头  G  S  +  0   1   2  .  5   0   0  帧尾
+                
+                ScaleWeight weight = new ScaleWeight();
+                
+                // 解析状态位（第1字节）
+                // 'G' (0x47) = 稳定, 'S' (0x53) = 稳定
+                // 'U' (0x55) = 不稳定, 'D' (0x44) = 去皮中
+                byte status = packet[1];
+                weight.stable = (status == 0x47 || status == 'G' || status == 'S');
+                
+                // 解析符号（第2字节）
+                // 2B = '+' (正), 2D = '-' (负)
+                boolean negative = (packet[2] == 0x2D || packet[2] == '-');
+                
+                // 解析重量数值（ASCII格式，第3-8字节）
+                // 格式可能是: "12.500" 或 "0012.5" 或 "+0012.5"
+                StringBuilder weightStr = new StringBuilder();
+                for (int i = 2; i < packet.length - 3 && i < 10; i++) {
+                    byte b = packet[i];
+                    // 跳过非数字字符（符号位、小数点等）
+                    if ((b >= '0' && b <= '9') || b == '.') {
+                        weightStr.append((char) b);
+                    }
+                }
+                
+                try {
+                    double rawWeight = Double.parseDouble(weightStr.toString().trim());
+                    weight.weight = negative ? -rawWeight : rawWeight;
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "重量解析失败: " + weightStr);
+                    return null;
+                }
+                
+                // 解析单位（第倒数第3字节）
+                byte unitByte = packet[packet.length - 3];
+                switch (unitByte) {
+                    case 'K':
+                    case 'k':
+                        weight.unit = "kg";
+                        break;
+                    case 'L':
+                    case 'l':
+                        weight.unit = "lb";
+                        break;
+                    case 'G':
+                    case 'g':
+                        weight.unit = "g";
+                        weight.weight = weight.weight / 1000; // 转为kg
+                        break;
+                    case 'O':
+                    case 'o':
+                        weight.unit = "oz";
+                        break;
+                    default:
+                        weight.unit = String.valueOf((char) unitByte);
+                        break;
+                }
+                
+                weight.timestamp = System.currentTimeMillis();
+                
+                Log.i(TAG, String.format("解析成功: %.3f %s (稳定=%b)", 
+                        weight.weight, weight.unit, weight.stable));
+                
+                return weight;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "数据包解析异常", e);
+                return null;
+            }
+        }
+        
+        /**
+         * 字节数组转十六进制字符串（调试用）
+         */
+        private String bytesToHex(byte[] bytes) {
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                sb.append(String.format("%02X ", b & 0xFF));
+            }
+            return sb.toString().trim();
+        }
+        
+        void stopReading() {
             running = false;
         }
     }

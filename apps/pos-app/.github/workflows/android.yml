@@ -27,7 +27,8 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/pos-app
-        run: pnpm install
+        run: pnpm install --prefer-offline
+        timeout-minutes: 10
 
       - name: Build Web App
         working-directory: apps/pos-app
