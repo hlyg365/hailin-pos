@@ -119,6 +119,15 @@ export default function DashboardPage() {
   const [purchasePrice, setPurchasePrice] = useState<number>(0); // 采购价
   const [boxWeight, setBoxWeight] = useState<number>(3); // 框重(斤)，默认3斤
   const [isWeighedProduct, setIsWeighedProduct] = useState<boolean>(false); // 是否称重商品
+  const [showNonStandardModal, setShowNonStandardModal] = useState<boolean>(false); // 非标品录入弹窗
+  const [nonStandardForm, setNonStandardForm] = useState({
+    name: '',
+    category: '水果',
+    price: 0,
+    quantity: 1,
+    isWeighed: false,
+    boxWeight: 3,
+  }); // 非标品表单
   
   // 计算净成本价（去框）
   // 净成本价 = (采购总价 - 框重 × 斤单价) / 净重量
@@ -164,6 +173,35 @@ export default function DashboardPage() {
       setScanResult({ barcode, success: false, error: result.message || 'AI识别失败，请手动输入商品信息' });
     }
     setImport识别中(false);
+  };
+  
+  // 非标品手动录入
+  const handleNonStandardAdd = () => {
+    if (!nonStandardForm.name) {
+      alert('请输入商品名称');
+      return;
+    }
+    
+    const costPrice = nonStandardForm.isWeighed && nonStandardForm.quantity > nonStandardForm.boxWeight
+      ? (nonStandardForm.price / (nonStandardForm.quantity - nonStandardForm.boxWeight))
+      : nonStandardForm.price;
+    
+    const newProduct = {
+      barcode: `NS-${Date.now()}`, // 非标品条码前缀
+      name: nonStandardForm.name,
+      category: nonStandardForm.category,
+      price: nonStandardForm.price,
+      costPrice: costPrice,
+      quantity: nonStandardForm.isWeighed ? (nonStandardForm.quantity - nonStandardForm.boxWeight) : nonStandardForm.quantity,
+      rawQuantity: nonStandardForm.quantity,
+      boxWeight: nonStandardForm.isWeighed ? nonStandardForm.boxWeight : 0,
+      isWeighed: nonStandardForm.isWeighed,
+      purchaseOrderId: `PO${Date.now()}`,
+    };
+    
+    setImportedProducts([...importedProducts, newProduct]);
+    setShowNonStandardModal(false);
+    setNonStandardForm({ name: '', category: '水果', price: 0, quantity: 1, isWeighed: false, boxWeight: 3 });
   };
   
   // 添加到入库列表
@@ -2532,9 +2570,20 @@ export default function DashboardPage() {
               {/* 左侧：扫码录入 */}
               <div className="col-span-2 space-y-4">
                 <div className="bg-white rounded-xl p-6 shadow-sm">
-                  <h3 className="font-semibold mb-4 flex items-center gap-2">
-                    <span className="text-xl">🔍</span> 条码扫描录入
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <span className="text-xl">🔍</span> 条码扫描录入
+                    </h3>
+                    <button 
+                      onClick={() => {
+                        setShowNonStandardModal(true);
+                        setScanResult(null);
+                      }}
+                      className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 flex items-center gap-2 text-sm font-medium"
+                    >
+                      <span>🏷️</span> 非标品手动录入
+                    </button>
+                  </div>
                   
                   <div className="flex gap-3 mb-4">
                     <input 
@@ -2592,7 +2641,7 @@ export default function DashboardPage() {
                             <span className="text-sm text-purple-700 font-medium">称重商品(含框重)</span>
                           </label>
                         </div>
-                        <div className={`grid gap-4 ${isWeighedProduct ? 'grid-cols-6' : 'grid-cols-4'}`}>
+                        <div className={`grid gap-4 ${isWeighedProduct ? 'grid-cols-7' : 'grid-cols-5'}`}>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">采购单价(元)</label>
                             <input 
@@ -2603,19 +2652,19 @@ export default function DashboardPage() {
                               className="w-full px-3 py-2 border rounded-lg text-center font-medium"
                             />
                           </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">{isWeighedProduct ? '总重量(斤)' : '采购数量'}</label>
+                            <input 
+                              type="number" 
+                              value={importQuantity} 
+                              onChange={(e) => setImportQuantity(parseFloat(e.target.value) || 1)}
+                              min={isWeighedProduct ? 0.1 : 1}
+                              step={isWeighedProduct ? 0.1 : 1}
+                              className="w-full px-3 py-2 border rounded-lg text-center font-medium"
+                            />
+                          </div>
                           {isWeighedProduct ? (
                             <>
-                              <div>
-                                <label className="block text-xs text-gray-500 mb-1">总重量(斤)</label>
-                                <input 
-                                  type="number" 
-                                  value={importQuantity} 
-                                  onChange={(e) => setImportQuantity(parseFloat(e.target.value) || 1)}
-                                  min={0.1}
-                                  step={0.1}
-                                  className="w-full px-3 py-2 border rounded-lg text-center font-medium"
-                                />
-                              </div>
                               <div>
                                 <label className="block text-xs text-gray-500 mb-1">去框重(斤)</label>
                                 <input 
@@ -2809,6 +2858,145 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-500 mt-2 text-center">入库后将自动更新库存</p>
                   </div>
                 )}
+        
+        {/* ========== 非标品手动录入弹窗 ========== */}
+        {showNonStandardModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <span className="text-2xl">🏷️</span> 非标品手动录入
+                </h3>
+                <button onClick={() => setShowNonStandardModal(false)} className="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* 商品名称 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">商品名称 *</label>
+                  <input 
+                    type="text" 
+                    value={nonStandardForm.name}
+                    onChange={(e) => setNonStandardForm({...nonStandardForm, name: e.target.value})}
+                    placeholder="如：红富士苹果、散装饼干等"
+                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    autoFocus
+                  />
+                </div>
+                
+                {/* 分类 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">商品分类</label>
+                  <select 
+                    value={nonStandardForm.category}
+                    onChange={(e) => setNonStandardForm({...nonStandardForm, category: e.target.value})}
+                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="水果">水果</option>
+                    <option value="蔬菜">蔬菜</option>
+                    <option value="烘焙">烘焙</option>
+                    <option value="熟食">熟食</option>
+                    <option value="卤味">卤味</option>
+                    <option value="散装食品">散装食品</option>
+                    <option value="其他">其他</option>
+                  </select>
+                </div>
+                
+                {/* 称重商品开关 */}
+                <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg">
+                  <input 
+                    type="checkbox" 
+                    id="nonStandardWeighed"
+                    checked={nonStandardForm.isWeighed}
+                    onChange={(e) => setNonStandardForm({...nonStandardForm, isWeighed: e.target.checked, quantity: e.target.checked ? 1 : nonStandardForm.quantity})}
+                    className="w-5 h-5 rounded text-purple-600"
+                  />
+                  <label htmlFor="nonStandardWeighed" className="text-sm font-medium text-purple-700">称重商品（含框重，需去框计算净成本）</label>
+                </div>
+                
+                {/* 采购价和数量 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">{nonStandardForm.isWeighed ? '采购总价(元)' : '采购单价(元)'}</label>
+                    <input 
+                      type="number" 
+                      value={nonStandardForm.price || ''}
+                      onChange={(e) => setNonStandardForm({...nonStandardForm, price: parseFloat(e.target.value) || 0})}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border rounded-lg text-center font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">{nonStandardForm.isWeighed ? '总重量(斤)' : '采购数量'}</label>
+                    <input 
+                      type="number" 
+                      value={nonStandardForm.quantity}
+                      onChange={(e) => setNonStandardForm({...nonStandardForm, quantity: parseFloat(e.target.value) || 1})}
+                      min={nonStandardForm.isWeighed ? 0.1 : 1}
+                      step={nonStandardForm.isWeighed ? 0.1 : 1}
+                      className="w-full px-3 py-2 border rounded-lg text-center font-medium"
+                    />
+                  </div>
+                </div>
+                
+                {/* 去框设置（仅称重商品显示） */}
+                {nonStandardForm.isWeighed && (
+                  <div className="grid grid-cols-3 gap-4 p-3 bg-orange-50 rounded-lg">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">去框重(斤)</label>
+                      <input 
+                        type="number" 
+                        value={nonStandardForm.boxWeight}
+                        onChange={(e) => setNonStandardForm({...nonStandardForm, boxWeight: parseFloat(e.target.value) || 0})}
+                        min={0}
+                        step={0.1}
+                        className="w-full px-3 py-2 border rounded-lg text-center font-medium bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">净重量(斤)</label>
+                      <div className="px-3 py-2 bg-green-100 rounded-lg text-center font-bold text-green-700">
+                        {Math.max(0, nonStandardForm.quantity - nonStandardForm.boxWeight).toFixed(1)}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">净成本价(元)</label>
+                      <div className="px-3 py-2 bg-green-100 rounded-lg text-center font-bold text-green-700">
+                        {nonStandardForm.quantity > nonStandardForm.boxWeight && nonStandardForm.price > 0 
+                          ? (nonStandardForm.price / (nonStandardForm.quantity - nonStandardForm.boxWeight)).toFixed(2)
+                          : '0.00'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 计算结果 */}
+                <div className="p-3 bg-gray-100 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">入库金额：</span>
+                    <span className="text-xl font-bold text-red-600">¥{nonStandardForm.price.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={() => setShowNonStandardModal(false)} 
+                  className="flex-1 py-3 border rounded-lg hover:bg-gray-50 font-medium"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={handleNonStandardAdd}
+                  disabled={!nonStandardForm.name}
+                  className="flex-1 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  添加到入库单
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
                 
                 {/* AI配置 */}
                 <div className="bg-white rounded-xl p-4 shadow-sm">
