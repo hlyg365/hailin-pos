@@ -204,6 +204,65 @@ export default function DashboardPage() {
     setNonStandardForm({ name: '', category: '水果', price: 0, quantity: 1, isWeighed: false, boxWeight: 3 });
   };
   
+  // 确认入库
+  const handleConfirmImport = () => {
+    if (importedProducts.length === 0) {
+      alert('入库清单为空，请先添加商品');
+      return;
+    }
+    
+    // 生成入库单号
+    const importOrderId = `IN${Date.now()}`;
+    const totalAmount = importedProducts.reduce((sum, p) => sum + p.costPrice * p.quantity, 0);
+    const totalQuantity = importedProducts.reduce((sum, p) => sum + p.quantity, 0);
+    
+    // 调用store添加入库记录
+    const orders = useOrderStore.getState().orders;
+    const newOrder: Order = {
+      id: importOrderId,
+      orderNo: importOrderId,
+      type: 'restock',
+      storeId: currentStore?.id || 'default',
+      memberId: undefined,
+      items: importedProducts.map(p => ({
+        productId: p.barcode,
+        productName: p.name,
+        barcode: p.barcode,
+        quantity: p.quantity,
+        unitPrice: p.costPrice,
+        discount: 0,
+        subtotal: p.costPrice * p.quantity,
+      })),
+      totalQuantity,
+      subtotal: totalAmount,
+      discount: 0,
+      total: totalAmount,
+      payMethod: 'cash',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    
+    useOrderStore.getState().addOrder(newOrder);
+    
+    // 更新库存（简单模拟）
+    const products = usePosStore.getState().products;
+    importedProducts.forEach(p => {
+      const existingProduct = products.find(prod => prod.barcode === p.barcode);
+      if (existingProduct) {
+        usePosStore.getState().updateProduct(p.barcode, {
+          stock: existingProduct.stock + p.quantity,
+          costPrice: p.costPrice,
+        });
+      }
+    });
+    
+    // 成功提示
+    alert(`入库成功！\n入库单号：${importOrderId}\n商品种类：${importedProducts.length}\n商品总数：${totalQuantity}\n总金额：¥${totalAmount.toFixed(2)}`);
+    
+    // 清空入库清单
+    setImportedProducts([]);
+  };
+  
   // 添加到入库列表
   const handleAddToImportList = () => {
     if (!scanResult?.success || !scanResult.barcode) return;
@@ -2560,8 +2619,12 @@ export default function DashboardPage() {
                 <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2">
                   <span>📤</span> 批量导入
                 </button>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-                  <span>✓</span> 确认入库
+                <button 
+                  onClick={handleConfirmImport}
+                  disabled={importedProducts.length === 0}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>✓</span> 确认入库 ({importedProducts.length})
                 </button>
               </div>
             </div>
@@ -2852,7 +2915,10 @@ export default function DashboardPage() {
                 {importedProducts.length > 0 && (
                   <div className="bg-white rounded-xl p-4 shadow-sm border-2 border-green-200">
                     <h4 className="font-semibold mb-3 text-green-700">确认入库</h4>
-                    <button className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg">
+                    <button 
+                      onClick={handleConfirmImport}
+                      className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold text-lg"
+                    >
                       确认提交入库单
                     </button>
                     <p className="text-xs text-gray-500 mt-2 text-center">入库后将自动更新库存</p>
