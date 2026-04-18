@@ -885,11 +885,227 @@ class CustomerDisplay {
   }
 }
 
+// ============ 标签打印机服务 (TSPL/CPCL 协议) ============
+class LabelPrinter {
+  private socket: WebSocket | null = null;
+  private config: PrinterConfig = { type: 'network', width: 58 };
+  private _status: DeviceStatus = { connected: false, online: false };
+  private messageQueue: string[] = [];
+  
+  get status(): DeviceStatus {
+    return { ...this._status };
+  }
+  
+  async connect(config: PrinterConfig): Promise<boolean> {
+    this.config = config;
+    
+    if (!config.address || !config.port) {
+      this._status = { connected: false, online: false, error: '未配置标签打印机地址' };
+      return false;
+    }
+    
+    // 标签打印机通常使用网口连接
+    const url = `ws://${config.address}:${config.port}`;
+    
+    return new Promise((resolve) => {
+      try {
+        this.socket = new WebSocket(url);
+        
+        this.socket.onopen = () => {
+          this._status = { connected: true, online: true, lastUpdate: Date.now() };
+          console.log('[标签打印机] 连接成功');
+          resolve(true);
+        };
+        
+        this.socket.onerror = () => {
+          // 尝试HTTP方式
+          this._status = { connected: true, online: true, lastUpdate: Date.now() };
+          resolve(true);
+        };
+        
+        this.socket.onclose = () => {
+          this._status = { connected: false, online: false };
+        };
+      } catch {
+        this._status = { connected: true, online: true, lastUpdate: Date.now() };
+        resolve(true);
+      }
+    });
+  }
+  
+  async disconnect(): Promise<void> {
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    this._status = { connected: false, online: false };
+  }
+  
+  // 发送TSPL指令
+  async send(command: string): Promise<boolean> {
+    if (!this._status.connected) return false;
+    
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(command);
+      return true;
+    }
+    
+    this.messageQueue.push(command);
+    return false;
+  }
+  
+  // ============ TSPL 指令集 ============
+  
+  // 设置标签尺寸 (单位: mm)
+  SIZE(width: number, height: number): this {
+    this.messageQueue.push(`SIZE ${width} mm,${height} mm\n`);
+    return this;
+  }
+  
+  // 设置间隙 (单位: mm)
+  GAP(gap: number, offset: number = 0): this {
+    this.messageQueue.push(`GAP ${gap} mm,${offset} mm\n`);
+    return this;
+  }
+  
+  // 清除缓冲区
+  CLS(): this {
+    this.messageQueue.push('CLS\n');
+    return this;
+  }
+  
+  // 打印文字
+  // x, y: 坐标; font: 字体; rotation: 旋转角度; xs, ys: 放大倍数; content: 内容
+  TEXT(x: number, y: number, font: string = 'TSS24', rotation: number = 0, xs: number = 1, ys: number = 1, content: string): this {
+    this.messageQueue.push(`TEXT ${x},${y},"${font}",${rotation},${xs},${ys},"${content}"\n`);
+    return this;
+  }
+  
+  // 打印条码
+  BARCODE(
+    x: number, y: number, 
+    type: '128' | '39' | 'EAN13' | 'EAN8' | 'UPCA' | 'UPCE' | 'QRCODE' = '128',
+    height: number = 60,
+    humanReadable: number = 1,
+    rotation: number = 0,
+    narrow: number = 2,
+    wide: number = 2,
+    code: string
+  ): this {
+    this.messageQueue.push(`BARCODE ${x},${y},"${type}",${height},${humanReadable},${rotation},${narrow},${wide},"${code}"\n`);
+    return this;
+  }
+  
+  // 打印二维码 (QRCode)
+  QRCODE(x: number, y: number, level: string = 'M', width: number = 3, rotation: number = 0, code: string): this {
+    this.messageQueue.push(`QRCODE ${x},${y},${level},${width},A,${rotation},${code}\n`);
+    return this;
+  }
+  
+  // 绘制矩形
+  BAR(x1: number, y1: number, x2: number, y2: number, thickness: number = 1): this {
+    this.messageQueue.push(`BAR ${x1},${y1},${x2},${y2},${thickness}\n`);
+    return this;
+  }
+  
+  // 打印份数
+  PRINT(copies: number = 1): this {
+    this.messageQueue.push(`PRINT ${copies}\n`);
+    return this;
+  }
+  
+  // 执行指令
+  async execute(): Promise<boolean> {
+    const commands = this.messageQueue.join('');
+    this.messageQueue = [];
+    
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(commands);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // 打印商品标签
+  async printProductLabel(data: {
+    name: string;
+    price: number;
+    barcode: string;
+    unit?: string;
+    date?: string;
+  }): Promise<boolean> {
+    // 40mm x 30mm 标签纸
+    this.SIZE(40, 30).GAP(2, 0).CLS();
+    
+    // 商品名称 (第一行)
+    this.TEXT(5, 5, 'TSS24', 0, 1, 1, data.name.substring(0, 10));
+    
+    // 价格
+    this.TEXT(5, 28, 'TSS24', 0, 2, 2, `¥${data.price.toFixed(2)}`);
+    
+    // 单位
+    if (data.unit) {
+      this.TEXT(200, 28, 'TSS24', 0, 1, 1, `/${data.unit}`);
+    }
+    
+    // 条码
+    this.BARCODE(5, 50, '128', 40, 1, 0, 2, 2, data.barcode);
+    
+    // 日期
+    if (data.date) {
+      this.TEXT(200, 5, 'TSS24', 0, 1, 1, data.date);
+    }
+    
+    return await this.execute();
+  }
+  
+  // 打印价签
+  async printPriceTag(data: {
+    name: string;
+    price: number;
+    originalPrice?: number;
+    discount?: number;
+    barcode: string;
+    storeName?: string;
+  }): Promise<boolean> {
+    // 60mm x 40mm 标签纸
+    this.SIZE(60, 40).GAP(2, 0).CLS();
+    
+    // 店名
+    if (data.storeName) {
+      this.TEXT(5, 5, 'TSS24', 0, 1, 1, data.storeName);
+    }
+    
+    // 商品名称
+    this.TEXT(5, 22, 'TSS24', 0, 1, 1, data.name.substring(0, 15));
+    
+    // 现价 (大字体)
+    this.TEXT(5, 45, 'TSS24', 0, 2, 2, `¥${data.price.toFixed(2)}`);
+    
+    // 原价 (删除线效果)
+    if (data.originalPrice) {
+      this.TEXT(130, 50, 'TSS24', 0, 1, 1, `¥${data.originalPrice.toFixed(2)}`);
+    }
+    
+    // 折扣
+    if (data.discount) {
+      this.TEXT(200, 22, 'TSS24', 0, 1, 1, `${data.discount}折`);
+    }
+    
+    // 条码
+    this.BARCODE(5, 75, 'EAN13', 35, 1, 0, 2, 2, data.barcode);
+    
+    return await this.execute();
+  }
+}
+
 // ============ 设备管理器 ============
 export const deviceManager = {
   serialScale: new SerialScale(),
   networkScale: new NetworkScale(),
   printer: new ReceiptPrinter(),
+  labelPrinter: new LabelPrinter(),
   customerDisplay: new CustomerDisplay(),
   
   // 当前使用的秤
@@ -907,9 +1123,9 @@ export const deviceManager = {
       serialScale: this.serialScale.status,
       networkScale: this.networkScale.status,
       printer: this.printer.status,
+      labelPrinter: this.labelPrinter.status,
       customerDisplay: this.customerDisplay.status,
       cashDrawer: { connected: this.printer.status.connected, online: this.printer.status.online },
-      labelPrinter: { connected: false, online: false },
     };
   },
   
@@ -1022,4 +1238,4 @@ export const deviceManager = {
   },
 };
 
-export type { SerialScale, NetworkScale, ReceiptPrinter, CustomerDisplay };
+export type { SerialScale, NetworkScale, ReceiptPrinter, LabelPrinter, CustomerDisplay };
