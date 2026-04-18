@@ -784,17 +784,17 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       
       // 商品名称字段（支持多种命名方式）
       const name = 
+        goodsData.goodsName ||  // 万维易源字段
         goodsData.goods_name || 
         goodsData.name || 
         goodsData.product_name || 
-        goodsData.goodsName ||
         goodsData.commodityName ||
         goodsData.title ||
-        goodsData.goodsName ||
         '';
       
       // 分类字段
       const category = 
+        goodsData.gpcType ||  // 万维易源分类字段
         goodsData.category_name || 
         goodsData.category || 
         goodsData.cat ||
