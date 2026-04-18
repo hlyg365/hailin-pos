@@ -23,9 +23,7 @@ jobs:
           cache-dependency-path: apps/pos-app/pnpm-lock.yaml
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
+        run: npm install -g pnpm
 
       - name: Install dependencies
         run: pnpm install
