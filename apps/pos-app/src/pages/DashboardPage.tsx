@@ -94,16 +94,16 @@ export default function DashboardPage() {
     const result = await aiConfig.aiScanByBarcode(barcode);
     console.log('[商品管理] AI识别结果:', result);
     
-    if (result.success && result.name && result.retailPrice) {
-      // 识别成功，自动填充表单
+    if (result.success && result.name) {
+      // 识别成功，自动填充表单（即使retailPrice为0也填充）
       setNewProductForm(prev => ({
         ...prev,
         barcode,
         name: result.name || '',
         category: result.category || '食品',
-        retailPrice: result.retailPrice || 0,
-        costPrice: result.costPrice || 0,
-        image: result.image || '',
+        retailPrice: result.retailPrice ?? prev.retailPrice,
+        costPrice: result.costPrice ?? prev.costPrice,
+        image: result.image || prev.image,
       }));
     } else {
       // 识别失败，只填条码，提示用户
