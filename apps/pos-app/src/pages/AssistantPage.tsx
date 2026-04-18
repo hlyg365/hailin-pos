@@ -435,11 +435,109 @@ export default function AssistantPage() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const { currentStore } = useStoreStore();
   const { todaySales, todayOrders, todayCash, depositPending } = useFinanceStore();
-  const { requests } = useRestockStore();
+  const { requests, createRequest } = useRestockStore();
   const { lowStockAlerts, overdueAlerts } = useAlertStore();
   const { products } = useProductStore();
 
-  const storeRequests = requests.filter(r => r.storeId === 'store001');
+  // 新建要货单相关状态
+  const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+  const [restockItems, setRestockItems] = useState<Array<{ productId: string; productName: string; quantity: number; retailPrice: number }>>([]);
+  const [searchProduct, setSearchProduct] = useState('');
+
+  const storeRequests = requests.filter(r => r.storeId === (currentStore?.id || 'store001'));
+
+  // 创建要货单
+  const handleCreateRequest = () => {
+    if (restockItems.length === 0) {
+      alert('请添加要货商品');
+      return;
+    }
+    
+    const totalAmount = restockItems.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
+    const newRequest = {
+      id: `REQ${Date.now()}`,
+      orderNo: `REQ${Date.now()}`,
+      storeId: currentStore?.id || 'store001',
+      items: restockItems.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.retailPrice,
+        subtotal: item.retailPrice * item.quantity,
+      })),
+      totalAmount,
+      status: 'pending' as const,
+      requestedBy: '店长',
+      requestedAt: new Date().toLocaleString(),
+    };
+    
+    createRequest(newRequest);
+    setShowNewRequestModal(false);
+    setRestockItems([]);
+    alert('要货单提交成功！');
+  };
+
+  // 一键要货（基于库存预警）
+  const handleQuickRestock = (alert: typeof lowStockAlerts[0]) => {
+    const product = products.find(p => p.id === alert.productId);
+    if (!product) return;
+
+    const newRequest = {
+      id: `REQ${Date.now()}`,
+      orderNo: `REQ${Date.now()}`,
+      storeId: currentStore?.id || 'store001',
+      items: [{
+        productId: alert.productId,
+        productName: alert.productName,
+        quantity: alert.threshold - alert.current,
+        unitPrice: product.retailPrice,
+        subtotal: (alert.threshold - alert.current) * product.retailPrice,
+      }],
+      totalAmount: (alert.threshold - alert.current) * product.retailPrice,
+      status: 'pending' as const,
+      requestedBy: '店长',
+      requestedAt: new Date().toLocaleString(),
+    };
+    
+    createRequest(newRequest);
+    alert(`已提交要货：${alert.productName} x ${alert.threshold - alert.current}`);
+  };
+
+  // 添加商品到要货单
+  const addToRestockList = (product: Product) => {
+    const existing = restockItems.find(item => item.productId === product.id);
+    if (existing) {
+      setRestockItems(restockItems.map(item =>
+        item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setRestockItems([...restockItems, {
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        retailPrice: product.retailPrice,
+      }]);
+    }
+  };
+
+  // 更新要货数量
+  const updateRestockQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      setRestockItems(restockItems.filter(item => item.productId !== productId));
+    } else {
+      setRestockItems(restockItems.map(item =>
+        item.productId === productId ? { ...item, quantity } : item
+      ));
+    }
+  };
+
+  // 计算要货总金额
+  const restockTotal = restockItems.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
+
+  // 过滤商品用于搜索
+  const filteredProducts = products.filter(p =>
+    p.name.includes(searchProduct) || p.barcode.includes(searchProduct)
+  );
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'dashboard', label: '首页', icon: '📊' },
@@ -664,11 +762,11 @@ export default function AssistantPage() {
                   <div key={i} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                     <div>
                       <p className="font-medium">{stockAlert.productName}</p>
-                      <p className="text-sm text-gray-500">建议补货 {stockAlert.threshold - stockAlert.current}</p>
+                      <p className="text-sm text-gray-500">当前 {stockAlert.current} / 预警 {stockAlert.threshold} | 建议补货 {stockAlert.threshold - stockAlert.current}</p>
                     </div>
                     <button
-                      className="px-4 py-2 bg-yellow-500 text-white text-sm rounded"
-                      onClick={() => window.alert('要货申请已提交')}
+                      className="px-4 py-2 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600"
+                      onClick={() => handleQuickRestock(stockAlert)}
                     >
                       一键要货
                     </button>
@@ -703,7 +801,10 @@ export default function AssistantPage() {
               </div>
             </div>
 
-            <button className="w-full py-4 bg-blue-500 text-white rounded-xl font-medium">
+            <button 
+              className="w-full py-4 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600"
+              onClick={() => setShowNewRequestModal(true)}
+            >
               + 新建要货单
             </button>
           </div>
@@ -838,6 +939,100 @@ export default function AssistantPage() {
           </div>
         )}
       </div>
+      
+      {/* ========== 新建要货单模态框 ========== */}
+      {showNewRequestModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end z-50">
+          <div className="bg-white w-full max-h-[90vh] rounded-t-2xl overflow-hidden flex flex-col">
+            {/* 头部 */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-bold">新建要货单</h3>
+              <button onClick={() => setShowNewRequestModal(false)} className="text-gray-500 text-2xl">&times;</button>
+            </div>
+            
+            {/* 商品搜索 */}
+            <div className="p-4 border-b">
+              <input
+                type="text"
+                value={searchProduct}
+                onChange={(e) => setSearchProduct(e.target.value)}
+                placeholder="搜索商品名称或条码..."
+                className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            {/* 商品列表 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <h4 className="text-sm font-medium text-gray-500 mb-2">可选商品</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {filteredProducts.slice(0, 10).map(product => (
+                  <button
+                    key={product.id}
+                    onClick={() => addToRestockList(product)}
+                    className="p-3 border rounded-lg text-left hover:bg-blue-50 hover:border-blue-300"
+                  >
+                    <p className="font-medium text-sm truncate">{product.name}</p>
+                    <p className="text-xs text-gray-500">¥{product.retailPrice.toFixed(2)}</p>
+                  </button>
+                ))}
+              </div>
+              
+              {/* 已选商品 */}
+              {restockItems.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium text-gray-500 mb-2">已选商品 ({restockItems.length})</h4>
+                  <div className="space-y-2">
+                    {restockItems.map(item => (
+                      <div key={item.productId} className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{item.productName}</p>
+                          <p className="text-xs text-gray-500">¥{item.retailPrice.toFixed(2)}/件</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateRestockQuantity(item.productId, item.quantity - 1)}
+                            className="w-8 h-8 rounded-full bg-white border flex items-center justify-center"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateRestockQuantity(item.productId, parseInt(e.target.value) || 1)}
+                            className="w-16 text-center border rounded px-2 py-1"
+                            min={1}
+                          />
+                          <button
+                            onClick={() => updateRestockQuantity(item.productId, item.quantity + 1)}
+                            className="w-8 h-8 rounded-full bg-white border flex items-center justify-center"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* 底部 */}
+            <div className="p-4 border-t bg-gray-50">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-gray-600">要货总数量：{restockItems.reduce((sum, item) => sum + item.quantity, 0)} 件</span>
+                <span className="text-xl font-bold text-red-600">¥{restockTotal.toFixed(2)}</span>
+              </div>
+              <button
+                onClick={handleCreateRequest}
+                disabled={restockItems.length === 0}
+                className="w-full py-4 bg-blue-500 text-white rounded-xl font-bold text-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                提交要货单
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -321,10 +321,32 @@ interface RestockState {
 
 export const useRestockStore = create<RestockState>((set) => ({
   requests: [
-    { id: 'req001', storeId: 'store001', items: [{ productId: 'p009', quantity: 50 }], totalAmount: 450, status: 'pending', requestedBy: 'emp001', requestedAt: new Date().toISOString() },
-    { id: 'req002', storeId: 'store002', items: [{ productId: 'p001', quantity: 100 }], totalAmount: 150, status: 'approved', requestedBy: 'emp002', requestedAt: new Date().toISOString() },
+    { 
+      id: 'req001', 
+      orderNo: 'REQ20240116001',
+      storeId: 'store001', 
+      items: [
+        { productId: 'p009', productName: '红富士苹果', quantity: 50, unitPrice: 8.8, subtotal: 440 }
+      ], 
+      totalAmount: 440, 
+      status: 'pending', 
+      requestedBy: '张三',
+      requestedAt: '2024-01-16 14:30:00' 
+    },
+    { 
+      id: 'req002', 
+      orderNo: 'REQ20240115002',
+      storeId: 'store002', 
+      items: [
+        { productId: 'p001', productName: '农夫山泉', quantity: 100, unitPrice: 1.5, subtotal: 150 }
+      ], 
+      totalAmount: 150, 
+      status: 'approved', 
+      requestedBy: '李四',
+      requestedAt: '2024-01-15 09:15:00' 
+    },
   ],
-  createRequest: (request) => set((state) => ({ requests: [...state.requests, request] })),
+  createRequest: (request) => set((state) => ({ requests: [request, ...state.requests] })),
   approveRequest: (id) => set((state) => ({
     requests: state.requests.map(r => r.id === id ? { ...r, status: 'shipped' } : r),
   })),
