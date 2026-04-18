@@ -647,10 +647,12 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       }
       
       // 根据请求类型设置Content-Type
-      // 万维易源特殊处理（根据URL识别，因为名称可能被用户修改）
+      // 万维易源特殊处理（强制POST，不管用户怎么配置）
       const isWanWeiYiYuan = config.apiUrl.includes('showapi.com');
       if (isWanWeiYiYuan) {
+        // 强制使用POST + form格式
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        headers['appkey'] = config.apiKey; // 强制设置appkey
       } else if (config.method === 'GET') {
         delete headers['Content-Type'];
       } else {
@@ -661,7 +663,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       let requestBodyStr: string | undefined;
       if (config.method !== 'GET') {
         if (isWanWeiYiYuan) {
-          // 万维易源格式: code=条码号 (POST body)
+          // 万维易源强制POST body: code=条码号
           requestBodyStr = `code=${barcode}`;
         } else if (config.method === 'GET') {
           requestBodyStr = undefined;
@@ -814,7 +816,7 @@ export const useAiConfigStore = create<AiConfigState>()(
   persist(
     (set, get) => ({
       configs: defaultAiConfigs,
-      version: 5, // 版本号，用于强制重置缓存
+      version: 6, // 版本号，用于强制重置缓存
       addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
       updateConfig: (index, updates) => set((state) => ({
         configs: state.configs.map((c, i) => i === index ? { ...c, ...updates } : c),
