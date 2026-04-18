@@ -2717,9 +2717,22 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 font-bold">{index + 1}</span>
                     <div>
-                      <h3 className="font-semibold">配置方案 {index + 1}</h3>
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-semibold">配置方案 {index + 1}</h3>
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                          调用 {config.callCount || 0} 次
+                        </span>
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                          成功 {config.successCount || 0} 次
+                        </span>
+                        {config.callCount > 0 && (
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+                            成功率 {Math.round((config.successCount / config.callCount) * 100)}%
+                          </span>
+                        )}
+                      </div>
                       {config.lastTestResult && (
-                        <p className={`text-xs ${config.lastTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                        <p className={`text-xs mt-1 ${config.lastTestResult.success ? 'text-green-600' : 'text-red-600'}`}>
                           {config.lastTestResult.success ? '✓' : '✗'} {config.lastTestResult.message}
                         </p>
                       )}
