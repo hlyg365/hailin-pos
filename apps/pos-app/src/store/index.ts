@@ -709,10 +709,21 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       }
 
       const data = await response.json();
-      console.log('[AI识别] 返回数据:', JSON.stringify(data).substring(0, 200));
+      console.log('[AI识别] 返回数据:', JSON.stringify(data, null, 2));
+      
+      // 打印用于判断的字段
+      console.log('[AI识别] 判断字段:', {
+        'data.code': data.code,
+        'data.success': data.success,
+        'data.found': data.found,
+        'data.showapi_res_code': data.showapi_res_code,
+        'data.showapi_res_body': data.showapi_res_body,
+        'data.showapi_res_body?.flag': data.showapi_res_body?.flag,
+        'data.showapi_res_body?.ret_code': data.showapi_res_body?.ret_code
+      });
       
       // 支持多种API返回格式
-      // 成功: code=200, code=1, success=true, found=true, showapi_res_code=0
+      // 成功: code=200, code=1, code=0, success=true, found=true, showapi_res_code=0, ret_code=0
       // 失败: code=401(无Key), code=403(无权限), code=404(未找到), data.found=false
       const isSuccess = 
         data.code === 200 || 
@@ -721,6 +732,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         data.success === true || 
         data.found === true ||
         data.showapi_res_code === 0 ||
+        data.showapi_res_body?.ret_code === 0 ||
         (data.showapi_res_body && data.showapi_res_body.flag === true);
       const isNotFound = data.code === 401 || data.code === 403 || data.code === 404 || data.found === false;
       
