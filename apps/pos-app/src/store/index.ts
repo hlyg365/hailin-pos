@@ -743,7 +743,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 const defaultAiConfigs: AiBarcodeConfig[] = [
   {
     name: '山海云端(APIbyte)',
-    enabled: true,
+    enabled: false,
     apiUrl: 'https://apione.apibyte.cn/api/barcode',
     apiKey: '', // 需要API Key
     appCode: '',
