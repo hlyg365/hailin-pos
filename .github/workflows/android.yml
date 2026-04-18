@@ -1,0 +1,74 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: apps/pos-app/pnpm-lock.yaml
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install
+        working-directory: apps/pos-app
+
+      - name: Build Web App
+        run: pnpm build
+        working-directory: apps/pos-app
+
+      - name: Sync to Android
+        run: pnpm exec cap sync android
+        working-directory: apps/pos-app
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Change gradlew permission
+        run: chmod +x android/gradlew
+        working-directory: apps/pos-app/android
+
+      - name: Build Debug APK
+        run: |
+          ./gradlew assembleDebug --no-daemon
+        working-directory: apps/pos-app/android
+        env:
+          JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hailin-pos-apk
+          path: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
+          name: "海邻到家收银台 APK v${{ github.run_number }}"
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
