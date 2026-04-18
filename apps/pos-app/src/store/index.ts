@@ -530,6 +530,8 @@ interface AiBarcodeConfig {
     costPrice: string;
     image?: string;
   };
+  callCount: number;
+  successCount: number;
   lastTestResult: {
     success: boolean;
     message: string;
@@ -563,22 +565,26 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
   retailPrice?: number;
   costPrice?: number;
   message?: string;
+  configIndex?: number;
 }> => {
-  // 找到已启用的配置
-  const enabledConfig = configs.find(c => c.enabled);
-  if (!enabledConfig) {
+  // 找到已启用的配置（按顺序）
+  const enabledConfigIndex = configs.findIndex(c => c.enabled);
+  if (enabledConfigIndex === -1) {
     return { success: false, message: '请先配置并启用AI识别接口' };
   }
+  
+  const enabledConfig = configs[enabledConfigIndex];
   
   // 检查是否配置了必要的认证信息
   if (!enabledConfig.apiUrl) {
     return { success: false, message: '请先配置API接口地址' };
   }
   
+  // 无Key也可以调用（部分API支持）
   if (!enabledConfig.apiKey && !enabledConfig.appCode) {
-    return { success: false, message: '请先配置API Key或AppCode' };
+    console.log('[AI识别] 未配置API Key，将使用无认证方式调用');
   }
-
+  
   try {
     // 构建请求参数
     let requestBody: Record<string, any> = {};
@@ -710,20 +716,22 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         costPrice,
         image,
         message: '识别成功',
+        configIndex: enabledConfigIndex,
       };
     } else {
       console.log('[AI识别] 识别失败，未获取到有效商品信息');
       return {
         success: false,
         message: '未获取到商品信息，请检查条码是否正确或手动输入',
+        configIndex: enabledConfigIndex,
       };
     }
   } catch (error: any) {
     console.error('[AI识别] 异常:', error);
     if (error.name === 'AbortError') {
-      return { success: false, message: '请求超时，请检查网络或调整超时时间' };
+      return { success: false, message: '请求超时，请检查网络或调整超时时间', configIndex: enabledConfigIndex };
     }
-    return { success: false, message: `识别失败: ${error.message}` };
+    return { success: false, message: `识别失败: ${error.message}`, configIndex: enabledConfigIndex };
   }
 };
 
@@ -744,6 +752,8 @@ const defaultAiConfig: AiBarcodeConfig = {
     costPrice: '',
     image: 'image',
   },
+  callCount: 0,
+  successCount: 0,
   lastTestResult: null,
 };
 
@@ -764,7 +774,25 @@ export const useAiConfigStore = create<AiConfigState>()(
       // AI条码识别
       aiScanByBarcode: async (barcode: string) => {
         const configs = get().configs;
-        return aiScanByBarcode(barcode, configs);
+        const result = await aiScanByBarcode(barcode, configs);
+        
+        // 更新调用次数
+        if (result.configIndex !== undefined) {
+          const config = get().configs[result.configIndex];
+          set((state) => ({
+            configs: state.configs.map((c, i) => 
+              i === result.configIndex 
+                ? { 
+                    ...c, 
+                    callCount: (c.callCount || 0) + 1,
+                    successCount: result.success ? (c.successCount || 0) + 1 : (c.successCount || 0)
+                  } 
+                : c
+            ),
+          }));
+        }
+        
+        return result;
       },
     }),
     {
