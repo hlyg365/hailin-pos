@@ -660,10 +660,10 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     console.log('[AI识别] API返回数据:', JSON.stringify(data));
     
     // 支持多种API返回格式
-    // 格式1: {code: 1, msg: "成功", data: {...}}
-    // 格式2: {success: true, data: {...}}
-    // 格式3: {result: {...}}
-    const isSuccess = data.code === 1 || data.success === true || data.code === 'success';
+    // 格式1: {code: 200, msg: "success", data: {...}} (当前API)
+    // 格式2: {code: 1, msg: "成功", data: {...}}
+    // 格式3: {success: true, data: {...}}
+    const isSuccess = data.code === 200 || data.code === 1 || data.success === true;
     
     if (!isSuccess) {
       console.error('[AI识别] API返回错误:', data.msg || data.error || data.message || '未知错误');
@@ -671,7 +671,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     }
     
     // 提取商品数据
-    const goodsData = data.data || data.result || data.goods_info || data;
+    const goodsData = data.data || data;
     
     // 商品名称
     const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
@@ -720,16 +720,16 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 
 const defaultAiConfig: AiBarcodeConfig = {
   enabled: true,
-  apiUrl: 'https://tsbarcode.market.alicloudapi.com/barcode/index',
+  apiUrl: 'https://apione.apibyte.cn/api/barcode',
   apiKey: '',
-  appCode: 'e7da9411607e41a09006198dfcfe5ff',
+  appCode: '',
   appSecret: '',
   method: 'GET',
-  timeout: 5,
+  timeout: 10,
   requestTemplate: '{"barcode": "${barcode}"}',
   responseMapping: {
     name: 'goods_name',
-    category: 'category_name',
+    category: 'category',
     price: 'price',
     costPrice: '',
     image: 'image',
