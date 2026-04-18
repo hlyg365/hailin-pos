@@ -644,7 +644,8 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       }
       
       // 根据请求类型设置Content-Type
-      if (config.requestContentType === 'form') {
+      // 万维易源特殊处理：使用 application/x-www-form-urlencoded
+      if (config.requestContentType === 'form' || (config.name && config.name.includes('万维易源'))) {
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
       } else if (config.method === 'GET') {
         delete headers['Content-Type'];
@@ -655,9 +656,9 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       // 构建请求体
       let requestBodyStr: string | undefined;
       if (config.method !== 'GET') {
-        if (config.requestContentType === 'form') {
-          // form-urlencoded格式: code=6907376500056
-          requestBodyStr = `code=\${encodeURIComponent(requestBody.barcode || barcode)}`;
+        if (config.requestContentType === 'form' || (config.name && config.name.includes('万维易源'))) {
+          // 万维易源格式: code=6907376500056
+          requestBodyStr = `code=${barcode}`;
         } else {
           requestBodyStr = JSON.stringify(requestBody);
         }
