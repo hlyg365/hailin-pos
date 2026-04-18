@@ -523,6 +523,7 @@ interface AiBarcodeConfig {
   method: 'POST' | 'GET';
   timeout: number;
   requestTemplate: string;
+  requestContentType?: 'json' | 'form'; // 请求内容类型
   responseMapping: {
     name: string;
     category: string;
@@ -635,10 +636,24 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         headers['X-App-Secret'] = config.appSecret;
       }
       
-      if (config.method === 'GET') {
+      // 根据请求类型设置Content-Type
+      if (config.requestContentType === 'form') {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      } else if (config.method === 'GET') {
         delete headers['Content-Type'];
       } else {
         headers['Content-Type'] = 'application/json';
+      }
+      
+      // 构建请求体
+      let requestBodyStr: string | undefined;
+      if (config.method !== 'GET') {
+        if (config.requestContentType === 'form') {
+          // form-urlencoded格式: code=6907376500056
+          requestBodyStr = `code=\${encodeURIComponent(requestBody.barcode || barcode)}`;
+        } else {
+          requestBodyStr = JSON.stringify(requestBody);
+        }
       }
 
       console.log('[AI识别] 调用配置' + (index + 1) + ': ' + url);
@@ -649,7 +664,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       const response = await fetch(url, {
         method: config.method,
         headers,
-        body: config.method === 'GET' ? undefined : JSON.stringify(requestBody),
+        body: requestBodyStr,
         signal: controller.signal,
       });
 
@@ -667,10 +682,19 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       console.log('[AI识别] 返回数据:', JSON.stringify(data).substring(0, 200));
       
       // 支持多种API返回格式
-      const isSuccess = data.code === 200 || data.code === 1 || data.success === true;
+      // 成功: code=200, code=1, success=true, found=true
+      // 失败: code=401(无Key), code=403(无权限), code=404(未找到), data.found=false
+      const isSuccess = data.code === 200 || data.code === 1 || data.success === true || data.found === true;
+      const isNotFound = data.code === 401 || data.code === 403 || data.code === 404 || data.found === false;
+      
+      if (isNotFound) {
+        console.error('[AI识别] 配置' + (index + 1) + ' 未找到商品或无权限:', data.msg || data.error);
+        lastError = data.msg || data.error || 'API返回错误';
+        continue;
+      }
       
       if (!isSuccess) {
-        console.error('[AI识别] 返回错误:', data.msg || data.error);
+        console.error('[AI识别] 配置' + (index + 1) + ' 返回错误:', data.msg || data.error);
         lastError = data.msg || data.error || 'API返回错误';
         continue;
       }
@@ -718,9 +742,9 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 const defaultAiConfigs: AiBarcodeConfig[] = [
   {
     name: '山海云端(APIbyte)',
-    enabled: true,
+    enabled: false,
     apiUrl: 'https://apione.apibyte.cn/api/barcode',
-    apiKey: '',
+    apiKey: '', // 需要API Key
     appCode: '',
     appSecret: '',
     method: 'GET',
@@ -747,6 +771,7 @@ const defaultAiConfigs: AiBarcodeConfig[] = [
     method: 'POST',
     timeout: 10,
     requestTemplate: '{"barcode": "${barcode}"}',
+    requestContentType: 'form', // 重要：使用form-urlencoded格式
     responseMapping: {
       name: 'name',
       category: 'category',
