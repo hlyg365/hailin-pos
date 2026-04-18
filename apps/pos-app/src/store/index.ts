@@ -627,11 +627,9 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       const headers: Record<string, string> = {};
       
       if (config.apiKey) {
-        // 万维易源使用 appkey header
-        if (config.name && config.name.includes('万维易源')) {
-          headers['appkey'] = config.apiKey;
-        } else {
-          // 其他API使用标准方式
+        // 万维易源不使用 header auth，appKey 在 URL 参数中处理
+        // 其他API使用标准方式
+        if (!isWanWeiYiYuan) {
           headers['Authorization'] = `Bearer ${config.apiKey}`;
           headers['X-Api-Key'] = config.apiKey;
         }
@@ -866,11 +864,10 @@ export const useAiConfigStore = create<AiConfigState>()(
     {
       name: 'hailin-ai-config',
       onRehydrateStorage: () => (state) => {
-        // 版本检查：如果存储的版本不匹配，重置为默认配置
-        if (state && state.version !== 5) {
-          console.log('[AI配置] 版本不匹配，重置为默认配置');
-          state.configs = defaultAiConfigs;
-          state.version = 5;
+        // 版本检查：如果存储的版本不匹配，保留用户配置（不再强制重置）
+        // 版本7：支持万维易源 appKey 在 URL 参数中
+        if (state) {
+          console.log('[AI配置] 已加载配置，版本:', state.version);
         }
       },
     }
