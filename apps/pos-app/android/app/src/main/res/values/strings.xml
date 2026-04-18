@@ -1,7 +1,9 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">海邻到家</string>
-    <string name="title_activity_main">海邻到家</string>
-    <string name="package_name">com.hailin.pos</string>
-    <string name="custom_url_scheme">com.hailin.pos</string>
+    <string name="title_activity_main">海邻到家收银</string>
+
+    <!-- USB Permissions -->
+    <string name="permission_request_rationale">需要USB权限来连接收银设备</string>
+    <string name="permission_notification">通知权限用于收银提醒</string>
 </resources>

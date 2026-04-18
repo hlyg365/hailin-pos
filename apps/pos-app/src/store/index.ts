@@ -1006,7 +1006,8 @@ interface DeviceConfigState {
     enabled: boolean;
     type: 'serial' | 'network';
     address: string;
-    port: number;
+    port: number;        // 串口或TCP端口
+    tcpPort?: number;    // TCP专用端口
     baudRate: number;
     protocol: string;
   };
@@ -1042,9 +1043,10 @@ export const useDeviceConfigStore = create<DeviceConfigState>()(
       },
       scale: {
         enabled: false,
-        type: 'serial',
+        type: 'network',
         address: '',
         port: 8080,
+        tcpPort: 8080,
         baudRate: 9600,
         protocol: 'general',
       },
