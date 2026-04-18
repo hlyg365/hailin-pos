@@ -2711,24 +2711,41 @@ export default function DashboardPage() {
               </button>
             </div>
 
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">💡</span>
+                <div>
+                  <p className="font-medium text-blue-800">调用顺序说明</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    系统按从上到下的顺序自动调用已启用的配置：<br/>
+                    <span className="font-medium">① 山海云端</span> → <span className="font-medium">② 万维易源</span><br/>
+                    当上一个配置查询失败时，自动切换到下一个配置。
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {aiConfig.configs.map((config, index) => (
-              <div key={index} className="bg-white rounded-xl p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-6 pb-4 border-b">
+              <div key={index} className={`rounded-xl p-6 shadow-sm border-2 ${config.enabled ? 'bg-white border-green-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
+                <div className="flex items-center justify-between mb-4 pb-4 border-b">
                   <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 font-bold">{index + 1}</span>
+                    <div className="relative">
+                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${config.enabled ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-500'}`}>{index + 1}</span>
+                      {config.enabled && <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border border-white"></span>}
+                    </div>
                     <div>
                       <div className="flex items-center gap-3">
-                        <h3 className="font-semibold">配置方案 {index + 1}</h3>
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
-                          调用 {config.callCount || 0} 次
+                        <h3 className="font-semibold">{config.name || `配置方案 ${index + 1}`}</h3>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${config.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {config.enabled ? '● 已启用' : '○ 已停用'}
                         </span>
-                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                          成功 {config.successCount || 0} 次
-                        </span>
+                        {index === 0 && config.enabled && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">优先调用</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs text-gray-500">调用 {config.callCount || 0} 次</span>
+                        <span className="text-xs text-green-600">成功 {config.successCount || 0} 次</span>
                         {config.callCount > 0 && (
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
-                            成功率 {Math.round((config.successCount / config.callCount) * 100)}%
-                          </span>
+                          <span className="text-xs text-blue-600">成功率 {Math.round((config.successCount / config.callCount) * 100)}%</span>
                         )}
                       </div>
                       {config.lastTestResult && (
@@ -2740,8 +2757,12 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm text-gray-600">启用</span>
-                      <input type="checkbox" checked={config.enabled} onChange={(e) => aiConfig.updateConfig(index, { enabled: e.target.checked })} className="w-5 h-5 text-purple-600 rounded" />
+                      <span className="text-sm font-medium">{config.enabled ? '启用中' : '已停用'}</span>
+                      <div className="relative">
+                        <input type="checkbox" checked={config.enabled} onChange={(e) => aiConfig.updateConfig(index, { enabled: e.target.checked })} className="sr-only" />
+                        <div className={`w-12 h-6 rounded-full transition-colors ${config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${config.enabled ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                      </div>
                     </label>
                     {aiConfig.configs.length > 1 && (
                       <button onClick={() => aiConfig.deleteConfig(index)} className="text-red-500 hover:text-red-700 text-sm">删除</button>
