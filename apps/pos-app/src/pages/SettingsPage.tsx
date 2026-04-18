@@ -1,17 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useSettingsStore } from '../store';
+import { useSettingsStore, useAiConfigStore } from '../store';
 
 export default function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'basic' | 'payment' | 'promotion' | 'system'>('basic');
+  const { configs, updateConfig } = useAiConfigStore();
+  const [activeTab, setActiveTab] = useState<'basic' | 'payment' | 'promotion' | 'system' | 'ai'>('basic');
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [tempSettings, setTempSettings] = useState(settings);
+  const [tempApiKey, setTempApiKey] = useState(configs[0]?.apiKey || '');
 
   useEffect(() => {
     setTempSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    if (configs[0]) {
+      setTempApiKey(configs[0].apiKey || '');
+    }
+  }, [configs]);
 
   const handleChange = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
     setTempSettings(prev => ({ ...prev, [key]: value }));
@@ -20,6 +28,13 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     updateSettings(tempSettings);
+    setHasChanges(false);
+    setShowSaveToast(true);
+    setTimeout(() => setShowSaveToast(false), 2000);
+  };
+
+  const handleSaveAiConfig = () => {
+    updateConfig(0, { apiKey: tempApiKey });
     setHasChanges(false);
     setShowSaveToast(true);
     setTimeout(() => setShowSaveToast(false), 2000);
@@ -36,6 +51,7 @@ export default function SettingsPage() {
     { id: 'basic', label: '门店', icon: '🏪' },
     { id: 'payment', label: '支付', icon: '💳' },
     { id: 'promotion', label: '促销', icon: '🎉' },
+    { id: 'ai', label: 'AI识别', icon: '🤖' },
     { id: 'system', label: '系统', icon: '⚙️' },
   ];
 
@@ -292,6 +308,43 @@ export default function SettingsPage() {
               />
             </SectionCard>
 
+            {/* AI条码识别配置 */}
+            <SectionCard title="AI条码识别配置">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">API接口地址</label>
+                  <input
+                    type="text"
+                    value={configs[0]?.apiUrl || 'https://apione.apibyte.cn/api/barcode'}
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                  <input
+                    type="text"
+                    value={tempApiKey}
+                    onChange={(e) => {
+                      setTempApiKey(e.target.value);
+                      setHasChanges(true);
+                    }}
+                    placeholder="请输入API Key（可选，无Key也可调用但有额度限制）"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="bg-blue-50 rounded-lg p-3 text-sm text-blue-700">
+                  <p className="font-medium mb-1">接口说明：</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>地址：https://apione.apibyte.cn/api/barcode</li>
+                    <li>参数：barcode（商品条形码，8~13位数字）</li>
+                    <li>携带Key可获得更高调用额度</li>
+                    <li>返回：商品名称、分类、价格、图片等</li>
+                  </ul>
+                </div>
+              </div>
+            </SectionCard>
+
             <SectionCard title="关于">
               <div className="text-center py-4">
                 <img src="/logo.png" alt="海邻到家" className="w-16 h-16 mx-auto mb-2" />
@@ -307,14 +360,16 @@ export default function SettingsPage() {
         {hasChanges && (
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg">
             <div className="max-w-2xl mx-auto flex gap-3">
+              {activeTab !== 'ai' && (
+                <button
+                  onClick={handleReset}
+                  className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
+                >
+                  恢复默认
+                </button>
+              )}
               <button
-                onClick={handleReset}
-                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium"
-              >
-                恢复默认
-              </button>
-              <button
-                onClick={handleSave}
+                onClick={activeTab === 'ai' ? handleSaveAiConfig : handleSave}
                 className="flex-1 py-3 bg-blue-500 text-white rounded-xl font-medium"
               >
                 保存设置
