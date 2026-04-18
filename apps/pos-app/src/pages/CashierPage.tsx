@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore, useAiConfigStore } from '../store';
-import { deviceManager } from '../services/posDevices';
+import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore, useAiConfigStore, useDeviceConfigStore } from '../store';
+import { deviceManager, type DeviceStatus } from '../services/posDevices';
 import type { Product } from '../types';
 
 // 检查清货模式
@@ -36,6 +36,8 @@ export default function CashierPage() {
   const [showSuspendedModal, setShowSuspendedModal] = useState(false);
   const [showDevicePanel, setShowDevicePanel] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [editingDeviceConfig, setEditingDeviceConfig] = useState<string | null>(null);
+  const [tempDeviceConfig, setTempDeviceConfig] = useState<{ address: string; port: number }>({ address: '', port: 9100 });
   const [aiScanResult, setAiScanResult] = useState<{
     barcode?: string;
     loading?: boolean;
@@ -85,14 +87,100 @@ export default function CashierPage() {
   };
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const barcodeBufferRef = useRef<string>('');
+  const barcodeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isOnline = useOfflineStore(state => state.isOnline);
   const clearanceMode = isClearanceMode();
+
+  // 扫码枪输入检测：扫码枪通常在100ms内输入完成
+  const handleBarcodeInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    barcodeBufferRef.current = value;
+    
+    // 清除之前的超时
+    if (barcodeTimeoutRef.current) {
+      clearTimeout(barcodeTimeoutRef.current);
+    }
+    
+    // 扫码枪输入：如果输入完整（包含回车或长度>=8）立即处理
+    if (value.includes('\n') || value.length >= 13) {
+      const barcode = value.replace('\n', '').trim();
+      if (barcode) {
+        handleBarcodeScan(barcode);
+        e.target.value = '';
+        barcodeBufferRef.current = '';
+      }
+    } else {
+      // 普通键盘输入：等待300ms确认输入完成
+      barcodeTimeoutRef.current = setTimeout(() => {
+        const barcode = barcodeBufferRef.current.trim();
+        if (barcode && barcode.length >= 4) {
+          handleBarcodeScan(barcode);
+          e.target.value = '';
+          barcodeBufferRef.current = '';
+        }
+      }, 300);
+    }
+  }, []);
+
+  // 自动聚焦扫码框并保持焦点
+  useEffect(() => {
+    const focusInput = () => {
+      if (barcodeInputRef.current && document.activeElement !== barcodeInputRef.current) {
+        barcodeInputRef.current.focus();
+      }
+    };
+    
+    // 初始聚焦
+    focusInput();
+    
+    // 点击任意位置时重新聚焦扫码框（除了输入框和按钮）
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('input') && !target.closest('button') && !target.closest('[contenteditable]')) {
+        focusInput();
+      }
+    };
+    
+    // 全局键盘事件监听
+    const handleGlobalKeydown = (e: KeyboardEvent) => {
+      // 如果焦点不在扫码框，且按下了可打印字符，立即聚焦
+      if (document.activeElement !== barcodeInputRef.current) {
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          focusInput();
+        }
+      }
+    };
+    
+    document.addEventListener('click', handleGlobalClick);
+    document.addEventListener('keydown', handleGlobalKeydown);
+    
+    // 定时保持焦点
+    const focusInterval = setInterval(focusInput, 2000);
+    
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+      document.removeEventListener('keydown', handleGlobalKeydown);
+      clearInterval(focusInterval);
+      if (barcodeTimeoutRef.current) clearTimeout(barcodeTimeoutRef.current);
+    };
+  }, []);
 
   const { items, addItem, removeItem, updateQuantity, clearCart } = useCartStore();
   const products = useProductStore(state => state.products);
   const currentMember = useMemberStore(state => state.currentMember);
   const { orders, createOrder, suspendOrder, resumeOrder } = useOrderStore();
   const currentStore = useStoreStore(state => state.currentStore);
+  const deviceConfig = useDeviceConfigStore();
+  
+  // 设备状态
+  const [deviceStatuses, setDeviceStatuses] = useState<Record<string, DeviceStatus>>({
+    customerDisplay: { connected: false, online: false },
+    receiptPrinter: { connected: false, online: false },
+    scale: { connected: false, online: false },
+    cashDrawer: { connected: false, online: false },
+  });
+  const [isConnectingDevices, setIsConnectingDevices] = useState(false);
 
   // 计算购物车金额
   const totals = useMemo(() => {
@@ -121,6 +209,53 @@ export default function CashierPage() {
   const suspendedOrders = useMemo(() => {
     return orders.filter(o => o.status === 'suspended');
   }, [orders]);
+
+  // 设备自动连接
+  const connectDevices = useCallback(async () => {
+    if (isConnectingDevices) return;
+    setIsConnectingDevices(true);
+    
+    try {
+      const configs = {
+        receiptPrinter: deviceConfig.receiptPrinter.enabled ? {
+          type: deviceConfig.receiptPrinter.type,
+          address: deviceConfig.receiptPrinter.address,
+          port: deviceConfig.receiptPrinter.port,
+          width: deviceConfig.receiptPrinter.width,
+        } : undefined,
+        scale: deviceConfig.scale.enabled ? {
+          address: deviceConfig.scale.address,
+          port: deviceConfig.scale.port,
+        } : undefined,
+        cashDrawer: deviceConfig.cashDrawer.enabled ? {
+          address: deviceConfig.cashDrawer.address,
+          port: deviceConfig.cashDrawer.port,
+        } : undefined,
+      };
+      
+      await deviceManager.connectAll(configs);
+      setDeviceStatuses(deviceManager.getAllStatus());
+      console.log('[收银台] 设备连接完成');
+    } catch (error) {
+      console.error('[收银台] 设备连接失败:', error);
+    } finally {
+      setIsConnectingDevices(false);
+    }
+  }, [deviceConfig, isConnectingDevices]);
+
+  // 页面加载时自动连接设备
+  useEffect(() => {
+    if (deviceConfig.autoConnect) {
+      connectDevices();
+    }
+    
+    // 定时刷新设备状态
+    const statusInterval = setInterval(() => {
+      setDeviceStatuses(deviceManager.getAllStatus());
+    }, 5000);
+    
+    return () => clearInterval(statusInterval);
+  }, [connectDevices, deviceConfig.autoConnect]);
 
   useEffect(() => { barcodeInputRef.current?.focus(); }, []);
 
@@ -466,10 +601,20 @@ export default function CashierPage() {
                     )}
                   </div>
                 )}
-                <div className="bg-white rounded-lg sm:rounded-xl p-2 sm:p-4 mb-2 sm:mb-4 flex gap-2 sm:gap-3">
-                  <input ref={barcodeInputRef} type="text" placeholder="扫描条码" className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    onKeyDown={(e) => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value; if (v) handleBarcodeScan(v); (e.target as HTMLInputElement).value = ''; } }} />
-                  <button onClick={handleAiVision} className="px-2 sm:px-4 py-1.5 sm:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1 sm:gap-2 text-sm"><span>👁️</span> <span className="hidden sm:inline">AI视觉</span></button>
+                <div className="bg-white rounded-lg sm:rounded-xl p-2 sm:p-4 mb-2 sm:mb-4 flex gap-2 sm:gap-3 items-center">
+                  <div className="relative flex-1">
+                    <input 
+                      ref={barcodeInputRef} 
+                      type="text" 
+                      placeholder="📷 扫描/输入条码" 
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-blue-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-base sm:text-lg font-mono bg-blue-50"
+                      onChange={handleBarcodeInput}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hidden sm:block">扫码枪自动识别</div>
+                  </div>
+                  <button onClick={handleAiVision} className="px-3 sm:px-4 py-2 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-1 sm:gap-2 text-sm font-medium"><span>👁️</span> <span className="hidden sm:inline">AI视觉</span></button>
                 </div>
                 <div className="flex gap-1 sm:gap-2 mb-2 sm:mb-4 overflow-x-auto pb-2">
                   {categories.map(cat => (
@@ -551,6 +696,22 @@ export default function CashierPage() {
                   </div>
                 )}
                 <div className="p-2 sm:p-4 border-t">
+                  {/* 设备状态指示 */}
+                  <div className="flex gap-1 mb-2">
+                    {[
+                      { icon: '📺', status: deviceStatuses.customerDisplay?.connected, label: '显' },
+                      { icon: '🖨️', status: deviceStatuses.receiptPrinter?.connected, label: '印' },
+                      { icon: '⚖️', status: deviceStatuses.scale?.connected, label: '秤' },
+                    ].map((d, i) => (
+                      <button 
+                        key={i}
+                        onClick={() => setShowDevicePanel(true)}
+                        className={`flex-1 py-1 px-2 rounded text-xs flex items-center justify-center gap-1 ${d.status ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}
+                      >
+                        {d.icon} {d.label}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex justify-between items-center mb-2 sm:mb-4"><span className="text-gray-600 text-sm">应付金额</span><span className="text-lg sm:text-2xl font-bold text-red-600">¥{totals.total.toFixed(2)}</span></div>
                   <div className="grid grid-cols-3 gap-1 sm:gap-2">
                     <button onClick={handleSuspend} disabled={items.length === 0} className="py-2 sm:py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm">挂单</button>
@@ -1329,18 +1490,138 @@ export default function CashierPage() {
               <button onClick={() => setShowDevicePanel(false)} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
             </div>
             <div className="p-4 space-y-4">
+              {/* 设备连接控制 */}
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div>
+                  <p className="font-medium">设备自动连接</p>
+                  <p className="text-xs text-gray-500">开启后自动连接已配置设备</p>
+                </div>
+                <button 
+                  onClick={() => deviceConfig.setAutoConnect(!deviceConfig.autoConnect)}
+                  className={`w-12 h-6 rounded-full transition ${deviceConfig.autoConnect ? 'bg-blue-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.autoConnect ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              
+              {/* 手动连接按钮 */}
+              <button 
+                onClick={connectDevices}
+                disabled={isConnectingDevices}
+                className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isConnectingDevices ? (
+                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>连接中...</>
+                ) : (
+                  <>🔄 刷新连接</>
+                )}
+              </button>
+              
+              {/* 设备列表 */}
               {[
-                { name: '客显屏', icon: '📺', connected: deviceManager.customerDisplay?.status?.connected },
-                { name: '小票打印机', icon: '🖨️', connected: deviceManager.receiptPrinter?.status?.connected },
-                { name: '标签打印机', icon: '🏷️', connected: deviceManager.labelPrinter?.status?.connected },
-                { name: '钱箱', icon: '💰', connected: deviceManager.cashDrawer?.status?.connected },
-                { name: '电子秤', icon: '⚖️', connected: deviceManager.scale?.status?.connected },
+                { name: '客显屏', icon: '📺', status: deviceStatuses.customerDisplay, config: deviceConfig.customerDisplay, key: 'customerDisplay' },
+                { name: '小票打印机', icon: '🖨️', status: deviceStatuses.receiptPrinter, config: deviceConfig.receiptPrinter, key: 'receiptPrinter' },
+                { name: '标签打印机', icon: '🏷️', status: deviceStatuses.labelPrinter, config: null, key: 'labelPrinter' },
+                { name: '钱箱', icon: '💰', status: deviceStatuses.cashDrawer, config: deviceConfig.cashDrawer, key: 'cashDrawer' },
+                { name: '电子秤', icon: '⚖️', status: deviceStatuses.scale, config: deviceConfig.scale, key: 'scale' },
               ].map((device, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3"><span className="text-2xl">{device.icon}</span><div><p className="font-medium">{device.name}</p><p className="text-xs text-gray-500">{device.connected ? '已连接' : '未连接'}</p></div></div>
-                  <span className={`px-3 py-1 rounded-full text-sm ${device.connected ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>{device.connected ? '已连接' : '未连接'}</span>
+                <div key={i} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{device.icon}</span>
+                      <div>
+                        <p className="font-medium">{device.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {device.status?.connected ? (
+                            device.status.online ? '🟢 已连接' : '🟡 连接中'
+                          ) : '⚪ 未连接'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {device.key === 'receiptPrinter' || device.key === 'scale' ? (
+                        <button 
+                          onClick={() => {
+                            setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
+                            setTempDeviceConfig({ 
+                              address: device.config?.address || '', 
+                              port: device.config?.port || 9100 
+                            });
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                        >
+                          {editingDeviceConfig === device.key ? '收起' : '配置'}
+                        </button>
+                      ) : null}
+                      <span className={`px-3 py-1 rounded-full text-sm ${device.status?.connected ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                        {device.status?.connected ? '已连接' : '未连接'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* 设备配置输入 */}
+                  {editingDeviceConfig === device.key && (
+                    <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="IP地址 (如 192.168.1.100)"
+                          value={tempDeviceConfig.address}
+                          onChange={(e) => setTempDeviceConfig({ ...tempDeviceConfig, address: e.target.value })}
+                          className="flex-1 px-2 py-1 text-sm border rounded"
+                        />
+                        <input 
+                          type="number" 
+                          placeholder="端口"
+                          value={tempDeviceConfig.port}
+                          onChange={(e) => setTempDeviceConfig({ ...tempDeviceConfig, port: parseInt(e.target.value) || 9100 })}
+                          className="w-20 px-2 py-1 text-sm border rounded"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => {
+                          deviceConfig.updateConfig(device.key, tempDeviceConfig);
+                          setEditingDeviceConfig(null);
+                          connectDevices();
+                        }}
+                        className="w-full py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                      >
+                        保存并重连
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* 设备状态显示 */}
+                  {editingDeviceConfig !== device.key && device.config && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">自动连接:</span>
+                        <button 
+                          onClick={() => deviceConfig.updateConfig(device.key, { enabled: !device.config.enabled })}
+                          className={`w-8 h-4 rounded-full transition ${device.config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                        >
+                          <div className={`w-3 h-3 bg-white rounded-full shadow transition ${device.config.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      {device.config.enabled && device.key !== 'customerDisplay' && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          {device.key === 'receiptPrinter' && `地址: ${device.config.address || '未配置'}:${device.config.port || 9100}`}
+                          {device.key === 'scale' && `地址: ${device.config.address || '未配置'}:${device.config.port || 8080}`}
+                          {device.key === 'cashDrawer' && '使用打印机端口'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {device.status?.error && (
+                    <p className="text-xs text-red-500 mt-1">{device.status.error}</p>
+                  )}
                 </div>
               ))}
+              
+              <div className="text-center text-xs text-gray-400 pt-2">
+                💡 提示：小票打印机和电子秤需要配置IP地址
+              </div>
             </div>
           </div>
         </div>

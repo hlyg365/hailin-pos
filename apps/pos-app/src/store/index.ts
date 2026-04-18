@@ -981,3 +981,77 @@ export const useAiConfigStore = create<AiConfigState>()(
     }
   )
 );
+
+// ============ 收银设备配置 ============
+interface DeviceConfigState {
+  receiptPrinter: {
+    enabled: boolean;
+    type: 'network' | 'bluetooth' | 'usb';
+    address: string;
+    port: number;
+    width: 58 | 80;
+  };
+  labelPrinter: {
+    enabled: boolean;
+    type: 'network' | 'bluetooth' | 'usb';
+    address: string;
+    port: number;
+  };
+  cashDrawer: {
+    enabled: boolean;
+    address: string;
+    port: number;
+  };
+  scale: {
+    enabled: boolean;
+    address: string;
+    port: number;
+  };
+  customerDisplay: {
+    enabled: boolean;
+    mode: 'window' | 'embedded';
+  };
+  autoConnect: boolean;
+  updateConfig: (device: string, config: Partial<any>) => void;
+  setAutoConnect: (enabled: boolean) => void;
+}
+
+export const useDeviceConfigStore = create<DeviceConfigState>()(
+  persist(
+    (set) => ({
+      receiptPrinter: {
+        enabled: false,
+        type: 'network',
+        address: '',
+        port: 9100,
+        width: 58,
+      },
+      labelPrinter: {
+        enabled: false,
+        type: 'network',
+        address: '',
+        port: 9100,
+      },
+      cashDrawer: {
+        enabled: true,
+        address: '',
+        port: 9100,
+      },
+      scale: {
+        enabled: false,
+        address: '',
+        port: 8080,
+      },
+      customerDisplay: {
+        enabled: true,
+        mode: 'window',
+      },
+      autoConnect: true,
+      updateConfig: (device, config) => set((state) => ({
+        [device]: { ...state[device as keyof DeviceConfigState], ...config }
+      })),
+      setAutoConnect: (enabled) => set({ autoConnect: enabled }),
+    }),
+    { name: 'hailin-device-config' }
+  )
+);
