@@ -588,7 +588,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       continue;
     }
     
-    console.log(`[AI识别] 尝试配置${index + 1}: ${config.name || '未命名'}`);
+    console.log(`[AI识别] ====== 尝试配置${index + 1}: ${config.name || '未命名'} ======`);
     
     try {
       // 构建请求参数
@@ -664,17 +664,28 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         }
       }
 
-      console.log('[AI识别] 调用配置' + (index + 1) + ': ' + url);
+      console.log('[AI识别] 请求详情:', {
+        url: url,
+        method: config.method,
+        headers: headers,
+        body: requestBodyStr
+      });
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), config.timeout * 1000);
 
-      const response = await fetch(url, {
+      // 构建fetch请求配置
+      const fetchOptions: RequestInit = {
         method: config.method,
         headers,
         body: requestBodyStr,
         signal: controller.signal,
-      });
+      };
+      
+      // 添加credentials支持跨域
+      fetchOptions.credentials = 'omit';
+      
+      const response = await fetch(url, fetchOptions);
 
       clearTimeout(timeoutId);
       console.log('[AI识别] 响应状态:', response.status);
