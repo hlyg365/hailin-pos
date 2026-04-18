@@ -626,6 +626,9 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       // 构建请求头
       const headers: Record<string, string> = {};
       
+      // 万维易源特殊处理（提前判断）
+      const isWanWeiYiYuan = config.apiUrl.includes('showapi.com');
+      
       if (config.apiKey) {
         // 万维易源不使用 header auth，appKey 在 URL 参数中处理
         // 其他API使用标准方式
@@ -646,7 +649,6 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       
       // 根据请求类型设置Content-Type
       // 万维易源特殊处理（强制POST，不管用户怎么配置）
-      const isWanWeiYiYuan = config.apiUrl.includes('showapi.com');
       if (isWanWeiYiYuan) {
         // 强制使用POST + form格式
         headers['content-type'] = 'application/x-www-form-urlencoded'; // 注意是小写
