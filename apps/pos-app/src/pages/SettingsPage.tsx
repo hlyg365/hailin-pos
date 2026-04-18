@@ -92,6 +92,8 @@ export default function SettingsPage() {
         timeout: 10,
         requestTemplate: '{"barcode": "${barcode}"}',
         responseMapping: { name: 'goods_name', category: 'category', price: 'price', costPrice: '', image: 'image' },
+        callCount: 0,
+        successCount: 0,
         lastTestResult: null,
       });
     }

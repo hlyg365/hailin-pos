@@ -735,32 +735,55 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
   }
 };
 
-const defaultAiConfig: AiBarcodeConfig = {
-  name: 'APIbyte条码查询',
-  enabled: true,
-  apiUrl: 'https://apione.apibyte.cn/api/barcode',
-  apiKey: '',
-  appCode: '',
-  appSecret: '',
-  method: 'GET',
-  timeout: 10,
-  requestTemplate: '{"barcode": "${barcode}"}',
-  responseMapping: {
-    name: 'goods_name',
-    category: 'category',
-    price: 'price',
-    costPrice: '',
-    image: 'image',
+const defaultAiConfigs: AiBarcodeConfig[] = [
+  {
+    name: 'APIbyte条码查询',
+    enabled: true,
+    apiUrl: 'https://apione.apibyte.cn/api/barcode',
+    apiKey: '',
+    appCode: '',
+    appSecret: '',
+    method: 'GET',
+    timeout: 10,
+    requestTemplate: '{"barcode": "${barcode}"}',
+    responseMapping: {
+      name: 'goods_name',
+      category: 'category',
+      price: 'price',
+      costPrice: '',
+      image: 'image',
+    },
+    callCount: 0,
+    successCount: 0,
+    lastTestResult: null,
   },
-  callCount: 0,
-  successCount: 0,
-  lastTestResult: null,
-};
+  {
+    name: 'ShowAPI商品查询',
+    enabled: false,
+    apiUrl: 'https://route.showapi.com/66-22',
+    apiKey: '', // 需要填入AppKey
+    appCode: '',
+    appSecret: '',
+    method: 'POST',
+    timeout: 10,
+    requestTemplate: '{"barcode": "${barcode}"}',
+    responseMapping: {
+      name: 'name',
+      category: 'category',
+      price: 'price',
+      costPrice: '',
+      image: 'img',
+    },
+    callCount: 0,
+    successCount: 0,
+    lastTestResult: null,
+  },
+];
 
 export const useAiConfigStore = create<AiConfigState>()(
   persist(
     (set, get) => ({
-      configs: [defaultAiConfig],
+      configs: defaultAiConfigs,
       addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
       updateConfig: (index, updates) => set((state) => ({
         configs: state.configs.map((c, i) => i === index ? { ...c, ...updates } : c),

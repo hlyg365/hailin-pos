@@ -2706,7 +2706,7 @@ export default function DashboardPage() {
                 <h2 className="text-xl font-bold">🤖 AI条码识别配置</h2>
                 <p className="text-gray-500 text-sm mt-1">配置AI接口用于条码商品信息识别，支持多个配置方案</p>
               </div>
-              <button onClick={() => aiConfig.addConfig({ ...aiConfig.configs[0], apiKey: '' })} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+              <button onClick={() => aiConfig.addConfig({ ...aiConfig.configs[0], apiKey: '', callCount: 0, successCount: 0 })} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
                 <span className="text-lg">+</span> 添加配置
               </button>
             </div>
