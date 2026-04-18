@@ -38,9 +38,9 @@ import java.util.regex.Pattern;
  * 海邻到家一体机硬件抽象层
  * 完整支持：电子秤、打印机、钱箱、扫码枪、客显屏、AI识别
  */
-public class DevicePlugin extends Plugin {
+public class HailinHardwarePlugin extends Plugin {
 
-    private static final String TAG = "DevicePlugin";
+    private static final String TAG = "HailinHardware";
     
     // ==================== 连接池管理 ====================
     private final Map<String, Socket> socketPool = new ConcurrentHashMap<>();
@@ -59,7 +59,7 @@ public class DevicePlugin extends Plugin {
         super.load();
         appContext = getContext();
         usbManager = (UsbManager) appContext.getSystemService(Context.USB_SERVICE);
-        Log.i(TAG, "DevicePlugin 硬件抽象层已加载");
+        Log.i(TAG, "HailinHardware 硬件抽象层已加载");
     }
 
     // ==================== 1. 电子秤驱动模块 ====================
@@ -1175,6 +1175,6 @@ public class DevicePlugin extends Plugin {
         super.handleOnDestroy();
         disconnectAll(null);
         executor.shutdown();
-        Log.i(TAG, "DevicePlugin 硬件抽象层已卸载");
+        Log.i(TAG, "HailinHardware 硬件抽象层已卸载");
     }
 }

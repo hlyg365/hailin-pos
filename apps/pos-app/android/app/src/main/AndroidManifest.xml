@@ -53,6 +53,20 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     
+    <!-- USB权限（用于连接串口秤、打印机） -->
+    <uses-permission android:name="android.permission.USB_PERMISSION" />
+    
+    <!-- NFC权限（用于会员卡读取） -->
+    <uses-permission android:name="android.permission.NFC" />
+    
+    <!-- USB设备功能 -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    
     <!-- 振动权限 -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    
+    <!-- 摄像头特征 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>

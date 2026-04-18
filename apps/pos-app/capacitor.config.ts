@@ -19,6 +19,15 @@ const config: CapacitorConfig = {
       style: 'DARK',
       backgroundColor: '#1E40AF',
     },
+    HailinHardware: {
+      // 硬件插件配置
+      scaleHost: '192.168.1.100',
+      scalePort: 9101,
+      printerHost: '192.168.1.101',
+      printerPort: 9100,
+      labelPrinterHost: '192.168.1.102',
+      labelPrinterPort: 9100,
+    },
   },
 };
 
