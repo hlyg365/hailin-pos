@@ -117,6 +117,32 @@ export default function DashboardPage() {
   const [scanResult, setScanResult] = useState<{ barcode: string; name?: string; price?: number; costPrice?: number; success?: boolean; error?: string } | null>(null);
   const [importQuantity, setImportQuantity] = useState<number>(1); // 入库数量
   const [purchasePrice, setPurchasePrice] = useState<number>(0); // 采购价
+  const [boxWeight, setBoxWeight] = useState<number>(3); // 框重(斤)，默认3斤
+  const [isWeighedProduct, setIsWeighedProduct] = useState<boolean>(false); // 是否称重商品
+  
+  // 计算净成本价（去框）
+  // 净成本价 = (采购总价 - 框重 × 斤单价) / 净重量
+  const calculateNetCostPrice = () => {
+    if (!scanResult?.success || purchasePrice <= 0 || importQuantity <= 0 || boxWeight <= 0) {
+      return purchasePrice;
+    }
+    // 如果是称重商品
+    if (isWeighedProduct) {
+      const totalWeight = importQuantity; // 总重量（斤）
+      const netWeight = totalWeight - boxWeight; // 净重量
+      if (netWeight <= 0) return 0;
+      const pricePerJin = purchasePrice / totalWeight; // 斤单价
+      const netCostPrice = pricePerJin * netWeight / netWeight; // 简化：直接用斤单价
+      // 或者：总金额 / 净重量
+      return (purchasePrice / netWeight);
+    }
+    return purchasePrice;
+  };
+  
+  // 净成本价
+  const netCostPrice = isWeighedProduct && boxWeight > 0 && importQuantity > boxWeight
+    ? (purchasePrice / (importQuantity - boxWeight))
+    : purchasePrice;
   
   const handleImportAiScan = async (barcode: string) => {
     if (!barcode) return;
@@ -144,13 +170,21 @@ export default function DashboardPage() {
   const handleAddToImportList = () => {
     if (!scanResult?.success || !scanResult.barcode) return;
     
+    // 计算净成本价
+    const costPrice = isWeighedProduct && importQuantity > boxWeight
+      ? (purchasePrice / (importQuantity - boxWeight)) // 净成本价
+      : purchasePrice;
+    
     const newProduct = {
       barcode: scanResult.barcode,
       name: scanResult.name || '',
       category: '食品',
-      price: purchasePrice, // 采购价作为入库价
-      costPrice: purchasePrice,
-      quantity: importQuantity,
+      price: purchasePrice, // 采购总价
+      costPrice: costPrice, // 净成本价
+      quantity: isWeighedProduct ? (importQuantity - boxWeight) : importQuantity, // 净数量
+      rawQuantity: importQuantity, // 原始数量（含框重）
+      boxWeight: isWeighedProduct ? boxWeight : 0, // 框重
+      isWeighed: isWeighedProduct,
       purchaseOrderId: `PO${Date.now()}`, // 采购单号
     };
     
@@ -158,6 +192,8 @@ export default function DashboardPage() {
     setScanResult(null);
     setImportQuantity(1);
     setPurchasePrice(0);
+    setIsWeighedProduct(false);
+    setBoxWeight(3);
   };
   
   // 同步小程序设置
@@ -2543,8 +2579,20 @@ export default function DashboardPage() {
                       
                       {/* 采购入库信息输入 */}
                       <div className="bg-white rounded-lg p-4 border border-green-200">
-                        <h4 className="font-medium text-gray-700 mb-3">📦 填写入库信息</h4>
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-gray-700">📦 填写入库信息</h4>
+                          {/* 称重商品开关 */}
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={isWeighedProduct}
+                              onChange={(e) => setIsWeighedProduct(e.target.checked)}
+                              className="w-4 h-4 rounded text-purple-600"
+                            />
+                            <span className="text-sm text-purple-700 font-medium">称重商品(含框重)</span>
+                          </label>
+                        </div>
+                        <div className={`grid gap-4 ${isWeighedProduct ? 'grid-cols-6' : 'grid-cols-4'}`}>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">采购单价(元)</label>
                             <input 
@@ -2555,20 +2603,48 @@ export default function DashboardPage() {
                               className="w-full px-3 py-2 border rounded-lg text-center font-medium"
                             />
                           </div>
+                          {isWeighedProduct ? (
+                            <>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">总重量(斤)</label>
+                                <input 
+                                  type="number" 
+                                  value={importQuantity} 
+                                  onChange={(e) => setImportQuantity(parseFloat(e.target.value) || 1)}
+                                  min={0.1}
+                                  step={0.1}
+                                  className="w-full px-3 py-2 border rounded-lg text-center font-medium"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">去框重(斤)</label>
+                                <input 
+                                  type="number" 
+                                  value={boxWeight} 
+                                  onChange={(e) => setBoxWeight(parseFloat(e.target.value) || 0)}
+                                  min={0}
+                                  step={0.1}
+                                  className="w-full px-3 py-2 border rounded-lg text-center font-medium bg-orange-50"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">净重量(斤)</label>
+                                <div className={`px-3 py-2 rounded-lg text-center font-bold ${importQuantity - boxWeight > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                  {(importQuantity - boxWeight).toFixed(1)}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">净成本价(元)</label>
+                                <div className="px-3 py-2 bg-green-100 rounded-lg text-center font-bold text-green-700">
+                                  ¥{netCostPrice > 0 ? netCostPrice.toFixed(2) : '0.00'}
+                                </div>
+                              </div>
+                            </>
+                          ) : null}
                           <div>
-                            <label className="block text-xs text-gray-500 mb-1">入库数量</label>
-                            <input 
-                              type="number" 
-                              value={importQuantity} 
-                              onChange={(e) => setImportQuantity(parseInt(e.target.value) || 1)}
-                              min={1}
-                              className="w-full px-3 py-2 border rounded-lg text-center font-medium"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 mb-1">金额(元)</label>
+                            <label className="block text-xs text-gray-500 mb-1">{isWeighedProduct ? '总金额(元)' : '金额(元)'}</label>
                             <div className="px-3 py-2 bg-gray-100 rounded-lg text-center font-bold text-red-600">
-                              ¥{(purchasePrice * importQuantity).toFixed(2)}
+                              ¥{(purchasePrice * (isWeighedProduct ? 1 : importQuantity)).toFixed(2)}
                             </div>
                           </div>
                           <div className="flex items-end">
@@ -2580,6 +2656,16 @@ export default function DashboardPage() {
                             </button>
                           </div>
                         </div>
+                        
+                        {/* 称重商品说明 */}
+                        {isWeighedProduct && (
+                          <div className="mt-3 p-2 bg-orange-50 rounded border border-orange-200 text-xs text-orange-700">
+                            <p className="font-medium">💡 去框计算说明：</p>
+                            <p>• 总金额 = 采购总价</p>
+                            <p>• 净成本价 = 采购总价 ÷ 净重量(总重量 - 框重)</p>
+                            <p>• 示例：总重10斤，框重3斤，净重量7斤</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                     ) : (
@@ -2633,27 +2719,44 @@ export default function DashboardPage() {
                       ) : (
                         <div className="border rounded-lg overflow-hidden">
                           {/* 表头 */}
-                          <div className="grid grid-cols-12 gap-2 p-3 bg-gray-100 text-xs font-medium text-gray-600">
+                          <div className="grid grid-cols-13 gap-2 p-3 bg-gray-100 text-xs font-medium text-gray-600">
                             <div className="col-span-1">采购单号</div>
-                            <div className="col-span-3">商品信息</div>
+                            <div className="col-span-2">商品信息</div>
                             <div className="col-span-2 text-right">条码</div>
-                            <div className="col-span-2 text-right">采购价</div>
-                            <div className="col-span-1 text-center">数量</div>
-                            <div className="col-span-2 text-right">金额</div>
+                            <div className="col-span-1 text-right">总金额</div>
+                            <div className="col-span-1 text-center">框重</div>
+                            <div className="col-span-2 text-right">净成本价</div>
+                            <div className="col-span-1 text-center">净数量</div>
+                            <div className="col-span-2 text-right">净金额</div>
                             <div className="col-span-1 text-center">操作</div>
                           </div>
                           {/* 表体 */}
                           {importedProducts.map((product, index) => (
-                            <div key={index} className="grid grid-cols-12 gap-2 p-3 border-t hover:bg-gray-50 items-center text-sm">
+                            <div key={index} className="grid grid-cols-13 gap-2 p-3 border-t hover:bg-gray-50 items-center text-sm">
                               <div className="col-span-1 text-xs text-gray-500 font-mono">{product.purchaseOrderId}</div>
-                              <div className="col-span-3">
+                              <div className="col-span-2">
                                 <p className="font-medium truncate">{product.name}</p>
                                 <p className="text-xs text-gray-500">{product.category}</p>
+                                {product.isWeighed && <span className="text-xs bg-orange-100 text-orange-600 px-1 rounded">称重</span>}
                               </div>
                               <div className="col-span-2 text-right font-mono text-xs">{product.barcode}</div>
-                              <div className="col-span-2 text-right font-bold text-orange-600">¥{product.price.toFixed(2)}</div>
-                              <div className="col-span-1 text-center">{product.quantity}</div>
-                              <div className="col-span-2 text-right font-bold text-red-600">¥{(product.price * product.quantity).toFixed(2)}</div>
+                              <div className="col-span-1 text-right font-bold text-red-600">¥{product.price.toFixed(2)}</div>
+                              <div className="col-span-1 text-center">
+                                {product.boxWeight ? (
+                                  <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded">{product.boxWeight}斤</span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </div>
+                              <div className="col-span-2 text-right font-bold text-green-600">¥{product.costPrice.toFixed(2)}</div>
+                              <div className="col-span-1 text-center">
+                                {product.rawQuantity && product.boxWeight ? (
+                                  <span>{product.quantity}斤 <span className="text-xs text-gray-400">({product.rawQuantity}-{product.boxWeight})</span></span>
+                                ) : (
+                                  product.quantity
+                                )}
+                              </div>
+                              <div className="col-span-2 text-right font-bold text-blue-600">¥{(product.costPrice * product.quantity).toFixed(2)}</div>
                               <div className="col-span-1 text-center">
                                 <button 
                                   onClick={() => setImportedProducts(importedProducts.filter((_, i) => i !== index))}
