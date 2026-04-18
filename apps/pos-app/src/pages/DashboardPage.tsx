@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [newProductForm, setNewProductForm] = useState({ name: '', barcode: '', category: '食品', retailPrice: 0, costPrice: 0, supplier: '', image: '' });
   const [ai识别中, setAi识别中] = useState(false);
   const [import识别中, setImport识别中] = useState(false);
+  const [testBarcode, setTestBarcode] = useState('6920267909677');
   
   // 添加商品到商品库
   const { products, addProduct } = useProductStore();
@@ -2809,8 +2810,43 @@ export default function DashboardPage() {
 
                 <div className="mt-6 pt-6 border-t flex items-center justify-between">
                   <div className="flex gap-4">
-                    <input type="text" placeholder="输入条码测试..." defaultValue="6901234567890" className="px-3 py-2 border rounded-lg text-sm w-48" />
-                    <button onClick={() => aiConfig.setLastTestResult(index, { success: true, message: '测试成功: 农夫山泉 饮料 ¥2.00', timestamp: new Date().toISOString() })} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">测试识别</button>
+                    <input 
+                      type="text" 
+                      placeholder="输入条码测试..." 
+                      value={testBarcode}
+                      onChange={(e) => setTestBarcode(e.target.value)}
+                      className="px-3 py-2 border rounded-lg text-sm w-48" 
+                    />
+                    <button 
+                      onClick={async () => {
+                        if (!testBarcode.trim()) {
+                          alert('请输入条码');
+                          return;
+                        }
+                        setAi识别中(true);
+                        try {
+                          const result = await aiConfig.aiScanByBarcode(testBarcode.trim());
+                          aiConfig.setLastTestResult(index, {
+                            success: result.success,
+                            message: result.success 
+                              ? `识别成功: ${result.name || '商品'} ${result.category || ''} ¥${result.retailPrice || 0}`
+                              : result.message || '识别失败',
+                            timestamp: new Date().toISOString()
+                          });
+                        } catch (err: any) {
+                          aiConfig.setLastTestResult(index, {
+                            success: false,
+                            message: `请求异常: ${err.message}`,
+                            timestamp: new Date().toISOString()
+                          });
+                        }
+                        setAi识别中(false);
+                      }}
+                      disabled={ai识别中}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {ai识别中 ? '识别中...' : '测试识别'}
+                    </button>
                   </div>
                   <button onClick={() => aiConfig.setLastTestResult(index, { success: true, message: '配置已保存', timestamp: new Date().toISOString() })} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">保存配置</button>
                 </div>
