@@ -657,16 +657,21 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
     }
 
     const data = await response.json();
-    console.log('[AI识别] API返回数据:', data);
+    console.log('[AI识别] API返回数据:', JSON.stringify(data));
     
-    // 阿里云市场格式检查：code=1 表示成功
-    if (data.code !== 1) {
-      console.error('[AI识别] API返回错误:', data.msg || '未知错误');
-      return { success: false, message: data.msg || 'API返回错误，请检查AppCode是否有效' };
+    // 支持多种API返回格式
+    // 格式1: {code: 1, msg: "成功", data: {...}}
+    // 格式2: {success: true, data: {...}}
+    // 格式3: {result: {...}}
+    const isSuccess = data.code === 1 || data.success === true || data.code === 'success';
+    
+    if (!isSuccess) {
+      console.error('[AI识别] API返回错误:', data.msg || data.error || data.message || '未知错误');
+      return { success: false, message: data.msg || data.error || data.message || 'API返回错误' };
     }
     
-    // 提取商品数据（支持阿里云市场格式和通用格式）
-    const goodsData = data.data || data.result || data;
+    // 提取商品数据
+    const goodsData = data.data || data.result || data.goods_info || data;
     
     // 商品名称
     const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
