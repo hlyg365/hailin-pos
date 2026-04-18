@@ -1,0 +1,13 @@
+{
+  "name": "hailin-customer-display",
+  "version": "1.0.0",
+  "description": "海邻到家客显屏 - 双屏异显副屏显示应用",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["pos", "customer-display", "dual-screen"],
+  "author": "海邻到家",
+  "license": "MIT"
+}

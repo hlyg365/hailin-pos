@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客显屏 - 海邻到家</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow: hidden;
+        }
+        
+        .container {
+            text-align: center;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        
+        /* 欢迎模式 */
+        .mode-welcome {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .welcome-title {
+            font-size: 120px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .welcome-subtitle {
+            font-size: 48px;
+            color: #B3E5FC;
+            margin-top: 24px;
+        }
+        
+        /* 等待付款模式 */
+        .mode-waiting {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .waiting-label {
+            font-size: 56px;
+            color: #B3E5FC;
+        }
+        
+        .waiting-amount {
+            font-size: 140px;
+            font-weight: bold;
+            color: #FFD54F;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+            margin: 24px 0;
+        }
+        
+        .waiting-hint {
+            font-size: 64px;
+            color: white;
+        }
+        
+        /* 付款成功模式 */
+        .mode-success {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .success-title {
+            font-size: 100px;
+            font-weight: bold;
+            color: #4CAF50;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .success-amount {
+            font-size: 80px;
+            color: #FFD54F;
+            margin-top: 32px;
+        }
+        
+        /* 付款失败模式 */
+        .mode-failed {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .failed-title {
+            font-size: 100px;
+            font-weight: bold;
+            color: #F44336;
+        }
+        
+        .failed-hint {
+            font-size: 48px;
+            color: white;
+            margin-top: 32px;
+        }
+        
+        /* 二维码模式 */
+        .mode-qrcode {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .qrcode-image {
+            width: 500px;
+            height: 500px;
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        
+        .qrcode-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .qrcode-hint {
+            font-size: 36px;
+            color: white;
+            margin-top: 32px;
+        }
+        
+        /* 谢谢惠顾模式 */
+        .mode-thankyou {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .thankyou-title {
+            font-size: 110px;
+            font-weight: bold;
+            color: #00C853;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .thankyou-subtitle {
+            font-size: 48px;
+            color: white;
+            margin-top: 32px;
+        }
+        
+        .thankyou-brand {
+            font-size: 36px;
+            color: #B3E5FC;
+            margin-top: 24px;
+        }
+        
+        /* 动画 */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        /* 隐藏模式 */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Logo */
+        .logo {
+            position: absolute;
+            top: 24px;
+            left: 24px;
+            font-size: 24px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        /* 状态栏 */
+        .status-bar {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            color: rgba(255,255,255,0.5);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: blink 1.5s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .qrcode-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">海邻到家 · 客显屏</div>
+    
+    <div class="container">
+        <!-- 欢迎模式 -->
+        <div id="mode-welcome" class="mode-welcome">
+            <div class="welcome-title">欢迎光临</div>
+            <div class="welcome-subtitle">海邻到家便利店</div>
+        </div>
+        
+        <!-- 等待付款模式 -->
+        <div id="mode-waiting" class="mode-waiting hidden">
+            <div class="waiting-label">应付金额</div>
+            <div id="amount-display" class="waiting-amount">¥0.00</div>
+            <div class="waiting-hint">请扫码支付</div>
+        </div>
+        
+        <!-- 付款成功模式 -->
+        <div id="mode-success" class="mode-success hidden">
+            <div class="success-title">付款成功</div>
+            <div id="paid-amount" class="success-amount">¥0.00</div>
+        </div>
+        
+        <!-- 付款失败模式 -->
+        <div id="mode-failed" class="mode-failed hidden">
+            <div class="failed-title">付款失败</div>
+            <div class="failed-hint">请重试</div>
+        </div>
+        
+        <!-- 二维码模式 -->
+        <div id="mode-qrcode" class="mode-qrcode hidden">
+            <div class="qrcode-image">
+                <img id="qrcode-img" src="" alt="支付二维码">
+                <div id="qrcode-placeholder" class="qrcode-placeholder">等待二维码...</div>
+            </div>
+            <div class="qrcode-hint">请使用微信/支付宝扫码支付</div>
+        </div>
+        
+        <!-- 谢谢惠顾模式 -->
+        <div id="mode-thankyou" class="mode-thankyou hidden">
+            <div class="thankyou-title">谢谢惠顾</div>
+            <div class="thankyou-subtitle">欢迎您再次光临</div>
+            <div class="thankyou-brand">海邻到家便利店</div>
+        </div>
+    </div>
+    
+    <div class="status-bar">
+        <div id="status-dot" class="status-dot"></div>
+        <span id="status-text">已连接</span>
+    </div>
+    
+    <script>
+        // 当前显示模式
+        let currentMode = 'welcome';
+        
+        // API 服务器地址（可配置）
+        const API_SERVER = 'http://localhost:5001';
+        
+        // 获取 DOM 元素
+        const modes = {
+            welcome: document.getElementById('mode-welcome'),
+            waiting: document.getElementById('mode-waiting'),
+            success: document.getElementById('mode-success'),
+            failed: document.getElementById('mode-failed'),
+            qrcode: document.getElementById('mode-qrcode'),
+            thankyou: document.getElementById('mode-thankyou')
+        };
+        
+        const amountDisplay = document.getElementById('amount-display');
+        const paidAmount = document.getElementById('paid-amount');
+        const qrcodeImg = document.getElementById('qrcode-img');
+        const qrcodePlaceholder = document.getElementById('qrcode-placeholder');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        // 切换显示模式
+        function showMode(mode) {
+            // 隐藏所有模式
+            Object.values(modes).forEach(el => el.classList.add('hidden'));
+            
+            // 显示目标模式
+            if (modes[mode]) {
+                modes[mode].classList.remove('hidden');
+                currentMode = mode;
+            }
+        }
+        
+        // 设置金额显示
+        function setAmount(amount) {
+            const formatted = '¥' + parseFloat(amount || 0).toFixed(2);
+            amountDisplay.textContent = formatted;
+            paidAmount.textContent = formatted;
+        }
+        
+        // 设置二维码
+        function setQRCode(url) {
+            if (url && url.startsWith('data:image')) {
+                qrcodeImg.src = url;
+                qrcodeImg.style.display = 'block';
+                qrcodePlaceholder.style.display = 'none';
+            } else if (url && url.length > 0) {
+                qrcodeImg.src = url;
+                qrcodeImg.style.display = 'block';
+                qrcodePlaceholder.style.display = 'none';
+            } else {
+                qrcodeImg.style.display = 'none';
+                qrcodePlaceholder.style.display = 'flex';
+            }
+        }
+        
+        // 更新连接状态
+        function setStatus(connected) {
+            if (connected) {
+                statusDot.style.background = '#4CAF50';
+                statusText.textContent = '已连接';
+            } else {
+                statusDot.style.background = '#F44336';
+                statusText.textContent = '连接断开';
+            }
+        }
+        
+        // 处理 API 命令
+        function handleCommand(data) {
+            console.log('Received command:', data);
+            
+            const mode = data.mode?.toLowerCase() || 'welcome';
+            const amount = data.amount || 0;
+            
+            switch (mode) {
+                case 'welcome':
+                case 'welcome_message':
+                    showMode('welcome');
+                    break;
+                    
+                case 'waiting':
+                case 'waiting_payment':
+                    showMode('waiting');
+                    setAmount(amount);
+                    break;
+                    
+                case 'success':
+                case 'payment_success':
+                    showMode('success');
+                    setAmount(amount);
+                    break;
+                    
+                case 'failed':
+                case 'payment_failed':
+                    showMode('failed');
+                    break;
+                    
+                case 'qrcode':
+                case 'qr':
+                    showMode('qrcode');
+                    setQRCode(data.qrCode || data.qr_code || '');
+                    break;
+                    
+                case 'thankyou':
+                case 'thank_you':
+                    showMode('thankyou');
+                    break;
+                    
+                default:
+                    showMode('welcome');
+            }
+        }
+        
+        // 轮询 API
+        async function pollAPI() {
+            try {
+                // 方式1: 轮询本地 API
+                const response = await fetch(`${API_SERVER}/api/display/current`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    handleCommand(data);
+                    setStatus(true);
+                } else {
+                    setStatus(false);
+                }
+            } catch (e) {
+                // API 不可用，尝试显示默认内容
+                setStatus(false);
+            }
+        }
+        
+        // SSE 流式接收
+        let eventSource = null;
+        
+        function connectSSE() {
+            try {
+                eventSource = new EventSource(`${API_SERVER}/api/display/stream`);
+                
+                eventSource.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    handleCommand(data);
+                    setStatus(true);
+                };
+                
+                eventSource.onerror = () => {
+                    setStatus(false);
+                    eventSource.close();
+                    // 重连
+                    setTimeout(connectSSE, 3000);
+                };
+                
+            } catch (e) {
+                console.log('SSE not available, falling back to polling');
+            }
+        }
+        
+        // 启动
+        function init() {
+            // 显示欢迎界面
+            showMode('welcome');
+            
+            // 尝试连接
+            connectSSE();
+            
+            // 每 5 秒轮询一次作为后备
+            setInterval(pollAPI, 5000);
+            
+            // 初始轮询
+            pollAPI();
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // 全屏模式（可选）
+        document.addEventListener('click', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                document.documentElement.requestFullscreen();
+            }
+        });
+    </script>
+</body>
+</html>
