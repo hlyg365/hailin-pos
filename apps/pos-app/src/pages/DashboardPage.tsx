@@ -2881,6 +2881,15 @@ export default function DashboardPage() {
                     >
                       {ai识别中 ? '识别中...' : '测试识别'}
                     </button>
+                    <button 
+                      onClick={() => {
+                        localStorage.removeItem('hailin-settings');
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600"
+                    >
+                      重置配置
+                    </button>
                   </div>
                   <button onClick={() => aiConfig.setLastTestResult(index, { success: true, message: '配置已保存', timestamp: new Date().toISOString() })} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">保存配置</button>
                 </div>

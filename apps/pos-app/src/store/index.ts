@@ -712,9 +712,16 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       console.log('[AI识别] 返回数据:', JSON.stringify(data).substring(0, 200));
       
       // 支持多种API返回格式
-      // 成功: code=200, code=1, success=true, found=true
+      // 成功: code=200, code=1, success=true, found=true, showapi_res_code=0
       // 失败: code=401(无Key), code=403(无权限), code=404(未找到), data.found=false
-      const isSuccess = data.code === 200 || data.code === 1 || data.success === true || data.found === true;
+      const isSuccess = 
+        data.code === 200 || 
+        data.code === 1 || 
+        data.code === 0 ||
+        data.success === true || 
+        data.found === true ||
+        data.showapi_res_code === 0 ||
+        (data.showapi_res_body && data.showapi_res_body.flag === true);
       const isNotFound = data.code === 401 || data.code === 403 || data.code === 404 || data.found === false;
       
       if (isNotFound) {
