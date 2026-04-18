@@ -580,6 +580,9 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
   
   let lastError = '';
   
+  console.log('[AI识别] 总配置数:', configs.length);
+  console.log('[AI识别] 启用的配置:', enabledConfigs.map(c => c.config.name || '未命名'));
+  
   // 遍历所有启用的配置
   for (const { config, index } of enabledConfigs) {
     // 检查是否配置了必要的认证信息
@@ -831,15 +834,17 @@ export const useAiConfigStore = create<AiConfigState>()(
         if (result.configIndex !== undefined) {
           const config = get().configs[result.configIndex];
           set((state) => ({
-            configs: state.configs.map((c, i) => 
-              i === result.configIndex 
-                ? { 
-                    ...c, 
-                    callCount: (c.callCount || 0) + 1,
-                    successCount: result.success ? (c.successCount || 0) + 1 : (c.successCount || 0)
-                  } 
-                : c
-            ),
+            configs: state.configs.map((c, i) => {
+              if (i === result.configIndex) {
+                console.log('[AI识别] 更新配置' + i + '的调用次数:', (c.callCount || 0) + 1);
+                return { 
+                  ...c, 
+                  callCount: (c.callCount || 0) + 1,
+                  successCount: result.success ? (c.successCount || 0) + 1 : (c.successCount || 0)
+                };
+              }
+              return c;
+            }),
           }));
         }
         
@@ -850,9 +855,10 @@ export const useAiConfigStore = create<AiConfigState>()(
       name: 'hailin-ai-config',
       onRehydrateStorage: () => (state) => {
         // 版本检查：如果存储的版本不匹配，重置为默认配置
-        if (state && state.version !== 2) {
+        if (state && state.version !== 5) {
+          console.log('[AI配置] 版本不匹配，重置为默认配置');
           state.configs = defaultAiConfigs;
-          state.version = 2;
+          state.version = 5;
         }
       },
     }
