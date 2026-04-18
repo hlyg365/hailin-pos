@@ -542,6 +542,7 @@ interface AiBarcodeConfig {
 
 interface AiConfigState {
   configs: AiBarcodeConfig[];
+  version: number;
   addConfig: (config: AiBarcodeConfig) => void;
   updateConfig: (index: number, updates: Partial<AiBarcodeConfig>) => void;
   deleteConfig: (index: number) => void;
@@ -742,7 +743,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 const defaultAiConfigs: AiBarcodeConfig[] = [
   {
     name: '山海云端(APIbyte)',
-    enabled: true,
+    enabled: false,
     apiUrl: 'https://apione.apibyte.cn/api/barcode',
     apiKey: '', // 需要API Key
     appCode: '',
@@ -789,6 +790,7 @@ export const useAiConfigStore = create<AiConfigState>()(
   persist(
     (set, get) => ({
       configs: defaultAiConfigs,
+      version: 2, // 版本号，用于强制重置缓存
       addConfig: (config) => set((state) => ({ configs: [...state.configs, config] })),
       updateConfig: (index, updates) => set((state) => ({
         configs: state.configs.map((c, i) => i === index ? { ...c, ...updates } : c),
@@ -825,6 +827,13 @@ export const useAiConfigStore = create<AiConfigState>()(
     }),
     {
       name: 'hailin-ai-config',
+      onRehydrateStorage: () => (state) => {
+        // 版本检查：如果存储的版本不匹配，重置为默认配置
+        if (state && state.version !== 2) {
+          state.configs = defaultAiConfigs;
+          state.version = 2;
+        }
+      },
     }
   )
 );
