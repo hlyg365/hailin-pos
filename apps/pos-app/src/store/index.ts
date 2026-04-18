@@ -724,7 +724,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       
       // 支持多种API返回格式
       // 成功: code=200, code=1, code=0, success=true, found=true, showapi_res_code=0, ret_code=0
-      // 失败: code=401(无Key), code=403(无权限), code=404(未找到), data.found=false
+      // 失败: code=401(无Key), code=403(无权限), code=404(未找到), showapi_res_code<0
       const isSuccess = 
         data.code === 200 || 
         data.code === 1 || 
@@ -734,6 +734,11 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         data.showapi_res_code === 0 ||
         data.showapi_res_body?.ret_code === 0 ||
         (data.showapi_res_body && data.showapi_res_body.flag === true);
+      
+      // 万维易源特有错误处理
+      const wanweiError = data.showapi_res_error || data.showapi_res_body?.error || '';
+      const isWanweiNoQuota = data.showapi_res_code === -7 || data.showapi_res_code === -100;
+      
       const isNotFound = data.code === 401 || data.code === 403 || data.code === 404 || data.found === false;
       
       if (isNotFound) {
@@ -742,9 +747,16 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
         continue;
       }
       
+      // 万维易源配额不足错误
+      if (isWanweiNoQuota) {
+        console.error('[AI识别] 万维易源账号配额不足:', wanweiError);
+        lastError = '万维易源账号配额不足: ' + wanweiError;
+        continue;
+      }
+      
       if (!isSuccess) {
-        console.error('[AI识别] 配置' + (index + 1) + ' 返回错误:', data.msg || data.error);
-        lastError = data.msg || data.error || 'API返回错误';
+        console.error('[AI识别] 配置' + (index + 1) + ' 返回错误:', data.msg || data.error || wanweiError);
+        lastError = data.msg || data.error || wanweiError || 'API返回错误';
         continue;
       }
       
