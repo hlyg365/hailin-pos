@@ -624,8 +624,14 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       const headers: Record<string, string> = {};
       
       if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
-        headers['X-Api-Key'] = config.apiKey;
+        // 万维易源使用 appkey header
+        if (config.name && config.name.includes('万维易源')) {
+          headers['appkey'] = config.apiKey;
+        } else {
+          // 其他API使用标准方式
+          headers['Authorization'] = `Bearer ${config.apiKey}`;
+          headers['X-Api-Key'] = config.apiKey;
+        }
         headers['Accept'] = 'application/json';
       }
       
