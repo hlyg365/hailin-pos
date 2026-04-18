@@ -263,7 +263,7 @@ export default function CashierPage() {
     // 监听扫码事件
     deviceEvents.on('scan', (data) => {
       console.log('[收银台] 扫码事件:', data.barcode);
-      handleBarcodeSearch(data.barcode);
+      handleBarcodeScan(data.barcode);
     });
     
     // 监听秤数据事件
@@ -430,15 +430,15 @@ export default function CashierPage() {
       }
       
       // 3. 打印小票（如果打印机已连接）
-      if (deviceStatuses.printer.connected) {
+      if (deviceStatuses.printerConnected) {
         await deviceManager.printReceipt({
-          orderNo: order.orderNo,
-          storeName: currentStore?.name || '海邻到家',
-          items: order.items.map(i => ({ name: i.productName, qty: i.quantity, price: i.unitPrice, total: i.subtotal })),
-          total: order.finalAmount,
-          paymentMethod: getPayMethodName(selectedPay),
-          memberInfo: currentMember ? `会员: ${currentMember.name} (${currentMember.level})` : undefined,
-          datetime: new Date(order.paidAt).toLocaleString('zh-CN'),
+          title: currentStore?.name || '海邻到家',
+          time: new Date(order.paidAt).toLocaleString('zh-CN'),
+          orderId: order.orderNo,
+          items: order.items.map(i => `${i.productName} x${i.quantity} ¥${i.subtotal.toFixed(2)}`).join('\n'),
+          total: order.totalAmount.toFixed(2),
+          discount: (order.totalAmount - order.finalAmount).toFixed(2),
+          paid: order.finalAmount.toFixed(2),
         });
       } else {
         console.log('[Cashier] 小票打印机未连接，跳过打印');
@@ -725,9 +725,10 @@ export default function CashierPage() {
                   {/* 设备状态指示 */}
                   <div className="flex gap-1 mb-2">
                     {[
-                      { icon: '📺', status: deviceStatuses.customerDisplay?.connected, label: '显' },
-                      { icon: '🖨️', status: deviceStatuses.receiptPrinter?.connected, label: '印' },
-                      { icon: '⚖️', status: deviceStatuses.scale?.connected, label: '秤' },
+                      { icon: '📺', status: deviceStatuses.scannerEnabled, label: '扫码' },
+                      { icon: '🖨️', status: deviceStatuses.printerConnected, label: '打印' },
+                      { icon: '⚖️', status: deviceStatuses.scaleConnected, label: '秤' },
+                      { icon: '🏷️', status: deviceStatuses.labelPrinterConnected, label: '标签' },
                     ].map((d, i) => (
                       <button 
                         key={i}
@@ -1545,11 +1546,10 @@ export default function CashierPage() {
               
               {/* 设备列表 */}
               {[
-                { name: '客显屏', icon: '📺', status: deviceStatuses.customerDisplay, config: deviceConfig.customerDisplay, key: 'customerDisplay' },
-                { name: '小票打印机', icon: '🖨️', status: deviceStatuses.receiptPrinter, config: deviceConfig.receiptPrinter, key: 'receiptPrinter' },
-                { name: '标签打印机', icon: '🏷️', status: deviceStatuses.labelPrinter, config: null, key: 'labelPrinter' },
-                { name: '钱箱', icon: '💰', status: deviceStatuses.cashDrawer, config: deviceConfig.cashDrawer, key: 'cashDrawer' },
-                { name: '电子秤', icon: '⚖️', status: deviceStatuses.scale, config: deviceConfig.scale, key: 'scale' },
+                { name: '扫码枪', icon: '📷', status: deviceStatuses.scannerEnabled, key: 'scanner' },
+                { name: '小票打印机', icon: '🖨️', status: deviceStatuses.printerConnected, key: 'printer' },
+                { name: '标签打印机', icon: '🏷️', status: deviceStatuses.labelPrinterConnected, key: 'labelPrinter' },
+                { name: '电子秤', icon: '⚖️', status: deviceStatuses.scaleConnected, key: 'scale' },
               ].map((device, i) => (
                 <div key={i} className="p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
@@ -1558,20 +1558,31 @@ export default function CashierPage() {
                       <div>
                         <p className="font-medium">{device.name}</p>
                         <p className="text-xs text-gray-500">
-                          {device.status?.connected ? (
-                            device.status.online ? '🟢 已连接' : '🟡 连接中'
-                          ) : '⚪ 未连接'}
+                          {device.status ? '🟢 已连接' : '⚪ 未连接'}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {device.key === 'receiptPrinter' || device.key === 'scale' ? (
+                      {device.key === 'printer' && deviceConfig.receiptPrinter.enabled ? (
                         <button 
                           onClick={() => {
                             setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
                             setTempDeviceConfig({ 
-                              address: device.config?.address || '', 
-                              port: device.config?.port || 9100 
+                              address: deviceConfig.receiptPrinter.address, 
+                              port: deviceConfig.receiptPrinter.port 
+                            });
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                        >
+                          {editingDeviceConfig === device.key ? '收起' : '配置'}
+                        </button>
+                      ) : device.key === 'scale' && deviceConfig.scale.enabled ? (
+                        <button 
+                          onClick={() => {
+                            setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
+                            setTempDeviceConfig({ 
+                              address: deviceConfig.scale.address, 
+                              port: deviceConfig.scale.tcpPort || deviceConfig.scale.port 
                             });
                           }}
                           className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
@@ -1579,8 +1590,8 @@ export default function CashierPage() {
                           {editingDeviceConfig === device.key ? '收起' : '配置'}
                         </button>
                       ) : null}
-                      <span className={`px-3 py-1 rounded-full text-sm ${device.status?.connected ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                        {device.status?.connected ? '已连接' : '未连接'}
+                      <span className={`px-3 py-1 rounded-full text-sm ${device.status ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                        {device.status ? '已连接' : '未连接'}
                       </span>
                     </div>
                   </div>
@@ -1606,7 +1617,11 @@ export default function CashierPage() {
                       </div>
                       <button 
                         onClick={() => {
-                          deviceConfig.updateConfig(device.key, tempDeviceConfig);
+                          if (device.key === 'printer') {
+                            deviceConfig.updateConfig('receiptPrinter', tempDeviceConfig);
+                          } else if (device.key === 'scale') {
+                            deviceConfig.updateConfig('scale', { ...tempDeviceConfig, tcpPort: tempDeviceConfig.port });
+                          }
                           setEditingDeviceConfig(null);
                           connectDevices();
                         }}
@@ -1616,35 +1631,9 @@ export default function CashierPage() {
                       </button>
                     </div>
                   )}
-                  
-                  {/* 设备状态显示 */}
-                  {editingDeviceConfig !== device.key && device.config && (
-                    <div className="mt-2 pt-2 border-t border-gray-200">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">自动连接:</span>
-                        <button 
-                          onClick={() => deviceConfig.updateConfig(device.key, { enabled: !device.config.enabled })}
-                          className={`w-8 h-4 rounded-full transition ${device.config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                        >
-                          <div className={`w-3 h-3 bg-white rounded-full shadow transition ${device.config.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                        </button>
-                      </div>
-                      {device.config.enabled && device.key !== 'customerDisplay' && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          {device.key === 'receiptPrinter' && `地址: ${device.config.address || '未配置'}:${device.config.port || 9100}`}
-                          {device.key === 'scale' && `地址: ${device.config.address || '未配置'}:${device.config.port || 8080}`}
-                          {device.key === 'cashDrawer' && '使用打印机端口'}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  
-                  {device.status?.error && (
-                    <p className="text-xs text-red-500 mt-1">{device.status.error}</p>
-                  )}
                 </div>
               ))}
-              
+
               <div className="text-center text-xs text-gray-400 pt-2">
                 💡 提示：小票打印机和电子秤需要配置IP地址
               </div>
