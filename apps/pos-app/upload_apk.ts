@@ -7,10 +7,10 @@ const storage = new S3Storage({
 });
 
 async function main() {
-  const fileBuffer = readFileSync("./dist/hailin-pos.apk");
+  const fileBuffer = readFileSync("/tmp/hailin-apk/app-debug.apk");
   const key = await storage.uploadFile({
     fileContent: fileBuffer,
-    fileName: "hailin-pos.apk",
+    fileName: "hailin-pos-v50.apk",
     contentType: "application/vnd.android.package-archive",
   });
   console.log("Key:", key);
