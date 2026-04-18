@@ -771,14 +771,62 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
       if (goodsData.data && typeof goodsData.data === 'object') {
         goodsData = goodsData.data;
       }
+      // 万维易源可能有 ret_code=0 但数据在嵌套的 data 字段中
+      if (goodsData.ret && typeof goodsData.ret === 'object') {
+        goodsData = goodsData.ret;
+      }
+      // 再检查一层嵌套
+      if (goodsData.data && typeof goodsData.data === 'object') {
+        goodsData = goodsData.data;
+      }
       
       console.log('[AI识别] 提取的goodsData:', JSON.stringify(goodsData));
       
-      const name = goodsData.goods_name || goodsData.name || goodsData.product_name || goodsData.goodsName || '';
-      const category = goodsData.category_name || goodsData.category || goodsData.cat || '食品';
-      const retailPrice = parseFloat(goodsData.price) || parseFloat(goodsData.retail_price) || 0;
-      const costPrice = parseFloat(goodsData.cost_price) || parseFloat(goodsData.costPrice) || 0;
-      const image = goodsData.image || goodsData.img || goodsData.pic || goodsData.goodsImg || '';
+      // 商品名称字段（支持多种命名方式）
+      const name = 
+        goodsData.goods_name || 
+        goodsData.name || 
+        goodsData.product_name || 
+        goodsData.goodsName ||
+        goodsData.commodityName ||
+        goodsData.title ||
+        goodsData.goodsName ||
+        '';
+      
+      // 分类字段
+      const category = 
+        goodsData.category_name || 
+        goodsData.category || 
+        goodsData.cat ||
+        goodsData.type_name ||
+        goodsData.type ||
+        '食品';
+      
+      // 价格字段（支持多种命名方式）
+      const retailPrice = 
+        parseFloat(goodsData.price) || 
+        parseFloat(goodsData.retail_price) || 
+        parseFloat(goodsData.sale_price) ||
+        parseFloat(goodsData.normal_price) ||
+        parseFloat(goodsData.goods_price) ||
+        0;
+      
+      // 进价字段
+      const costPrice = 
+        parseFloat(goodsData.cost_price) || 
+        parseFloat(goodsData.costPrice) || 
+        parseFloat(goodsData.purchase_price) ||
+        0;
+      
+      // 图片字段
+      const image = 
+        goodsData.image || 
+        goodsData.img || 
+        goodsData.pic || 
+        goodsData.goodsImg ||
+        goodsData.image_url ||
+        goodsData.goods_image ||
+        '';
       
       if (name) {
         console.log('[AI识别] 配置' + (index + 1) + ' 识别成功!');
