@@ -3,12 +3,8 @@ name: Build Android APK
 on:
   push:
     branches: [main]
-    paths:
-      - 'apps/pos-app/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'apps/pos-app/**'
   workflow_dispatch:
 
 jobs:
@@ -18,15 +14,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: apps/pos-app
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: 'apps/pos-app/pnpm-lock.yaml'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -34,13 +27,13 @@ jobs:
           version: 8
 
       - name: Install dependencies
-        run: cd apps/pos-app && pnpm install
+        run: pnpm install
 
       - name: Build Web App
-        run: cd apps/pos-app && pnpm build
+        run: pnpm build
 
       - name: Sync to Android
-        run: cd apps/pos-app && pnpm exec cap sync android
+        run: pnpm exec cap sync android
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -49,11 +42,11 @@ jobs:
           java-version: '17'
 
       - name: Change gradlew permission
-        run: chmod +x apps/pos-app/android/gradlew
+        run: chmod +x android/gradlew
 
       - name: Build Debug APK
         run: |
-          cd apps/pos-app/android
+          cd android
           ./gradlew assembleDebug --no-daemon
         env:
           JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
@@ -62,14 +55,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hailin-pos-apk
-          path: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          files: apps/pos-app/android/app/build/outputs/apk/debug/*.apk
+          files: android/app/build/outputs/apk/debug/*.apk
           name: "海邻到家收银台 APK v${{ github.run_number }}"
           draft: false
         env:
