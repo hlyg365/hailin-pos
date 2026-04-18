@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore, useAiConfigStore, useDeviceConfigStore } from '../store';
-import { deviceManager, type DeviceStatus } from '../services/posDevices';
+import { deviceManager, deviceEvents, type DeviceStatus } from '../services/hardwareService';
 import type { Product } from '../types';
 
 // 检查清货模式
@@ -174,11 +174,11 @@ export default function CashierPage() {
   const deviceConfig = useDeviceConfigStore();
   
   // 设备状态
-  const [deviceStatuses, setDeviceStatuses] = useState<Record<string, DeviceStatus>>({
-    customerDisplay: { connected: false, online: false },
-    receiptPrinter: { connected: false, online: false },
-    scale: { connected: false, online: false },
-    cashDrawer: { connected: false, online: false },
+  const [deviceStatuses, setDeviceStatuses] = useState<DeviceStatus>({
+    scaleConnected: false,
+    printerConnected: false,
+    labelPrinterConnected: false,
+    scannerEnabled: true,
   });
   const [isConnectingDevices, setIsConnectingDevices] = useState(false);
 
@@ -216,29 +216,24 @@ export default function CashierPage() {
     setIsConnectingDevices(true);
     
     try {
-      const configs = {
-        receiptPrinter: deviceConfig.receiptPrinter.enabled ? {
-          type: deviceConfig.receiptPrinter.type,
-          address: deviceConfig.receiptPrinter.address,
-          port: deviceConfig.receiptPrinter.port,
-          width: deviceConfig.receiptPrinter.width,
-        } : undefined,
+      // 使用新的硬件服务初始化设备
+      const status = await deviceManager.init({
         scale: deviceConfig.scale.enabled ? {
-          type: 'network',
-          address: deviceConfig.scale.address,
-          tcpPort: deviceConfig.scale.tcpPort || deviceConfig.scale.port,
-          baudRate: deviceConfig.scale.baudRate || 9600,
-          protocol: deviceConfig.scale.protocol || 'general',
+          host: deviceConfig.scale.address,
+          port: deviceConfig.scale.tcpPort || deviceConfig.scale.port || 9101,
         } : undefined,
-        cashDrawer: deviceConfig.cashDrawer.enabled ? {
-          address: deviceConfig.cashDrawer.address,
-          port: deviceConfig.cashDrawer.port,
+        receiptPrinter: deviceConfig.receiptPrinter.enabled ? {
+          host: deviceConfig.receiptPrinter.address,
+          port: deviceConfig.receiptPrinter.port || 9100,
         } : undefined,
-      };
+        labelPrinter: deviceConfig.labelPrinter?.enabled ? {
+          host: deviceConfig.labelPrinter.address,
+          port: deviceConfig.labelPrinter.port || 9100,
+        } : undefined,
+      });
       
-      await deviceManager.connectAll(configs);
-      setDeviceStatuses(deviceManager.getAllStatus());
-      console.log('[收银台] 设备连接完成');
+      setDeviceStatuses(status);
+      console.log('[收银台] 设备连接完成:', status);
     } catch (error) {
       console.error('[收银台] 设备连接失败:', error);
     } finally {
@@ -251,18 +246,35 @@ export default function CashierPage() {
     if (deviceConfig.autoConnect) {
       connectDevices();
       
-      // 如果客显屏未打开，尝试打开
-      if (!deviceStatuses.customerDisplay.connected) {
-        deviceManager.openCustomerDisplay();
-      }
+      // 显示欢迎界面到客显屏
+      deviceManager.customerDisplay.showWelcome();
     }
     
     // 定时刷新设备状态
-    const statusInterval = setInterval(() => {
-      setDeviceStatuses(deviceManager.getAllStatus());
+    const statusInterval = setInterval(async () => {
+      try {
+        const status = await deviceManager.getStatus();
+        setDeviceStatuses(status);
+      } catch (e) {
+        console.warn('[收银台] 获取设备状态失败:', e);
+      }
     }, 5000);
     
-    return () => clearInterval(statusInterval);
+    // 监听扫码事件
+    deviceEvents.on('scan', (data) => {
+      console.log('[收银台] 扫码事件:', data.barcode);
+      handleBarcodeSearch(data.barcode);
+    });
+    
+    // 监听秤数据事件
+    deviceEvents.on('weightChanged', (data) => {
+      console.log('[收银台] 秤数据:', data);
+    });
+    
+    return () => {
+      clearInterval(statusInterval);
+      deviceEvents.off('scan', () => {});
+    };
   }, [connectDevices, deviceConfig.autoConnect]);
 
   useEffect(() => { barcodeInputRef.current?.focus(); }, []);
@@ -276,7 +288,7 @@ export default function CashierPage() {
       addItem(exact, 1);
       setAiScanResult(null);
       // 更新客显屏显示商品信息
-      deviceManager.customerDisplay.showProduct(exact.name, exact.retailPrice);
+      deviceManager.customerDisplay.showAmount(exact.retailPrice, exact.name);
       return;
     }
     
@@ -433,7 +445,7 @@ export default function CashierPage() {
       }
       
       // 4. 更新客显屏 - 显示收款成功
-      deviceManager.customerDisplay.updateDisplay({ mode: 'paid', amount: order.finalAmount });
+      deviceManager.customerDisplay.showAmount(order.finalAmount, '支付成功');
       
       // 完成
       setShowPayModal(false);
@@ -441,7 +453,7 @@ export default function CashierPage() {
       clearCart();
       setTimeout(() => {
         setShowSuccess(false);
-        deviceManager.customerDisplay.updateDisplay({ mode: 'welcome' });
+        deviceManager.customerDisplay.showWelcome();
       }, 3000);
     } catch (error) {
       console.error('[Cashier] 支付处理失败:', error);
@@ -640,12 +652,14 @@ export default function CashierPage() {
                     <button key={product.id} onClick={() => {
                       if (!product.isStandard) {
                         // 非标品（称重商品）使用电子秤数据或默认1kg
-                        const weight = deviceManager.scale?.getReading()?.weight || 1;
-                        addItem(product, weight);
-                        deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice * weight);
+                        const currentWeight = deviceManager.scale.currentWeight?.weight || 1;
+                        addItem(product, currentWeight);
+                        const total = useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice * currentWeight;
+                        deviceManager.customerDisplay.showAmount(total, product.name);
                       } else {
                         addItem(product, 1);
-                        deviceManager.customerDisplay?.showWaiting?.(useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0));
+                        const total = useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice;
+                        deviceManager.customerDisplay.showAmount(total);
                       }
                     }} className="bg-white rounded-lg sm:rounded-xl p-2 sm:p-3 text-left hover:shadow-md transition-shadow relative">
                       {!product.isStandard && <div className="absolute top-1 sm:top-2 right-1 sm:right-2 w-5 sm:w-6 h-5 sm:h-6 bg-orange-500 text-white rounded-full flex items-center justify-center"><span className="text-xs">⚖️</span></div>}
@@ -673,9 +687,9 @@ export default function CashierPage() {
                   </div>
                 )}
                 <div className="bg-gray-50 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-3 text-xs border-b">
-                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.receiptPrinter?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">打印机</span></span>
-                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.scale?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">电子秤</span></span>
-                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceManager.customerDisplay?.status?.connected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">客显屏</span></span>
+                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceStatuses.printerConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">打印机</span></span>
+                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceStatuses.scaleConnected ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">电子秤</span></span>
+                  <span className="flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${deviceStatuses.scannerEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></span><span className="hidden sm:inline">扫码枪</span></span>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 sm:p-4">
                   {items.length === 0 ? (
