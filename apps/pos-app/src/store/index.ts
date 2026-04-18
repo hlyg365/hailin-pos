@@ -557,7 +557,7 @@ interface AiConfigState {
   }>;
 }
 
-// AI条码识别函数
+// AI条码识别函数 - 自动遍历所有启用的配置
 const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Promise<{
   success: boolean;
   name?: string;
@@ -567,173 +567,153 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
   message?: string;
   configIndex?: number;
 }> => {
-  // 找到已启用的配置（按顺序）
-  const enabledConfigIndex = configs.findIndex(c => c.enabled);
-  if (enabledConfigIndex === -1) {
+  // 获取所有已启用的配置（按顺序）
+  const enabledConfigs = configs
+    .map((config, index) => ({ config, index }))
+    .filter(({ config }) => config.enabled);
+  
+  if (enabledConfigs.length === 0) {
     return { success: false, message: '请先配置并启用AI识别接口' };
   }
   
-  const enabledConfig = configs[enabledConfigIndex];
+  let lastError = '';
   
-  // 检查是否配置了必要的认证信息
-  if (!enabledConfig.apiUrl) {
-    return { success: false, message: '请先配置API接口地址' };
-  }
-  
-  // 无Key也可以调用（部分API支持）
-  if (!enabledConfig.apiKey && !enabledConfig.appCode) {
-    console.log('[AI识别] 未配置API Key，将使用无认证方式调用');
-  }
-  
-  try {
-    // 构建请求参数
-    let requestBody: Record<string, any> = {};
-    let url = enabledConfig.apiUrl;
+  // 遍历所有启用的配置
+  for (const { config, index } of enabledConfigs) {
+    // 检查是否配置了必要的认证信息
+    if (!config.apiUrl) {
+      lastError = '请先配置API接口地址';
+      continue;
+    }
+    
+    console.log(`[AI识别] 尝试配置${index + 1}: ${config.name || '未命名'}`);
     
     try {
-      // 解析请求模板
-      const template = enabledConfig.requestTemplate
-        .replace(/\${barcode}/g, barcode)
-        .replace(/\${store_id}/g, 'STORE001')
-        .replace(/\${timestamp}/g, Date.now().toString());
-      requestBody = JSON.parse(template);
-    } catch {
-      requestBody = { barcode };
-    }
-    
-    // GET请求：将参数拼接到URL
-    if (enabledConfig.method === 'GET') {
-      const params = new URLSearchParams();
-      Object.entries(requestBody).forEach(([key, value]) => {
-        params.append(key, String(value));
-      });
-      // 如果有apiKey也添加到参数中（部分API支持参数方式传递Key）
-      if (enabledConfig.apiKey) {
-        params.append('key', enabledConfig.apiKey);
+      // 构建请求参数
+      let requestBody: Record<string, any> = {};
+      let url = config.apiUrl;
+      
+      try {
+        // 解析请求模板
+        const template = config.requestTemplate
+          .replace(/\${barcode}/g, barcode)
+          .replace(/\${store_id}/g, 'STORE001')
+          .replace(/\${timestamp}/g, Date.now().toString());
+        requestBody = JSON.parse(template);
+      } catch {
+        requestBody = { barcode };
       }
-      const separator = url.includes('?') ? '&' : '?';
-      url = `${url}${separator}${params.toString()}`;
-      requestBody = {};
-    }
+      
+      // GET请求：将参数拼接到URL
+      if (config.method === 'GET') {
+        const params = new URLSearchParams();
+        Object.entries(requestBody).forEach(([key, value]) => {
+          params.append(key, String(value));
+        });
+        if (config.apiKey) {
+          params.append('key', config.apiKey);
+        }
+        const separator = url.includes('?') ? '&' : '?';
+        url = `${url}${separator}${params.toString()}`;
+        requestBody = {};
+      }
 
-    // 构建请求头
-    const headers: Record<string, string> = {};
-    
-    // API认证方式
-    if (enabledConfig.apiKey) {
-      // 方式1: Bearer Token
-      headers['Authorization'] = `Bearer ${enabledConfig.apiKey}`;
-      // 方式2: X-Api-Key (当前API使用)
-      headers['X-Api-Key'] = enabledConfig.apiKey;
-      headers['Accept'] = 'application/json';
-    }
-    
-    if (enabledConfig.appCode) {
-      // 阿里云市场 APPCODE 认证
-      headers['Authorization'] = `APPCODE ${enabledConfig.appCode}`;
-    }
-    
-    if (enabledConfig.appSecret) {
-      headers['X-App-Secret'] = enabledConfig.appSecret;
-    }
-    
-    // GET请求不需要Content-Type
-    if (enabledConfig.method === 'GET') {
-      delete headers['Content-Type'];
-    }
+      // 构建请求头
+      const headers: Record<string, string> = {};
+      
+      if (config.apiKey) {
+        headers['Authorization'] = `Bearer ${config.apiKey}`;
+        headers['X-Api-Key'] = config.apiKey;
+        headers['Accept'] = 'application/json';
+      }
+      
+      if (config.appCode) {
+        headers['Authorization'] = `APPCODE ${config.appCode}`;
+      }
+      
+      if (config.appSecret) {
+        headers['X-App-Secret'] = config.appSecret;
+      }
+      
+      if (config.method === 'GET') {
+        delete headers['Content-Type'];
+      } else {
+        headers['Content-Type'] = 'application/json';
+      }
 
-    // 调用API
-    console.log('[AI识别] 开始调用API:', {
-      url,
-      method: enabledConfig.method,
-      headers,
-      requestBody
-    });
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), enabledConfig.timeout * 1000);
+      console.log('[AI识别] 调用配置' + (index + 1) + ': ' + url);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), config.timeout * 1000);
 
-    const response = await fetch(url, {
-      method: enabledConfig.method,
-      headers,
-      body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined,
-      signal: controller.signal,
-    });
+      const response = await fetch(url, {
+        method: config.method,
+        headers,
+        body: config.method === 'GET' ? undefined : JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
 
-    clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
+      console.log('[AI识别] 响应状态:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '无法读取响应');
+        console.error('[AI识别] HTTP错误:', response.status);
+        lastError = 'API请求失败: ' + response.status;
+        continue;
+      }
 
-    console.log('[AI识别] API响应状态:', response.status);
-    
-    if (!response.ok) {
-      // 读取响应内容以便调试
-      const errorText = await response.text().catch(() => '无法读取响应');
-      console.error('[AI识别] HTTP错误:', response.status, errorText);
-      return { success: false, message: `API请求失败: ${response.status} - 请检查AppCode配置是否正确` };
+      const data = await response.json();
+      console.log('[AI识别] 返回数据:', JSON.stringify(data).substring(0, 200));
+      
+      // 支持多种API返回格式
+      const isSuccess = data.code === 200 || data.code === 1 || data.success === true;
+      
+      if (!isSuccess) {
+        console.error('[AI识别] 返回错误:', data.msg || data.error);
+        lastError = data.msg || data.error || 'API返回错误';
+        continue;
+      }
+      
+      // 提取商品数据
+      const goodsData = data.data || data;
+      const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
+      const category = goodsData.category_name || goodsData.category || '食品';
+      const retailPrice = parseFloat(goodsData.price) || 0;
+      const costPrice = parseFloat(goodsData.cost_price) || 0;
+      const image = goodsData.image || goodsData.img || goodsData.pic || '';
+      
+      if (name) {
+        console.log('[AI识别] 配置' + (index + 1) + ' 识别成功!');
+        return {
+          success: true,
+          name,
+          category,
+          retailPrice,
+          costPrice,
+          image,
+          message: '识别成功',
+          configIndex: index,
+        };
+      } else {
+        lastError = '未获取到商品信息';
+        continue;
+      }
+    } catch (error: any) {
+      console.error('[AI识别] 异常:', error.message);
+      lastError = error.message;
+      if (error.name === 'AbortError') {
+        lastError = '请求超时';
+      }
+      continue;
     }
-
-    const data = await response.json();
-    console.log('[AI识别] API返回数据:', JSON.stringify(data));
-    
-    // 支持多种API返回格式
-    // 格式1: {code: 200, msg: "success", data: {...}} (当前API)
-    // 格式2: {code: 1, msg: "成功", data: {...}}
-    // 格式3: {success: true, data: {...}}
-    const isSuccess = data.code === 200 || data.code === 1 || data.success === true;
-    
-    if (!isSuccess) {
-      console.error('[AI识别] API返回错误:', data.msg || data.error || data.message || '未知错误');
-      return { success: false, message: data.msg || data.error || data.message || 'API返回错误' };
-    }
-    
-    // 提取商品数据
-    const goodsData = data.data || data;
-    
-    // 商品名称
-    const name = goodsData.goods_name || goodsData.name || goodsData.product_name || '';
-    
-    // 商品分类
-    const category = goodsData.category_name || goodsData.category || '食品';
-    
-    // 零售价
-    const retailPrice = parseFloat(goodsData.price) || 0;
-    
-    // 进价（通常API不返回）
-    const costPrice = parseFloat(goodsData.cost_price) || 0;
-    
-    // 商品图片（阿里云API返回的图片有效期24小时）
-    const image = goodsData.image || goodsData.img || goodsData.pic || '';
-    
-    console.log('[AI识别] 解析结果:', { name, category, retailPrice, costPrice, image });
-    
-    // 只有当有有效数据时才返回成功
-    if (name) {
-      console.log('[AI识别] 识别成功，返回商品信息');
-      return {
-        success: true,
-        name,
-        category,
-        retailPrice,
-        costPrice,
-        image,
-        message: '识别成功',
-        configIndex: enabledConfigIndex,
-      };
-    } else {
-      console.log('[AI识别] 识别失败，未获取到有效商品信息');
-      return {
-        success: false,
-        message: '未获取到商品信息，请检查条码是否正确或手动输入',
-        configIndex: enabledConfigIndex,
-      };
-    }
-  } catch (error: any) {
-    console.error('[AI识别] 异常:', error);
-    if (error.name === 'AbortError') {
-      return { success: false, message: '请求超时，请检查网络或调整超时时间', configIndex: enabledConfigIndex };
-    }
-    return { success: false, message: `识别失败: ${error.message}`, configIndex: enabledConfigIndex };
   }
+  
+  // 所有配置都失败
+  console.error('[AI识别] 所有配置均失败:', lastError);
+  return { success: false, message: '所有配置均失败: ' + lastError };
 };
+
 
 const defaultAiConfigs: AiBarcodeConfig[] = [
   {
