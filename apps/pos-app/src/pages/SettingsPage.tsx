@@ -4,22 +4,24 @@ import { useSettingsStore, useAiConfigStore } from '../store';
 
 export default function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useSettingsStore();
-  const { configs, updateConfig } = useAiConfigStore();
+  const { configs, updateConfig, addConfig, deleteConfig } = useAiConfigStore();
   const [activeTab, setActiveTab] = useState<'basic' | 'payment' | 'promotion' | 'system' | 'ai'>('basic');
   const [hasChanges, setHasChanges] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [tempSettings, setTempSettings] = useState(settings);
-  const [tempApiKey, setTempApiKey] = useState(configs[0]?.apiKey || '');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    apiUrl: '',
+    apiKey: '',
+    method: 'GET',
+    enabled: true,
+  });
 
   useEffect(() => {
     setTempSettings(settings);
   }, [settings]);
-
-  useEffect(() => {
-    if (configs[0]) {
-      setTempApiKey(configs[0].apiKey || '');
-    }
-  }, [configs]);
 
   const handleChange = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => {
     setTempSettings(prev => ({ ...prev, [key]: value }));
@@ -34,7 +36,6 @@ export default function SettingsPage() {
   };
 
   const handleSaveAiConfig = () => {
-    updateConfig(0, { apiKey: tempApiKey });
     setHasChanges(false);
     setShowSaveToast(true);
     setTimeout(() => setShowSaveToast(false), 2000);
@@ -45,6 +46,62 @@ export default function SettingsPage() {
       resetSettings();
       setHasChanges(false);
     }
+  };
+
+  const handleAddConfig = () => {
+    setFormData({ name: '', apiUrl: '', apiKey: '', method: 'GET', enabled: true });
+    setEditingIndex(null);
+    setShowAddModal(true);
+  };
+
+  const handleEditConfig = (index: number) => {
+    const config = configs[index];
+    setFormData({
+      name: config.name || '',
+      apiUrl: config.apiUrl,
+      apiKey: config.apiKey || '',
+      method: config.method,
+      enabled: config.enabled,
+    });
+    setEditingIndex(index);
+    setShowAddModal(true);
+  };
+
+  const handleSaveConfig = () => {
+    if (!formData.apiUrl) {
+      alert('请输入API接口地址');
+      return;
+    }
+    if (editingIndex !== null) {
+      updateConfig(editingIndex, {
+        name: formData.name,
+        apiUrl: formData.apiUrl,
+        apiKey: formData.apiKey,
+        method: formData.method as 'GET' | 'POST',
+        enabled: formData.enabled,
+      });
+    } else {
+      addConfig({
+        name: formData.name,
+        apiUrl: formData.apiUrl,
+        apiKey: formData.apiKey,
+        method: formData.method as 'GET' | 'POST',
+        enabled: formData.enabled,
+        appCode: '',
+        appSecret: '',
+        timeout: 10,
+        requestTemplate: '{"barcode": "${barcode}"}',
+        responseMapping: { name: 'goods_name', category: 'category', price: 'price', costPrice: '', image: 'image' },
+        lastTestResult: null,
+      });
+    }
+    setShowAddModal(false);
+    handleSaveAiConfig();
+  };
+
+  const handleToggleEnabled = (index: number) => {
+    updateConfig(index, { enabled: !configs[index].enabled });
+    handleSaveAiConfig();
   };
 
   const tabs = [
@@ -309,39 +366,44 @@ export default function SettingsPage() {
             </SectionCard>
 
             {/* AI条码识别配置 */}
-            <SectionCard title="AI条码识别配置">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">API接口地址</label>
-                  <input
-                    type="text"
-                    value={configs[0]?.apiUrl || 'https://apione.apibyte.cn/api/barcode'}
-                    disabled
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-                  <input
-                    type="text"
-                    value={tempApiKey}
-                    onChange={(e) => {
-                      setTempApiKey(e.target.value);
-                      setHasChanges(true);
-                    }}
-                    placeholder="请输入API Key（可选，无Key也可调用但有额度限制）"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="bg-blue-50 rounded-lg p-3 text-sm text-blue-700">
-                  <p className="font-medium mb-1">接口说明：</p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>地址：https://apione.apibyte.cn/api/barcode</li>
-                    <li>参数：barcode（商品条形码，8~13位数字）</li>
-                    <li>携带Key可获得更高调用额度</li>
-                    <li>返回：商品名称、分类、价格、图片等</li>
-                  </ul>
-                </div>
+            <SectionCard title="AI条码识别平台">
+              <div className="space-y-3">
+                {configs.map((config, index) => (
+                  <div key={index} className={`p-3 rounded-lg border ${config.enabled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleEnabled(index)}
+                          className={`w-10 h-6 rounded-full transition-colors ${config.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                        >
+                          <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${config.enabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                        </button>
+                        <span className="font-medium">{config.name || `平台${index + 1}`}</span>
+                        {config.enabled && <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded">使用中</span>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleEditConfig(index)} className="text-blue-500 text-sm">编辑</button>
+                        {configs.length > 1 && (
+                          <button onClick={() => { deleteConfig(index); handleSaveAiConfig(); }} className="text-red-500 text-sm">删除</button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1 truncate">{config.apiUrl}</p>
+                    {config.apiKey && <p className="text-xs text-gray-400 mt-1">Key: {config.apiKey.slice(0, 8)}***</p>}
+                  </div>
+                ))}
+                <button onClick={handleAddConfig} className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2">
+                  <span className="text-xl">+</span> 添加识别平台
+                </button>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="接口说明">
+              <div className="text-sm text-gray-600 space-y-2">
+                <p>• 支持添加多个AI条码识别平台</p>
+                <p>• 开启多个平台时，系统按顺序自动切换使用</p>
+                <p>• 当前推荐接口：apione.apibyte.cn</p>
+                <p>• 支持格式：{`{code:200, data:{goods_name,category,price,image}}`}</p>
               </div>
             </SectionCard>
 
@@ -388,6 +450,56 @@ export default function SettingsPage() {
           </Link>
         </div>
       </main>
+
+      {/* 添加/编辑平台模态框 */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
+              <h3 className="font-semibold">{editingIndex !== null ? '编辑识别平台' : '添加识别平台'}</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <InputField label="平台名称" value={formData.name} onChange={(v) => setFormData({ ...formData, name: v })} placeholder="如：阿里云市场" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API接口地址 *</label>
+                <input
+                  type="text"
+                  value={formData.apiUrl}
+                  onChange={(e) => setFormData({ ...formData, apiUrl: e.target.value })}
+                  placeholder="https://api.example.com/barcode"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+              </div>
+              <InputField label="API Key" value={formData.apiKey} onChange={(v) => setFormData({ ...formData, apiKey: v })} placeholder="可选，填了可提高调用额度" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">请求方式</label>
+                <select
+                  value={formData.method}
+                  onChange={(e) => setFormData({ ...formData, method: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-700">启用此平台</span>
+                <button
+                  onClick={() => setFormData({ ...formData, enabled: !formData.enabled })}
+                  className={`w-12 h-6 rounded-full transition-colors ${formData.enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${formData.enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+            </div>
+            <div className="px-4 py-3 bg-gray-50 border-t flex gap-3">
+              <button onClick={() => setShowAddModal(false)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg">取消</button>
+              <button onClick={handleSaveConfig} className="flex-1 py-2 bg-blue-500 text-white rounded-lg">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -514,6 +514,7 @@ export const useSettingsStore = create<SettingsState>()(
 
 // ============ AI条码识别配置（总部后台配置，收银台调用） ============
 interface AiBarcodeConfig {
+  name?: string;
   enabled: boolean;
   apiUrl: string;
   apiKey: string;
@@ -527,6 +528,7 @@ interface AiBarcodeConfig {
     category: string;
     price: string;
     costPrice: string;
+    image?: string;
   };
   lastTestResult: {
     success: boolean;
@@ -726,6 +728,7 @@ const aiScanByBarcode = async (barcode: string, configs: AiBarcodeConfig[]): Pro
 };
 
 const defaultAiConfig: AiBarcodeConfig = {
+  name: 'APIbyte条码查询',
   enabled: true,
   apiUrl: 'https://apione.apibyte.cn/api/barcode',
   apiKey: '',
