@@ -24,8 +24,8 @@ export default function DeviceDebugPage() {
   // 串口配置
   const [serialConfig, setSerialConfig] = useState({
     port: '/dev/ttyS1',  // 默认使用主板串口2
-    baudRate: 9600,
-    protocol: 'general',
+    baudRate: 2400,
+    protocol: 'soki',
   });
   
   // 网络秤配置
@@ -106,7 +106,7 @@ export default function DeviceDebugPage() {
           type: 'usb',
           vendorId: usbConfig.vendorId,
           productId: usbConfig.productId,
-          protocol: 'general'
+          protocol: 'soki'
         });
       } else {
         // 网络模式
@@ -121,7 +121,7 @@ export default function DeviceDebugPage() {
         connected = await deviceManager.scale.connect({
           port: scaleIP,
           baudRate: scalePort,
-          protocol: 'general',
+          protocol: 'soki',
           type: 'network'
         });
       }
@@ -407,11 +407,11 @@ export default function DeviceDebugPage() {
                     onChange={(e) => setSerialConfig({...serialConfig, baudRate: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border rounded"
                   >
-                    <option value="600">600</option>
-                    <option value="1200">1200</option>
-                    <option value="2400">2400</option>
+                    <option value="2400">2400 (顶尖OS2 推荐)</option>
                     <option value="4800">4800</option>
-                    <option value="9600">9600 (常用)</option>
+                    <option value="9600">9600</option>
+                    <option value="1200">1200</option>
+                    <option value="600">600</option>
                     <option value="19200">19200</option>
                     <option value="38400">38400</option>
                     <option value="57600">57600</option>
@@ -426,11 +426,11 @@ export default function DeviceDebugPage() {
                   onChange={(e) => setSerialConfig({...serialConfig, protocol: e.target.value})}
                   className="w-full px-3 py-2 border rounded"
                 >
+                  <option value="soki">顶尖 OS2 协议 (推荐)</option>
                   <option value="general">通用协议</option>
-                  <option value="soki">顶尖 OS2/ACLaS 协议</option>
+                  <option value="aclss">顶尖 ACLaS 协议</option>
                   <option value="dahua">大华协议</option>
                   <option value="toieda">托利多协议</option>
-                  <option value="aclss">顶尖 ACLaS</option>
                 </select>
               </div>
             </div>
