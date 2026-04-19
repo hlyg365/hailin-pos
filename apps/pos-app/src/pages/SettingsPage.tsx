@@ -510,11 +510,22 @@ export default function SettingsPage() {
             自动连接设备
           </button>
           <Link
-            to="/pos/cashier"
-            className="flex-1 py-3 bg-green-500 text-white rounded-lg font-medium text-center hover:bg-green-600"
+            to="/device-debug"
+            className="flex-1 py-3 bg-purple-500 text-white rounded-lg font-medium text-center hover:bg-purple-600"
           >
-            返回收银台测试
+            设备调试工具
           </Link>
+        </div>
+        
+        {/* 设备调试提示 */}
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h4 className="font-medium text-yellow-800 mb-2">设备连接问题？</h4>
+          <ul className="text-sm text-yellow-700 space-y-1">
+            <li>1. 请确保设备的IP地址在同一网络</li>
+            <li>2. 电子秤默认端口: 9101, 打印机默认端口: 9100</li>
+            <li>3. 点击"设备调试工具"进行详细测试</li>
+            <li>4. 检查设备电源和网络指示灯</li>
+          </ul>
         </div>
       </main>
     </div>
