@@ -206,18 +206,16 @@ public class DevicePlugin extends Plugin {
     @PluginMethod
     public void scaleConnect(PluginCall call) {
         // 支持前端传递 port 参数（格式如 /dev/ttyS3）
-        String deviceName = call.getString("deviceName", "");
+        final String deviceNameInput = call.getString("deviceName", "");
         String port = call.getString("port", "");
-        int baudRate = call.getInt("baudRate", 9600);
-        int dataBits = call.getInt("dataBits", 8);
-        int stopBits = call.getInt("stopBits", 1);
-        String parity = call.getString("parity", "none");
-        String protocol = call.getString("protocol", "soki");
+        final int baudRate = call.getInt("baudRate", 9600);
+        final int dataBits = call.getInt("dataBits", 8);
+        final int stopBits = call.getInt("stopBits", 1);
+        final String parity = call.getString("parity", "none");
+        final String protocol = call.getString("protocol", "soki");
         
         // 如果 port 不为空，优先使用 port 作为设备名
-        if (!port.isEmpty()) {
-            deviceName = port;
-        }
+        final String deviceName = !port.isEmpty() ? port : deviceNameInput;
         
         Log.i(TAG, String.format("连接电子秤: device=%s, baudRate=%d, dataBits=%d, stopBits=%d, parity=%s, protocol=%s",
                 deviceName, baudRate, dataBits, stopBits, parity, protocol));
