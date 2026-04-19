@@ -1,4 +1,4 @@
-package com.hailin.deviceplugin;
+package com.hailin.pos;
 
 import android.app.Presentation;
 import android.content.Context;
