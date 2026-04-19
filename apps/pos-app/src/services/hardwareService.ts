@@ -129,10 +129,10 @@ let hardwarePlugin: HailinHardwarePlugin | null = null;
 
 if (Capacitor.isNativePlatform()) {
   try {
-    hardwarePlugin = registerPlugin('DevicePlugin') as HailinHardwarePlugin;
-    console.log('[硬件服务] 原生插件已加载');
+    hardwarePlugin = registerPlugin('HailinHardware') as HailinHardwarePlugin;
+    console.log('[硬件服务] HailinHardware 原生插件已加载');
   } catch (e) {
-    console.warn('[硬件服务] 原生插件未安装，将使用模拟实现');
+    console.warn('[硬件服务] HailinHardware 原生插件未安装，将使用模拟实现');
   }
 }
 
