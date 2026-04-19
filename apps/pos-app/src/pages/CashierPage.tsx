@@ -218,18 +218,35 @@ export default function CashierPage() {
     if (isConnectingDevices) return;
     setIsConnectingDevices(true);
     
+    console.log('[收银台] 开始连接设备...');
+    console.log('[收银台] 当前设备配置:', JSON.stringify({
+      scale: { enabled: deviceConfig.scale.enabled, address: deviceConfig.scale.address, port: deviceConfig.scale.tcpPort || deviceConfig.scale.port },
+      printer: { enabled: deviceConfig.receiptPrinter.enabled, address: deviceConfig.receiptPrinter.address, port: deviceConfig.receiptPrinter.port },
+      label: { enabled: deviceConfig.labelPrinter?.enabled, address: deviceConfig.labelPrinter?.address, port: deviceConfig.labelPrinter?.port }
+    }));
+    
     try {
+      // 检查是否有可用的设备配置
+      const hasScaleConfig = deviceConfig.scale.enabled && deviceConfig.scale.address;
+      const hasPrinterConfig = deviceConfig.receiptPrinter.enabled && deviceConfig.receiptPrinter.address;
+      const hasLabelConfig = deviceConfig.labelPrinter?.enabled && deviceConfig.labelPrinter?.address;
+      
+      if (!hasScaleConfig && !hasPrinterConfig && !hasLabelConfig) {
+        console.warn('[收银台] 未配置任何设备，请先在设置中配置设备IP地址');
+        // 仍然尝试初始化（使用模拟模式）
+      }
+      
       // 使用新的硬件服务初始化设备
       const status = await deviceManager.init({
-        scale: deviceConfig.scale.enabled ? {
+        scale: hasScaleConfig ? {
           host: deviceConfig.scale.address,
           port: deviceConfig.scale.tcpPort || deviceConfig.scale.port || 9101,
         } : undefined,
-        receiptPrinter: deviceConfig.receiptPrinter.enabled ? {
+        receiptPrinter: hasPrinterConfig ? {
           host: deviceConfig.receiptPrinter.address,
           port: deviceConfig.receiptPrinter.port || 9100,
         } : undefined,
-        labelPrinter: deviceConfig.labelPrinter?.enabled ? {
+        labelPrinter: hasLabelConfig ? {
           host: deviceConfig.labelPrinter.address,
           port: deviceConfig.labelPrinter.port || 9100,
         } : undefined,
@@ -237,8 +254,9 @@ export default function CashierPage() {
       
       setDeviceStatuses(status);
       console.log('[收银台] 设备连接完成:', status);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[收银台] 设备连接失败:', error);
+      // 不抛出异常，允许应用继续运行在模拟模式
     } finally {
       setIsConnectingDevices(false);
     }

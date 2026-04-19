@@ -183,19 +183,43 @@ export class ScaleService {
     baudRate?: number;
     protocol?: string;
   } = {}): Promise<boolean> {
-    const { port = '/dev/ttyS0', baudRate = 9600, protocol = 'general' } = options;
-    this.protocol = protocol;
+    // 判断是否为网络连接（IP格式）
+    const isNetwork = options.port && (options.port.includes('.') || options.port.includes(':'));
+    const host = isNetwork ? options.port : undefined;
+    const serialPort = isNetwork ? undefined : (options.port || '/dev/ttyS0');
+    const tcpPort = options.baudRate || 9101; // baudRate 被复用为 TCP 端口
+    const baudRate = isNetwork ? 9600 : (options.baudRate || 9600);
+    
+    this.protocol = options.protocol || 'general';
+    
+    console.log(`[秤] 尝试连接: ${isNetwork ? 'TCP' : '串口'}`);
+    if (host) {
+      console.log(`[秤] 主机: ${host}:${tcpPort}`);
+    }
     
     try {
       if (hardwarePlugin) {
-        // 优先尝试网络秤
-        const tcpResult = await hardwarePlugin.scaleConnectTcp({
-          host: port,
-          port: 9101,
-          protocol
-        });
-        this.connected = tcpResult.success;
-        this.connectionId = 'scale_tcp';
+        if (host) {
+          // 网络秤连接
+          console.log(`[秤] 调用原生网络连接: ${host}:${tcpPort}`);
+          const tcpResult = await hardwarePlugin.scaleConnectTcp({
+            host: host,
+            port: tcpPort,
+            protocol: this.protocol
+          });
+          this.connected = tcpResult.success;
+          this.connectionId = 'scale_tcp';
+          console.log(`[秤] 网络连接结果: ${tcpResult.success}`);
+        } else {
+          // 串口连接
+          const result = await hardwarePlugin.scaleConnect({
+            port: serialPort,
+            baudRate: baudRate,
+            protocol: this.protocol
+          });
+          this.connected = result.success;
+          this.connectionId = 'scale_serial';
+        }
       } else {
         // 模拟连接
         this.connected = true;
@@ -208,7 +232,7 @@ export class ScaleService {
       }
       
       return this.connected;
-    } catch (error) {
+    } catch (error: any) {
       console.error('[秤] 连接失败:', error);
       return false;
     }
@@ -1001,28 +1025,44 @@ export class DeviceManager {
     await this.scanner.enable();
     
     // 连接电子秤
-    if (config.scale) {
-      await this.scale.connect({
-        port: config.scale.host,
-        baudRate: config.scale.port || 9101,
-        protocol: 'general'
-      });
+    if (config.scale && config.scale.host) {
+      console.log(`[设备管理] 连接电子秤: ${config.scale.host}:${config.scale.port || 9101}`);
+      try {
+        const result = await this.scale.connect({
+          port: config.scale.host,  // 作为 host/IP 使用
+          baudRate: config.scale.port || 9101,  // 作为 TCP 端口
+          protocol: 'general'
+        });
+        console.log(`[设备管理] 电子秤连接结果: ${result}`);
+      } catch (e: any) {
+        console.error('[设备管理] 电子秤连接异常:', e);
+      }
     }
     
     // 连接小票打印机
-    if (config.receiptPrinter) {
-      await this.receiptPrinter.connect(
-        config.receiptPrinter.host,
-        config.receiptPrinter.port || 9100
-      );
+    if (config.receiptPrinter && config.receiptPrinter.host) {
+      console.log(`[设备管理] 连接打印机: ${config.receiptPrinter.host}:${config.receiptPrinter.port || 9100}`);
+      try {
+        await this.receiptPrinter.connect(
+          config.receiptPrinter.host,
+          config.receiptPrinter.port || 9100
+        );
+      } catch (e: any) {
+        console.error('[设备管理] 打印机连接异常:', e);
+      }
     }
     
     // 连接标签打印机
-    if (config.labelPrinter) {
-      await this.labelPrinter.connect(
-        config.labelPrinter.host,
-        config.labelPrinter.port || 9100
-      );
+    if (config.labelPrinter && config.labelPrinter.host) {
+      console.log(`[设备管理] 连接标签打印机: ${config.labelPrinter.host}:${config.labelPrinter.port || 9100}`);
+      try {
+        await this.labelPrinter.connect(
+          config.labelPrinter.host,
+          config.labelPrinter.port || 9100
+        );
+      } catch (e: any) {
+        console.error('[设备管理] 标签打印机连接异常:', e);
+      }
     }
     
     // 显示欢迎

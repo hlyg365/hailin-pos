@@ -13,6 +13,7 @@ import StoreOpsPage from './pages/StoreOpsPage';
 import PromotionPage from './pages/PromotionPage';
 import AuthPage from './pages/AuthPage';
 import CustomerDisplay from './pages/CustomerDisplay';
+import DeviceDebugPage from './pages/DeviceDebugPage';
 import { useEmployeeStore } from './store';
 
 // 认证守卫组件
@@ -62,6 +63,7 @@ function App() {
         <Route path="/assistant" element={<AuthGuard><AssistantPage /></AuthGuard>} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/customer-display" element={<CustomerDisplay />} />
+        <Route path="/device-debug" element={<DeviceDebugPage />} />
       </Routes>
     </BrowserRouter>
   );
