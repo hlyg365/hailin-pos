@@ -397,7 +397,12 @@ public class DevicePlugin extends Plugin {
             return parseGeneralProtocol(data, weight);
         }
         
-        String text = new String(data, "ASCII").trim();
+        String text;
+        try {
+            text = new String(data, "ASCII").trim();
+        } catch (java.io.UnsupportedEncodingException e) {
+            text = new String(data).trim();
+        }
         if (text.contains("kg") || text.contains("g") || text.contains("ST")) {
             Log.d(TAG, "检测到: 文本协议");
             return parseGeneralProtocol(data, weight);
