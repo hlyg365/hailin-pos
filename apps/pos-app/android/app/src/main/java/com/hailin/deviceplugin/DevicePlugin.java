@@ -185,33 +185,6 @@ public class DevicePlugin extends Plugin {
     }
     
     /**
-     * 解析秤数据
-     */
-    private ScaleWeight parseScaleData(byte[] data, String protocol) {
-        try {
-            Log.d(TAG, "秤原始数据: " + bytesToHex(data));
-            
-            ScaleWeight weight = new ScaleWeight();
-            weight.timestamp = System.currentTimeMillis();
-            
-            // 根据协议解析
-            switch (protocol) {
-                case "dahua":
-                    return parseDahuaProtocol(data, weight);
-                case "toieda":
-                    return parseToiedaProtocol(data, weight);
-                case "soki":
-                    return parseSokiProtocol(data, weight);
-                default:
-                    return parseGeneralProtocol(data, weight);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "秤数据解析失败", e);
-            return null;
-        }
-    }
-    
-    /**
      * 通用协议解析
      * 格式: STX + 状态 + 符号 + 数值 + 单位 + BCC + ETX
      * 示例: 02 47 53 2B 30 31 32 2E 35 30 30 03
@@ -372,13 +345,6 @@ public class DevicePlugin extends Plugin {
             Log.e(TAG, "顶尖OS2协议解析异常", e);
             return null;
         }
-    }
-    
-    /**
-     * 顶尖协议解析（别名方法，兼容 soki 配置）
-     */
-    private ScaleWeight parseSokiProtocol(byte[] data, ScaleWeight weight) {
-        return parseTopSokiOS2Protocol(data, weight);
     }
     
     /**

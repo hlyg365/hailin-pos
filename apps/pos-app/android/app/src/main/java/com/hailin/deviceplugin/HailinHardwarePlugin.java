@@ -4,6 +4,7 @@ import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.hardware.display.DisplayManager;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Handler;
@@ -51,6 +52,7 @@ public class HailinHardwarePlugin extends Plugin {
     
     // USB Serial
     private UsbManager usbManager;
+    private DisplayManager displayManager;
     private Context appContext;
     
     // ==================== 插件初始化 ====================
@@ -59,6 +61,7 @@ public class HailinHardwarePlugin extends Plugin {
         super.load();
         appContext = getContext();
         usbManager = (UsbManager) appContext.getSystemService(Context.USB_SERVICE);
+        displayManager = (DisplayManager) appContext.getSystemService(Context.DISPLAY_SERVICE);
         Log.i(TAG, "HailinHardware 硬件抽象层已加载");
     }
 
@@ -208,7 +211,7 @@ public class HailinHardwarePlugin extends Plugin {
         
         // 停止读取线程
         ReaderThread reader = readerThreads.remove("scale_" + connectionId);
-        if (reader != null) reader.stop();
+        if (reader != null) reader.stopReading();
         
         call.resolve(new JSObject().put("success", true).put("message", "秤已断开"));
     }
@@ -478,7 +481,7 @@ public class HailinHardwarePlugin extends Plugin {
             } else {
                 cmd = new byte[]{GS, 0x6B, 0x00};
             }
-            out.write(cmd);
+            out.write(cmd, 0, cmd.length);
             out.write(dataBytes);
             
             out.flush();
@@ -884,7 +887,7 @@ public class HailinHardwarePlugin extends Plugin {
     public void showOnCustomerDisplay(PluginCall call) {
         String mode = call.getString("mode", "welcome");
         String title = call.getString("title", "");
-        double amount = call.getDouble("amount", 0);
+        double amount = call.getDouble("amount", 0.0);
         String qrCodeUrl = call.getString("qrCodeUrl", "");
         
         if (currentPresentation != null && currentPresentation.isShowing()) {
@@ -894,7 +897,7 @@ public class HailinHardwarePlugin extends Plugin {
         } else {
             // 尝试显示到副屏
             try {
-                Display[] displays = appContext.getDisplayManager().getDisplays();
+                Display[] displays = displayManager.getDisplays();
                 for (Display display : displays) {
                     if (display.getDisplayId() != Display.DEFAULT_DISPLAY) {
                         mainHandler.post(() -> {
@@ -1008,7 +1011,7 @@ public class HailinHardwarePlugin extends Plugin {
         serialPool.clear();
         
         for (ReaderThread reader : readerThreads.values()) {
-            reader.stop();
+            reader.stopReading();
         }
         readerThreads.clear();
         
@@ -1120,7 +1123,7 @@ public class HailinHardwarePlugin extends Plugin {
             }
         }
         
-        void stop() {
+        void stopReading() {
             running = false;
         }
     }
