@@ -49,6 +49,19 @@
     <!-- 摄像头权限（用于扫码） -->
     <uses-permission android:name="android.permission.CAMERA" />
     
+    <!-- USB 权限（用于连接USB电子秤/打印机） -->
+    <uses-permission android:name="android.permission.USB_PERMISSION" />
+    <uses-permission android:name="android.permission.HARDWARE_TEST" />
+    
+    <!-- 串口权限（用于连接内置电子秤） -->
+    <!-- 串口权限通常由系统授予，无需在此声明 -->
+    
+    <!-- 显示权限（用于双屏异显） -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    
+    <!-- 唤醒锁（防止设备休眠） -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
     <!-- 存储权限（用于保存小票等） -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
