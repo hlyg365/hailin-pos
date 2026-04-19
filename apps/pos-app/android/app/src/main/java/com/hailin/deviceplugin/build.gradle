@@ -1,0 +1,23 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace = "com.hailin.deviceplugin"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation 'com.github.xmaihh:android-serialport:2.1.1'
+}
