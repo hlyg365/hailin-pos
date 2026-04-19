@@ -394,6 +394,126 @@ export class ScaleService {
   }
   
   /**
+   * 检测电子秤
+   * 使用主动协议握手验证设备连接
+   * @param port 串口路径
+   * @param baudRate 波特率
+   */
+  async detect(port: string, baudRate: number): Promise<{
+    success: boolean;
+    detected: boolean;
+    protocol?: string;
+    deviceInfo?: string;
+    baudRate?: number;
+    port?: string;
+  }> {
+    console.log(`[秤] 检测电子秤: ${port} @ ${baudRate}`);
+    
+    try {
+      if (hardwarePlugin) {
+        const result = await hardwarePlugin.detectScale({
+          port,
+          baudRate
+        });
+        
+        console.log('[秤] 检测结果:', result);
+        return result;
+      } else {
+        // 模拟检测
+        return {
+          success: true,
+          detected: true,
+          protocol: 'general',
+          deviceInfo: '模拟电子秤',
+          baudRate: 9600,
+          port
+        };
+      }
+    } catch (error: any) {
+      console.error('[秤] 检测失败:', error);
+      return {
+        success: false,
+        detected: false
+      };
+    }
+  }
+  
+  /**
+   * 获取秤当前状态
+   */
+  async getStatus(): Promise<{
+    connected: boolean;
+    weight: number;
+    unit: string;
+    stable: boolean;
+    timestamp: number;
+  }> {
+    try {
+      if (hardwarePlugin) {
+        return await hardwarePlugin.getScaleStatus();
+      } else {
+        return {
+          connected: this.connected,
+          weight: 0.520,
+          unit: 'kg',
+          stable: true,
+          timestamp: Date.now()
+        };
+      }
+    } catch (error) {
+      return {
+        connected: false,
+        weight: 0,
+        unit: 'kg',
+        stable: false,
+        timestamp: 0
+      };
+    }
+  }
+  
+  /**
+   * 获取设备信息
+   * 返回支持的设备列表和连接状态
+   */
+  async getDeviceInfo(): Promise<{
+    scale: { connected: boolean; supportedProtocols: string[] };
+    printer: { connected: boolean };
+    usbDevices: string[];
+    serialPorts: string[];
+  }> {
+    try {
+      if (hardwarePlugin) {
+        return await hardwarePlugin.getDeviceInfo();
+      } else {
+        return {
+          scale: { connected: false, supportedProtocols: ['soki', 'aclss', 'general', 'dahua', 'toieda'] },
+          printer: { connected: false },
+          usbDevices: [],
+          serialPorts: ['/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2']
+        };
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  /**
+   * 发送自定义指令
+   */
+  async sendCommand(command: string): Promise<boolean> {
+    try {
+      if (hardwarePlugin) {
+        await hardwarePlugin.sendScaleCommand({ command });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[秤] 发送指令失败:', error);
+      return false;
+    }
+  }
+  
+  /**
    * 获取当前重量
    */
   async getWeight(): Promise<ScaleWeight | null> {

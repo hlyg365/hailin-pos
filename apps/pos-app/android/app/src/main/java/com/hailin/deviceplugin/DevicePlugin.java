@@ -711,28 +711,299 @@ public class DevicePlugin extends Plugin {
     }
     
     /**
-     * 获取当前重量
+     * 检测电子秤型号和协议
+     * 
+     * 使用主动指令查询法验证设备连接
+     * 返回设备类型和协议信息
      */
     @PluginMethod
-    public void scaleReadWeight(PluginCall call) {
+    public void detectScale(PluginCall call) {
+        String port = call.getString("port", "/dev/ttyS1");
+        int baudRate = call.getInt("baudRate", 9600);
+        
+        Log.i(TAG, String.format("检测电子秤: port=%s, baudRate=%d", port, baudRate));
+        
+        executor.execute(() -> {
+            JSObject result = new JSObject();
+            
+            try {
+                // 创建临时串口连接用于检测
+                SerialHelper serialHelper = new SerialHelper(port, baudRate) {
+                    @Override
+                    protected void onDataReceived(ComBean comBean) {
+                        // 接收数据
+                        handleDetectData(comBean.bRec);
+                    }
+                };
+                
+                // 打开串口
+                serialHelper.open();
+                Log.d(TAG, "串口已打开，开始协议握手...");
+                
+                // 清空缓冲区
+                Thread.sleep(100);
+                
+                // 尝试发送查询指令
+                String detectedProtocol = null;
+                String deviceInfo = null;
+                
+                // 方法1: 尝试顶尖协议 SI 指令
+                try {
+                    serialHelper.sendHex("53 49 0D");  // SI + CR
+                    Thread.sleep(500);
+                    detectedProtocol = checkProtocolMatch("soki");
+                    if (detectedProtocol != null) {
+                        deviceInfo = "顶尖电子秤 (OS2协议)";
+                        Log.i(TAG, "检测到顶尖电子秤 OS2 协议");
+                    }
+                } catch (Exception e) {
+                    Log.d(TAG, "SI 指令无响应");
+                }
+                
+                // 方法2: 尝试发送查询指令并读取
+                if (detectedProtocol == null) {
+                    try {
+                        serialHelper.sendHex("1B 69");  // ESC i (状态查询)
+                        Thread.sleep(500);
+                        detectedProtocol = checkProtocolMatch("general");
+                        if (detectedProtocol != null) {
+                            deviceInfo = "电子秤 (通用协议)";
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "ESC i 指令无响应");
+                    }
+                }
+                
+                // 方法3: 被动监听连续数据
+                if (detectedProtocol == null) {
+                    try {
+                        // 清空缓冲区
+                        Thread.sleep(200);
+                        
+                        // 监听 2 秒内的数据
+                        long startTime = System.currentTimeMillis();
+                        StringBuilder allData = new StringBuilder();
+                        
+                        while (System.currentTimeMillis() - startTime < 2000) {
+                            // 检查是否已有数据
+                            String match = checkProtocolMatch(null);
+                            if (match != null) {
+                                detectedProtocol = match;
+                                deviceInfo = "电子秤 (连续发送模式)";
+                                break;
+                            }
+                            Thread.sleep(100);
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "被动监听超时");
+                    }
+                }
+                
+                // 方法4: 波特率试探
+                if (detectedProtocol == null) {
+                    int[] baudRates = {9600, 19200, 38400};
+                    for (int br : baudRates) {
+                        if (br == baudRate) continue;  // 已尝试过
+                        
+                        try {
+                            serialHelper.close();
+                            serialHelper = new SerialHelper(port, br) {
+                                @Override
+                                protected void onDataReceived(ComBean comBean) {
+                                    handleDetectData(comBean.bRec);
+                                }
+                            };
+                            serialHelper.open();
+                            Thread.sleep(200);
+                            
+                            serialHelper.sendHex("1B 69");  // ESC i
+                            Thread.sleep(500);
+                            
+                            String match = checkProtocolMatch("general");
+                            if (match != null) {
+                                detectedProtocol = match;
+                                deviceInfo = "电子秤 (波特率: " + br + ")";
+                                baudRate = br;
+                                break;
+                            }
+                        } catch (Exception e) {
+                            // 尝试下一个波特率
+                        }
+                    }
+                }
+                
+                // 关闭检测连接
+                serialHelper.close();
+                
+                // 返回结果
+                if (detectedProtocol != null) {
+                    result.put("success", true);
+                    result.put("detected", true);
+                    result.put("protocol", detectedProtocol);
+                    result.put("deviceInfo", deviceInfo);
+                    result.put("baudRate", baudRate);
+                    result.put("port", port);
+                    call.resolve(result);
+                } else {
+                    result.put("success", false);
+                    result.put("detected", false);
+                    result.put("message", "未检测到电子秤，可能未连接或协议不匹配");
+                    call.resolve(result);
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "检测电子秤失败", e);
+                result.put("success", false);
+                result.put("error", e.getMessage());
+                call.reject("检测失败: " + e.getMessage());
+            }
+        });
+    }
+    
+    // 检测时的数据缓存
+    private StringBuilder detectBuffer = new StringBuilder();
+    private String detectedProtocol = null;
+    
+    private void handleDetectData(byte[] data) {
+        if (data != null) {
+            detectBuffer.append(bytesToHex(data)).append(" ");
+            Log.d(TAG, "检测数据: " + bytesToHex(data));
+        }
+    }
+    
+    private String checkProtocolMatch(String expectedProtocol) {
+        String data = detectBuffer.toString();
+        if (data.isEmpty()) return null;
+        
+        Log.d(TAG, "检查协议匹配: " + data);
+        
+        // 清空缓冲区
+        detectBuffer = new StringBuilder();
+        
+        // 检测顶尖 OS2 协议 (帧头 0x01)
+        if (data.contains("01") && (data.contains("47 53") || data.contains("53 54"))) {
+            return "soki";
+        }
+        
+        // 检测顶尖 ACLaS 协议 (帧头 0x02)
+        if (data.contains("02") && data.contains("03")) {
+            return "aclss";
+        }
+        
+        // 检测通用协议 (帧头 0x02)
+        if (data.contains("02") && data.contains("kg")) {
+            return "general";
+        }
+        
+        // 检测文本格式
+        if (data.contains("ST") || data.contains("GS") || data.contains("kg") || data.contains("g")) {
+            return "general";
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 获取设备基本信息
+     * 返回支持的设备列表和连接状态
+     */
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        JSObject info = new JSObject();
+        
+        // 秤信息
+        SerialHelper scale = serialHelperPool.get("scale");
+        Socket scaleTcp = socketPool.get("scale_tcp");
+        boolean scaleConnected = (scale != null && scale.isOpen()) || (scaleTcp != null && scaleTcp.isConnected());
+        
+        info.put("scale", new JSObject()
+                .put("connected", scaleConnected)
+                .put("type", scale != null ? "serial" : (scaleTcp != null ? "network" : "none"))
+                .put("supportedProtocols", new String[]{"soki", "aclss", "general", "dahua", "toieda"})
+                .put("defaultBaudRate", 9600)
+        );
+        
+        // 打印机信息
+        Socket printer = socketPool.get("printer");
+        info.put("printer", new JSObject()
+                .put("connected", printer != null && printer.isConnected())
+                .put("type", "network")
+                .put("defaultPort", 9100)
+        );
+        
+        // USB 设备列表
+        if (usbManager != null) {
+            HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+            String[] usbDevices = new String[deviceList.size()];
+            int i = 0;
+            for (Map.Entry<String, UsbDevice> entry : deviceList.entrySet()) {
+                UsbDevice device = entry.getValue();
+                usbDevices[i++] = String.format("%s (VID:%04X PID:%04X)", 
+                        device.getDeviceName(), device.getVendorId(), device.getProductId());
+            }
+            info.put("usbDevices", usbDevices);
+        }
+        
+        // 串口列表
+        info.put("serialPorts", new String[]{
+                "/dev/ttyS0", "/dev/ttyS1", "/dev/ttyS2", "/dev/ttyS3",
+                "/dev/ttyS4", "/dev/ttyS5", "/dev/ttyS6", "/dev/ttyS7",
+                "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyACM0"
+        });
+        
+        call.resolve(info);
+    }
+    
+    /**
+     * 获取秤当前状态
+     * 返回重量、单位、稳定性等信息
+     */
+    @PluginMethod
+    public void getScaleStatus(PluginCall call) {
         ScaleDataCallback callback = scaleCallbacks.get("scale");
         
+        JSObject status = new JSObject();
+        status.put("connected", callback != null && callback.lastWeight != null);
+        
         if (callback != null && callback.lastWeight != null) {
-            JSObject result = new JSObject();
-            result.put("weight", callback.lastWeight.weight);
-            result.put("unit", callback.lastWeight.unit);
-            result.put("stable", callback.lastWeight.stable);
-            result.put("timestamp", callback.lastWeight.timestamp);
-            call.resolve(result);
+            ScaleWeight weight = callback.lastWeight;
+            status.put("weight", weight.weight);
+            status.put("unit", weight.unit);
+            status.put("stable", weight.stable);
+            status.put("timestamp", weight.timestamp);
+            status.put("lastUpdate", System.currentTimeMillis() - weight.timestamp);
         } else {
-            // 返回模拟数据
-            JSObject result = new JSObject();
-            result.put("weight", 0.520);
-            result.put("unit", "kg");
-            result.put("stable", true);
-            result.put("timestamp", System.currentTimeMillis());
-            result.put("simulated", true);
-            call.resolve(result);
+            status.put("weight", 0.0);
+            status.put("unit", "kg");
+            status.put("stable", false);
+            status.put("timestamp", 0);
+        }
+        
+        call.resolve(status);
+    }
+    
+    /**
+     * 发送自定义指令到秤
+     * 用于高级用户或调试
+     */
+    @PluginMethod
+    public void sendScaleCommand(PluginCall call) {
+        String command = call.getString("command", "");
+        SerialHelper serial = serialHelperPool.get("scale");
+        
+        if (serial == null || !serial.isOpen()) {
+            call.reject("秤未连接");
+            return;
+        }
+        
+        try {
+            serial.sendHex(command.replace(" ", ""));
+            call.resolve(new JSObject()
+                    .put("success", true)
+                    .put("command", command)
+                    .put("message", "指令已发送"));
+        } catch (Exception e) {
+            call.reject("发送失败: " + e.getMessage());
         }
     }
     
