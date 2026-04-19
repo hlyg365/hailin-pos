@@ -183,16 +183,19 @@ export default function CashierPage() {
   const [isConnectingDevices, setIsConnectingDevices] = useState(false);
 
   // 计算购物车金额
+  // 购物车状态订阅（响应式）
+  const cartItems = useCartStore(state => state.items);
+  
+  // 计算购物车总金额（响应式）
   const totals = useMemo(() => {
-    const cartItems = useCartStore.getState().items;
     const subtotal = cartItems.reduce((sum, item) => sum + item.product.retailPrice * item.quantity, 0);
-    const clearanceDiscount = isClearanceMode() ? subtotal * 0.2 : 0;
+    const clearanceDiscount = clearanceMode ? subtotal * 0.2 : 0;
     const memberDiscount = currentMember ? (currentMember.level === 'diamond' ? subtotal * 0.1 : currentMember.level === 'gold' ? subtotal * 0.05 : currentMember.level === 'silver' ? subtotal * 0.02 : 0) : 0;
     const total = subtotal - clearanceDiscount - memberDiscount;
     return { subtotal, clearanceDiscount, memberDiscount, total, hasItems: cartItems.length > 0 };
-  }, [currentMember]);
+  }, [cartItems, currentMember, clearanceMode]);
 
-  const hasItems = useMemo(() => useCartStore.getState().items.length > 0, []);
+  const hasItems = cartItems.length > 0;
 
   const categories = useMemo(() => {
     return ['all', ...new Set(products.map(p => p.category))];
@@ -658,12 +661,12 @@ export default function CashierPage() {
                         // 非标品（称重商品）使用电子秤数据或默认1kg
                         const currentWeight = deviceManager.scale.currentWeight?.weight || 1;
                         addItem(product, currentWeight);
-                        const total = useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice * currentWeight;
-                        deviceManager.customerDisplay.showAmount(total, product.name);
+                        // 添加后直接使用 totals.total（已自动更新）
+                        deviceManager.customerDisplay.showAmount(totals.total + product.retailPrice * currentWeight, product.name);
                       } else {
                         addItem(product, 1);
-                        const total = useCartStore.getState().items.reduce((sum, i) => sum + i.product.retailPrice * i.quantity, 0) + product.retailPrice;
-                        deviceManager.customerDisplay.showAmount(total);
+                        // 添加后直接使用 totals.total（已自动更新）
+                        deviceManager.customerDisplay.showAmount(totals.total + product.retailPrice);
                       }
                     }} className="bg-white rounded-lg sm:rounded-xl p-2 sm:p-3 text-left hover:shadow-md transition-shadow relative">
                       {!product.isStandard && <div className="absolute top-1 sm:top-2 right-1 sm:right-2 w-5 sm:w-6 h-5 sm:h-6 bg-orange-500 text-white rounded-full flex items-center justify-center"><span className="text-xs">⚖️</span></div>}
