@@ -40,6 +40,11 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    
+    // 串口通信库 (tp.xmaihh:serialport)
+    // 支持: armeabi-v7a, arm64-v8a, x86, x86_64
+    // 开箱即用，无需手动编译 .so 文件
+    implementation 'tp.xmaihh:serialport:2.1'
 }
 
 apply from: 'capacitor.build.gradle'
