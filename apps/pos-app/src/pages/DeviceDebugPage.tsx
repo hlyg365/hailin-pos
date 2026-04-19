@@ -362,9 +362,10 @@ export default function DeviceDebugPage() {
                   className="w-full px-3 py-2 border rounded"
                 >
                   <option value="general">通用协议</option>
+                  <option value="soki">顶尖 OS2/ACLaS 协议</option>
                   <option value="dahua">大华协议</option>
                   <option value="toieda">托利多协议</option>
-                  <option value="soki">顶尖协议</option>
+                  <option value="aclss">顶尖 ACLaS</option>
                 </select>
               </div>
             </div>

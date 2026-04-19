@@ -41,9 +41,11 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     
-    // 串口通信库 (tp.xmaihh:serialport)
+    // ==================== 串口通信库 ====================
+    // tp.xmaihh:serialport - 支持 Android 串口通信
+    // GitHub: https://github.com/xmaihh/android-serialport
     // 支持: armeabi-v7a, arm64-v8a, x86, x86_64
-    // 开箱即用，无需手动编译 .so 文件
+    // 顶尖电子秤: OS2 协议、ACLaS 协议
     implementation 'tp.xmaihh:serialport:2.1'
 }
 

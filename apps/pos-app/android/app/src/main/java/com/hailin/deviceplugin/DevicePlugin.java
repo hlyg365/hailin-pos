@@ -289,10 +289,212 @@ public class DevicePlugin extends Plugin {
     }
     
     /**
-     * 顶尖协议解析
+     * 顶尖 OS2 协议解析
+     * 
+     * 协议特点：
+     * - 帧头: 0x01 (STX)
+     * - 固定长度数据包
+     * - 重量数据段: 第3-11字节为 ASCII 数值
+     * - 单位: kg 或 g
+     * 
+     * 数据格式示例:
+     * 01 47 53 2B 30 2E 35 30 30 6B 67 0D
+     * ┬  ┬  ┬  ┬  ┗━━━━━━━━━━━┛  ┬
+     * │  │  │  │       数值        单位(g=克,kg=千克)
+     * │  │  │  正号(+)
+     * │  │  稳定状态(G=稳定, S=不稳定)
+     * │  单位(G=克重, K=皮重)
+     * 帧头(0x01)
+     */
+    private ScaleWeight parseTopSokiOS2Protocol(byte[] data, ScaleWeight weight) {
+        if (data == null || data.length < 10) return null;
+        
+        try {
+            Log.d(TAG, "顶尖OS2协议数据: " + bytesToHex(data));
+            
+            // 检测帧头
+            if (data[0] == 0x01) {
+                // 状态字节 (第2字节)
+                byte status = data[1];
+                weight.stable = (status == 'G' || status == 0x47);  // G = 稳定
+                
+                // 单位字节 (第2字节)
+                byte unitChar = data[2];
+                String unit = (unitChar == 'K' || unitChar == 0x4B) ? "kg" : "g";
+                weight.unit = unit;
+                
+                // 重量数值 (第3-10字节, ASCII)
+                StringBuilder weightStr = new StringBuilder();
+                for (int i = 3; i < Math.min(data.length, 11); i++) {
+                    if (data[i] >= 0x20 && data[i] <= 0x7E) {
+                        weightStr.append((char) data[i]);
+                    }
+                }
+                
+                // 解析数值
+                try {
+                    String cleanWeight = weightStr.toString().trim();
+                    // 去除 + 号
+                    cleanWeight = cleanWeight.replace("+", "").replace("-", "");
+                    // 去除非数字和小数点
+                    cleanWeight = cleanWeight.replaceAll("[^0-9.]", "");
+                    
+                    if (!cleanWeight.isEmpty()) {
+                        double rawWeight = Double.parseDouble(cleanWeight);
+                        
+                        // 单位换算: 如果是克，转换为千克
+                        if ("g".equals(unit)) {
+                            weight.weight = rawWeight / 1000.0;
+                            weight.unit = "kg";
+                        } else {
+                            weight.weight = rawWeight;
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "顶尖OS2数值解析失败: " + weightStr);
+                    return null;
+                }
+                
+            } else {
+                // 尝试文本格式解析
+                return parseGeneralProtocol(data, weight);
+            }
+            
+            Log.i(TAG, String.format("顶尖OS2解析: %.3f %s (稳定=%b)", 
+                    weight.weight, weight.unit, weight.stable));
+            
+            return weight;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "顶尖OS2协议解析异常", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 顶尖协议解析（别名方法，兼容 soki 配置）
      */
     private ScaleWeight parseSokiProtocol(byte[] data, ScaleWeight weight) {
-        return parseGeneralProtocol(data, weight);
+        return parseTopSokiOS2Protocol(data, weight);
+    }
+    
+    /**
+     * 顶尖 ACLaS 协议解析（部分顶尖秤使用）
+     * 
+     * 协议格式:
+     * 02 30 30 31 30 30 30 30 30 30 30 30 03
+     * ┬                          ┬
+     * │                          帧尾(0x03)
+     * 帧头(0x02)
+     */
+    private ScaleWeight parseTopSokiACLaSProtocol(byte[] data, ScaleWeight weight) {
+        if (data == null || data.length < 12) return null;
+        
+        try {
+            Log.d(TAG, "顶尖ACLaS协议数据: " + bytesToHex(data));
+            
+            // 检测帧头 0x02 和帧尾 0x03
+            if (data[0] == 0x02 && data[data.length - 1] == 0x03) {
+                // 状态 (第2字节): 0x30=稳定, 0x31=不稳定
+                weight.stable = (data[1] == 0x30);
+                
+                // 重量数值 (第3-10字节): BCD编码或ASCII
+                StringBuilder weightStr = new StringBuilder();
+                for (int i = 2; i < Math.min(data.length - 1, 10); i++) {
+                    if (data[i] >= 0x30 && data[i] <= 0x39) {
+                        weightStr.append((char) data[i]);
+                    }
+                }
+                
+                try {
+                    double rawWeight = Double.parseDouble(weightStr.toString()) / 1000.0;
+                    weight.weight = rawWeight;
+                    weight.unit = "kg";
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            } else {
+                return parseGeneralProtocol(data, weight);
+            }
+            
+            return weight;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "顶尖ACLaS协议解析异常", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 解析秤数据（路由到对应协议解析器）
+     */
+    private ScaleWeight parseScaleData(byte[] data, String protocol) {
+        try {
+            Log.d(TAG, "秤原始数据: " + bytesToHex(data));
+            
+            ScaleWeight weight = new ScaleWeight();
+            weight.timestamp = System.currentTimeMillis();
+            
+            // 根据协议选择解析器
+            switch (protocol) {
+                case "soki":
+                    // 优先尝试 OS2 协议
+                    ScaleWeight result = parseTopSokiOS2Protocol(data, weight);
+                    if (result == null) {
+                        // 尝试 ACLaS 协议
+                        result = parseTopSokiACLaSProtocol(data, weight);
+                    }
+                    return result;
+                    
+                case "aclss":
+                case "aclas":
+                    return parseTopSokiACLaSProtocol(data, weight);
+                    
+                case "dahua":
+                    return parseDahuaProtocol(data, weight);
+                    
+                case "toieda":
+                case "toledo":
+                    return parseToiedaProtocol(data, weight);
+                    
+                default:
+                    // 自动检测协议
+                    return autoDetectAndParse(data, weight);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "秤数据解析失败", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 自动检测协议并解析
+     */
+    private ScaleWeight autoDetectAndParse(byte[] data, ScaleWeight weight) {
+        if (data == null || data.length < 5) return null;
+        
+        // 检测顶尖 OS2 协议 (帧头 0x01)
+        if (data[0] == 0x01) {
+            Log.d(TAG, "检测到: 顶尖OS2协议");
+            return parseTopSokiOS2Protocol(data, weight);
+        }
+        
+        // 检测通用协议 (帧头 0x02)
+        if (data[0] == 0x02) {
+            Log.d(TAG, "检测到: 通用协议");
+            return parseGeneralProtocol(data, weight);
+        }
+        
+        // 检测文本格式
+        String text = new String(data, "ASCII").trim();
+        if (text.contains("kg") || text.contains("g") || text.contains("ST") || text.contains("GS")) {
+            Log.d(TAG, "检测到: 文本协议");
+            return parseGeneralProtocol(data, weight);
+        }
+        
+        // 无法识别
+        Log.w(TAG, "无法识别协议格式");
+        return null;
     }
     
     private String parseUnit(byte unitByte) {
