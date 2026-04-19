@@ -42,12 +42,12 @@ dependencies {
     implementation project(':capacitor-cordova-android-plugins')
     
     // ==================== 串口通信库 ====================
-    // android-serialport - 支持 Android 串口通信
+    // com.github.xmaihh:android-serialport - 支持 Android 串口通信
     // GitHub: https://github.com/xmaihh/android-serialport
-    // 本地 JAR: libs/serialport-2.1.jar
+    // JitPack: https://jitpack.io/#xmaihh/android-serialport/2.1.1
     // 支持: armeabi-v7a, arm64-v8a, x86, x86_64
     // 顶尖电子秤: OS2 协议、ACLaS 协议
-    implementation files('libs/serialport-2.1.jar')
+    implementation 'com.github.xmaihh:android-serialport:2.1.1'
 }
 
 apply from: 'capacitor.build.gradle'
