@@ -9,7 +9,6 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
-import android.hardware.usb.UsbRequest;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -20,7 +19,6 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 
 import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +43,7 @@ import java.util.concurrent.Executors;
 public class DevicePlugin extends Plugin {
 
     private static final String TAG = "DevicePlugin";
+    private static final String ACTION_USB_PERMISSION = "com.hailin.USB_PERMISSION";
     
     // USB Vendor IDs for common USB-Serial chips
     private static final int USB_VID_FTDI = 0x0403;
@@ -53,7 +52,6 @@ public class DevicePlugin extends Plugin {
     private static final int USB_VID_CH340 = 0x1A86;
     
     // 连接池管理
-    private final Map<String, Socket> socketPool = new ConcurrentHashMap<>();
     private final Map<String, UsbSerialConnection> usbSerialPool = new ConcurrentHashMap<>();
     private final Map<String, ScaleDataCallback> scaleCallbacks = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newFixedThreadPool(8);
@@ -63,6 +61,7 @@ public class DevicePlugin extends Plugin {
     private UsbManager usbManager;
     private Context appContext;
     private UsbDevice currentScaleDevice;
+    private PendingIntent permissionIntent;
     
     // ==================== 插件初始化 ====================
     @Override
@@ -71,8 +70,14 @@ public class DevicePlugin extends Plugin {
         appContext = getContext();
         usbManager = (UsbManager) appContext.getSystemService(Context.USB_SERVICE);
         
-        // 注册 USB 设备连接广播
-        IntentFilter filter = new IntentFilter(UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        // 创建权限请求的 PendingIntent
+        permissionIntent = PendingIntent.getBroadcast(
+            appContext, 0, new Intent(ACTION_USB_PERMISSION), 
+            PendingIntent.FLAG_IMMUTABLE);
+        
+        // 注册 USB 设备广播接收器
+        IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         appContext.registerReceiver(usbReceiver, filter);
         
@@ -80,8 +85,8 @@ public class DevicePlugin extends Plugin {
     }
     
     @Override
-    protected void dispose() {
-        super.dispose();
+    protected void finalize() throws Throwable {
+        super.finalize();
         try {
             appContext.unregisterReceiver(usbReceiver);
         } catch (Exception e) {}
@@ -91,13 +96,23 @@ public class DevicePlugin extends Plugin {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
             
-            if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+            if (ACTION_USB_PERMISSION.equals(action)) {
+                synchronized (this) {
+                    UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+                        Log.i(TAG, "USB 权限已授予");
+                    } else {
+                        Log.w(TAG, "USB 权限被拒绝");
+                    }
+                }
+            } else if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
                 if (device != null && isUsbSerialDevice(device)) {
                     Log.i(TAG, "USB 串口设备已连接: " + device.getDeviceName());
                 }
             } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+                UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
                 if (device != null && device.equals(currentScaleDevice)) {
                     Log.i(TAG, "秤设备已断开");
                     disconnectScale();
@@ -111,8 +126,6 @@ public class DevicePlugin extends Plugin {
      */
     private boolean isUsbSerialDevice(UsbDevice device) {
         int vid = device.getVendorId();
-        int pid = device.getProductId();
-        
         // 常见 USB 转串口芯片
         return vid == USB_VID_FTDI || vid == USB_VID_SILABS || 
                vid == USB_VID_PROLIFIC || vid == USB_VID_CH340;
@@ -173,14 +186,11 @@ public class DevicePlugin extends Plugin {
             result.put("granted", true);
             call.resolve(result);
         } else {
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                appContext, 0, new Intent(com.getcapacitor.IntentShaderPlugin.ACTION_USB_PERMISSION), 
-                PendingIntent.FLAG_IMMUTABLE);
-            usbManager.requestPermission(targetDevice, pendingIntent);
+            usbManager.requestPermission(targetDevice, permissionIntent);
             
             JSObject result = new JSObject();
             result.put("granted", false);
-            result.put("message", "已请求权限，请用户在弹窗中授权");
+            result.put("message", "已请求权限，请在弹窗中授权");
             call.resolve(result);
         }
     }
@@ -634,12 +644,6 @@ public class DevicePlugin extends Plugin {
             conn.close();
         }
         usbSerialPool.clear();
-        
-        for (Socket socket : socketPool.values()) {
-            try { socket.close(); } catch (Exception e) {}
-        }
-        socketPool.clear();
-        
         scaleCallbacks.clear();
         currentScaleDevice = null;
         
@@ -675,8 +679,8 @@ public class DevicePlugin extends Plugin {
         private UsbEndpoint endpointIn;
         private UsbEndpoint endpointOut;
         private UsbInterface usbInterface;
-        private UsbRequest request;
         private boolean connected = false;
+        private android.hardware.usb.UsbDeviceConnection connection;
         
         public UsbSerialConnection(UsbDevice device, UsbManager manager) {
             this.device = device;
@@ -690,8 +694,8 @@ public class DevicePlugin extends Plugin {
                     UsbInterface intf = device.getInterface(i);
                     for (int j = 0; j < intf.getEndpointCount(); j++) {
                         UsbEndpoint ep = intf.getEndpoint(j);
-                        if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK) {
-                            if (ep.getDirection() == UsbConstants.USB_DIR_IN) {
+                        if (ep.getType() == android.hardware.usb.UsbConstants.USB_ENDPOINT_XFER_BULK) {
+                            if (ep.getDirection() == android.hardware.usb.UsbConstants.USB_DIR_IN) {
                                 endpointIn = ep;
                             } else {
                                 endpointOut = ep;
@@ -710,13 +714,16 @@ public class DevicePlugin extends Plugin {
                 }
                 
                 // 打开设备
-                if (!manager.openDevice(device)) {
+                connection = manager.openDevice(device);
+                if (connection == null) {
                     Log.e(TAG, "无法打开 USB 设备");
                     return false;
                 }
                 
                 // 声明接口
-                if (!deviceClaimInterface()) {
+                if (!connection.claimInterface(usbInterface, true)) {
+                    Log.e(TAG, "无法声明 USB 接口");
+                    connection.close();
                     return false;
                 }
                 
@@ -730,52 +737,47 @@ public class DevicePlugin extends Plugin {
             }
         }
         
-        private boolean deviceClaimInterface() {
-            try {
-                if (usbInterface != null) {
-                    manager.openDevice(device).claimInterface(usbInterface, true);
+        public void setBaudRate(int baudRate) {
+            // 不同芯片的波特率设置方式不同
+            // 这里简化处理，实际需要根据芯片类型发送对应命令
+            int vid = device.getVendorId();
+            
+            if (vid == USB_VID_FTDI) {
+                // FTDI 芯片使用特殊命令设置波特率
+                // 需要发送 FTDI 专用命令
+                byte[] baudCmd = new byte[]{(byte) 0x86, 0x7C, 0x00, 0x00};
+                // 计算分频值
+                int divisor = 3000000 / baudRate;
+                baudCmd[1] = (byte) (divisor & 0xFF);
+                baudCmd[2] = (byte) ((divisor >> 8) & 0xFF);
+                connection.bulkTransfer(endpointOut, baudCmd, baudCmd.length, 100);
+            } else if (vid == USB_VID_SILABS) {
+                // Silicon Labs CP210x - 通常自动检测波特率
+            } else if (vid == USB_VID_CH340) {
+                // CH340 - 发送波特率设置命令
+                byte[] baudCmd = buildCH340BaudRate(baudRate);
+                if (baudCmd != null) {
+                    connection.bulkTransfer(endpointOut, baudCmd, baudCmd.length, 100);
                 }
-                return true;
-            } catch (Exception e) {
-                Log.e(TAG, "声明 USB 接口失败", e);
-                return false;
             }
+            
+            Log.d(TAG, "波特率已设置为: " + baudRate);
         }
         
-        public void setBaudRate(int baudRate) {
-            try {
-                // 不同芯片的波特率设置方式不同
-                // 这里简化处理，实际需要根据芯片类型发送对应命令
-                int vid = device.getVendorId();
-                
-                if (vid == USB_VID_FTDI) {
-                    // FTDI 芯片使用特殊命令设置波特率
-                    // 简化实现
-                } else if (vid == USB_VID_SILABS) {
-                    // Silicon Labs CP210x 使用默认波特率
-                } else if (vid == USB_VID_CH340) {
-                    // CH340 使用默认波特率
-                }
-                
-                Log.d(TAG, "波特率已设置为: " + baudRate);
-            } catch (Exception e) {
-                Log.e(TAG, "设置波特率失败", e);
-            }
+        private byte[] buildCH340BaudRate(int baudRate) {
+            // CH340 波特率设置命令
+            int factor = 1536000 / baudRate;
+            byte[] cmd = new byte[]{(byte) 0x9A, (byte) (factor & 0xFF), 0x00};
+            // 计算校验位
+            cmd[2] = (byte) (0x9A ^ cmd[1]);
+            return cmd;
         }
         
         public int read(byte[] buffer, int timeout) {
             try {
-                android.hardware.usb.UsbRequest request = new android.hardware.usb.UsbRequest();
-                request.initialize(device, endpointIn);
-                
-                ByteBuffer buf = ByteBuffer.wrap(buffer);
-                int ret = request.queue(buf, buffer.length);
-                
-                if (manager.openDevice(device).requestWait() == request) {
-                    return buf.position();
+                if (connection != null) {
+                    return connection.bulkTransfer(endpointIn, buffer, buffer.length, timeout);
                 }
-                
-                request.close();
             } catch (Exception e) {
                 Log.e(TAG, "USB 读取异常", e);
             }
@@ -784,27 +786,29 @@ public class DevicePlugin extends Plugin {
         
         public int write(byte[] data) {
             try {
-                int ret = manager.openDevice(device).bulkTransfer(endpointOut, data, data.length, 1000);
-                return ret;
+                if (connection != null) {
+                    return connection.bulkTransfer(endpointOut, data, data.length, 1000);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "USB 写入异常", e);
-                return -1;
             }
+            return -1;
         }
         
         public boolean isConnected() {
-            return connected;
+            return connected && connection != null;
         }
         
         public void close() {
             try {
                 connected = false;
-                if (usbInterface != null) {
-                    try {
-                        manager.openDevice(device).releaseInterface(usbInterface);
-                    } catch (Exception e) {}
+                if (connection != null) {
+                    if (usbInterface != null) {
+                        connection.releaseInterface(usbInterface);
+                    }
+                    connection.close();
+                    connection = null;
                 }
-                manager.openDevice(device).close();
             } catch (Exception e) {
                 Log.e(TAG, "关闭 USB 连接失败", e);
             }
