@@ -140,6 +140,71 @@ export default function DeviceDebugPage() {
     }
   };
 
+  // 自动检测电子秤（协议握手法）
+  const detectScale = async () => {
+    setConnecting(true);
+    addLog('info', '🔍 开始自动检测电子秤...');
+    addLog('info', `使用串口: ${serialConfig.port}, 波特率: ${serialConfig.baudRate}`);
+    
+    try {
+      // 调用原生检测方法
+      const result = await (deviceManager.scale as any).detect?.(
+        serialConfig.port,
+        serialConfig.baudRate
+      );
+      
+      if (result?.success && result?.detected) {
+        addLog('success', `✅ 检测到电子秤！`);
+        addLog('success', `设备信息: ${result.deviceInfo}`);
+        addLog('success', `协议: ${result.protocol}`);
+        addLog('info', `波特率: ${result.baudRate}`);
+        
+        // 根据检测结果自动配置
+        setSerialConfig(prev => ({
+          ...prev,
+          protocol: result.protocol || 'general',
+          baudRate: result.baudRate || prev.baudRate
+        }));
+        setScaleType('serial');
+        
+        // 询问是否连接
+        const confirmed = window.confirm(
+          `检测到 ${result.deviceInfo}\n协议: ${result.protocol}\n是否现在连接？`
+        );
+        
+        if (confirmed) {
+          addLog('info', '正在建立连接...');
+          // 触发连接
+          const connected = await deviceManager.scale.connect({
+            port: serialConfig.port,
+            baudRate: result.baudRate || serialConfig.baudRate,
+            protocol: result.protocol || 'general',
+            type: 'serial'
+          });
+          
+          if (connected) {
+            addLog('success', '电子秤连接成功！');
+            deviceManager.scale.startContinuous(500);
+          } else {
+            addLog('error', '连接失败');
+          }
+        }
+      } else {
+        addLog('error', '❌ 未检测到电子秤');
+        addLog('info', '请检查:');
+        addLog('info', '1. 电子秤是否已开机');
+        addLog('info', '2. 串口线是否连接正确');
+        addLog('info', '3. 波特率是否匹配 (9600)');
+        addLog('info', '4. 是否使用了正确的串口号');
+      }
+    } catch (e: any) {
+      addLog('error', `检测异常: ${e.message}`);
+    } finally {
+      setConnecting(false);
+      refreshStatus();
+    }
+  };
+
   // 测试连接打印机
   const testPrinter = async () => {
     if (!printerIP) {
@@ -434,6 +499,15 @@ export default function DeviceDebugPage() {
               {connecting ? '连接中...' : '连接串口秤'}
             </button>
           )}
+          
+          {/* 检测设备按钮 */}
+          <button
+            onClick={detectScale}
+            disabled={connecting}
+            className="w-full bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 py-2 mt-2"
+          >
+            {connecting ? '检测中...' : '🔍 自动检测电子秤'}
+          </button>
           
           <div className="mt-2 text-xs text-gray-500">
             {scaleType === 'serial' && '提示: 安卓一体机通常使用 /dev/ttyS1 或 /dev/ttyS2，波特率多为 9600'}
