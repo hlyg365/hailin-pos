@@ -220,7 +220,7 @@ public class HailinHardwarePlugin extends Plugin {
     
     // ESC/POS 指令常量
     private static final byte[] ESC = new byte[]{0x1B};
-    private static final byte[] GS = new byte[]{0x1D};
+    private static final byte GS = 0x1D;
     private static final byte[] LF = new byte[]{0x0A};
     
     @PluginMethod
