@@ -541,10 +541,25 @@ export default function DeviceDebugPage() {
             <li>• 确保设备与收银机在同一网络</li>
             <li>• 检查设备电源和网络指示灯</li>
             <li>• 确认设备的IP地址（通常在设备上打印）</li>
-            <li>• 网络秤默认端口通常是 9101</li>
-            <li>• 打印机默认端口通常是 9100</li>
+            <li>• 网络秤默认端口: 9101，打印机默认端口: 9100</li>
+            <li>• 串口模式: /dev/ttyS1，波特率 9600</li>
             <li>• 钱箱需要通过打印机接口控制</li>
             <li>• 客显屏需要设备支持双屏显示</li>
+            <li>• 串口权限问题: 需要系统签名或 Root</li>
+          </ul>
+        </div>
+        
+        {/* 权限说明 */}
+        <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+          <h3 className="font-bold text-red-800 mb-2">🔒 串口权限说明</h3>
+          <ul className="text-sm text-red-700 space-y-1">
+            <li>• 串口设备（如 /dev/ttyS1）需要系统级权限</li>
+            <li>• 普通 APK 无法直接访问串口</li>
+            <li>• 解决方案:</li>
+            <li className="ml-4">1. 联系设备厂商获取系统签名</li>
+            <li className="ml-4">2. 使用 Root 权限</li>
+            <li className="ml-4">3. 使用厂商提供的 SDK</li>
+            <li>• 网络模式不需要特殊权限，推荐使用</li>
           </ul>
         </div>
       </div>
