@@ -190,6 +190,15 @@ interface USBScaleConfig {
 
 // ==================== 电子秤服务 ====================
 
+// 顶尖 OS2 系列电子秤默认配置
+const SCALE_DEFAULTS = {
+  baudRate: 2400,      // 顶尖OS2 默认波特率
+  protocol: 'soki',    // 顶尖OS2 协议
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'none'
+};
+
 export class ScaleService {
   private connected = false;
   private connectionId = 'scale';
@@ -210,7 +219,7 @@ export class ScaleService {
     type?: 'serial' | 'network' | 'usb';
   } = {}): Promise<boolean> {
     // 判断连接类型
-    const { port, baudRate = 9600, protocol = 'general', type } = options;
+    const { port, baudRate = SCALE_DEFAULTS.baudRate, protocol = SCALE_DEFAULTS.protocol, type } = options;
     
     // 自动检测：如果 port 包含 IP 格式或 ':'，则为网络连接
     const isNetwork = port?.includes('.') || port?.includes(':');
