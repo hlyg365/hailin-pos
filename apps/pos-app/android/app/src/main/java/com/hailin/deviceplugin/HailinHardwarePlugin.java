@@ -477,12 +477,12 @@ public class HailinHardwarePlugin extends Plugin {
             // 选择条码类型并打印
             byte[] cmd;
             if ("EAN13".equals(type)) {
-                cmd = new byte[]{GS, 0x6B, 0x02, (byte) dataBytes.length};
+                cmd = new byte[]{GS, 0x6B, 0x02, (byte) (dataBytes.length & 0xFF)};
             } else {
                 cmd = new byte[]{GS, 0x6B, 0x00};
             }
             out.write(cmd, 0, cmd.length);
-            out.write(dataBytes);
+            out.write(dataBytes, 0, dataBytes.length);
             
             out.flush();
             call.resolve(new JSObject().put("success", true));
