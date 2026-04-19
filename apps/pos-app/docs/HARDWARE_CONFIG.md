@@ -1,5 +1,16 @@
 # 海邻到家 - 安卓一体机硬件配置指南 V6.0
 
+## 目录
+
+1. [串口通信库](#串口通信库)
+2. [顶尖电子秤集成](#顶尖电子秤集成)
+3. [常见设备路径](#常见设备路径)
+4. [秤协议详解](#秤协议详解)
+5. [权限问题](#权限问题)
+6. [调试指南](#调试指南)
+
+---
+
 ## 串口通信库
 
 本项目使用 **tp.xmaihh:serialport** 库实现 Android 串口通信。
@@ -13,42 +24,109 @@ dependencies {
 
 GitHub: https://github.com/xmaihh/android-serialport
 
+**特点**：
+- 开箱即用，无需手动编译 .so 文件
+- 支持多种 CPU 架构（armeabi-v7a, arm64-v8a, x86 等）
+- API 简洁，适合 Kotlin/Java
+
 ---
 
-## 串口权限问题
+## 顶尖电子秤集成
 
-### 问题描述
+### 方案一：串口通信（推荐）
 
-串口设备文件（如 `/dev/ttyS1`）属于系统级权限，普通应用直接访问会抛出：
+适用于 Android 收银 APP 直接读取重量、去皮等实时操作。
+
+#### 通信参数
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| 波特率 | 9600 | 最常用 |
+| 数据位 | 8 | |
+| 停止位 | 1 | |
+| 校验位 | None | 无校验 |
+| 端口 | /dev/ttyS1 | Android 常用串口 |
+
+#### 顶尖 OS2 协议格式
 
 ```
-java.io.IOException: Permission denied
-java.lang.SecurityException: Neither user X nor current process has android.permission.HARDWARE_TEST
+数据示例: 01 47 53 2B 30 2E 35 30 30 6B 67 0D
 ```
 
-### 解决方案
+| 字节位置 | 内容 | 说明 |
+|----------|------|------|
+| 0 | 0x01 | 帧头 (STX) |
+| 1 | 'G'/'S' | 稳定状态 (G=稳定, S=不稳定) |
+| 2 | 'G'/'K' | 单位 (G=克重, K=皮重) |
+| 3-10 | 数值 | ASCII 重量值，如 `+0.500` |
+| 11 | 0x0D | 结束符 |
 
-#### 方案一：系统签名（推荐）
+#### 数据解析代码
 
-1. 联系设备厂商获取系统签名文件（`.keystore`）
-2. 使用该签名打包你的 APK
-3. 将应用安装为系统应用（放到 `/system/app/` 目录）
+```java
+// DevicePlugin.java 中的解析逻辑
+public ScaleWeight parseTopSokiOS2Protocol(byte[] data) {
+    if (data[0] == 0x01) {  // 帧头检测
+        boolean stable = (data[1] == 'G');  // 稳定性
+        String unit = (data[2] == 'K') ? "kg" : "g";  // 单位
+        
+        // 提取数值 (第3-10字节)
+        String weightStr = new String(data, 3, 8);
+        double weight = Double.parseDouble(weightStr);
+        
+        // 单位换算
+        if ("g".equals(unit)) {
+            weight = weight / 1000.0;  // 转为千克
+        }
+        
+        return new ScaleWeight(weight, "kg", stable);
+    }
+}
+```
 
-#### 方案二：Root 权限
+#### 顶尖 ACLaS 协议格式
 
-1. 设备已 Root
-2. 应用申请 Root 权限
-3. 使用 `su` 命令临时提升权限
+```
+数据示例: 02 30 30 31 30 30 30 30 30 30 30 30 03
+```
 
-#### 方案三：厂商 SDK
+| 字节位置 | 内容 | 说明 |
+|----------|------|------|
+| 0 | 0x02 | 帧头 |
+| 1 | 0x30/0x31 | 状态 (0x30=稳定) |
+| 2-9 | BCD | BCD 编码的重量值 |
+| 最后 | 0x03 | 帧尾 |
 
-部分商用一体机厂商提供自己的 SDK，包含权限豁免：
+### 方案二：官方 SDK/DLL
 
-| 厂商 | SDK 特点 | 获取方式 |
-|------|----------|----------|
-| 商米 Sunmi | 直接提供 getWeight() | 官网开发者中心 |
-| 海信 Hisense | 硬件控制封装 | 技术支持 |
-| 安达通 | 权限豁免 | 商务联系 |
+适用于 Windows 桌面端收银软件。
+
+```csharp
+// C# 调用示例
+[DllImport("AclasSDK.dll")]
+public static extern int __Open(int portNo, int baudRate);
+
+[DllImport("AclasSDK.dll")]
+public static extern int __GetWeight(StringBuilder buffer, int size);
+
+public string GetWeight() {
+    __Open(1, 9600);  // COM1
+    StringBuilder sb = new StringBuilder(20);
+    __GetWeight(sb, sb.Capacity);
+    return sb.ToString().Trim();
+}
+```
+
+### 方案三：上位机管理软件
+
+适用于商品信息下发和配置：
+
+| 软件 | 适用设备 | 功能 |
+|------|----------|------|
+| LINK69 | 标签秤 | 商品下发、打印格式 |
+| LINK68 | 标签秤 | 商品下发 |
+| LINK65 | 条码秤 | PLU 管理 |
+| LS6 | LS 系列条码秤 | 专用管理 |
 
 ---
 
@@ -56,12 +134,12 @@ java.lang.SecurityException: Neither user X nor current process has android.perm
 
 ### 内置串口（安卓一体机主板）
 
-| 路径 | 说明 | 常见用途 |
-|------|------|----------|
+| 路径 | 说明 | 备注 |
+|------|------|------|
 | `/dev/ttyS0` | 串口0 | 通常为调试口 |
 | `/dev/ttyS1` | 串口1 | **最常用** |
 | `/dev/ttyS2` | 串口2 | **第二常用** |
-| `/dev/ttyS3` ~ `/dev/ttyS9` | 其他串口 | 视主板而定 |
+| `/dev/ttyS3`~`/dev/ttyS9` | 其他串口 | 视主板而定 |
 
 ### USB 转串口
 
@@ -69,166 +147,146 @@ java.lang.SecurityException: Neither user X nor current process has android.perm
 |------|------|
 | `/dev/ttyUSB0` | USB 转串口设备1 |
 | `/dev/ttyUSB1` | USB 转串口设备2 |
-| `/dev/ttyACM0` | USB ACM 调制解调器 |
+| `/dev/ttyACM0` | USB ACM |
 
-### 芯片特定
+### 联发科/高通芯片
 
-| 路径 | 说明 |
-|------|------|
-| `/dev/ttyMT1` | 联发科芯片串口 |
-| `/dev/ttyHS0` | 高通芯片高速串口 |
-
----
-
-## 常用波特率
-
-| 波特率 | 说明 | 适用场景 |
-|--------|------|----------|
-| `9600` | 最常用 | 大多数电子秤 |
-| `19200` | 中速 | 部分工业设备 |
-| `38400` | 较高速 | 需要快速响应 |
-| `57600` | 高速 | 少见 |
-| `115200` | 最高速 | 专业设备 |
+| 路径 | 芯片平台 |
+|------|----------|
+| `/dev/ttyMT1` | 联发科 |
+| `/dev/ttyHS0` | 高通 |
 
 ---
 
-## 秤协议类型
+## 秤协议详解
 
-| 协议 | 说明 | 典型设备 |
+### 协议类型对照表
+
+| 协议名称 | 帧头 | 帧尾 | 适用品牌 |
+|----------|------|------|----------|
+| `general` | 0x02 | 0x03 | 大多数国产秤 |
+| `soki` | 0x01 | 0x0D | **顶尖 OS2** |
+| `aclss` | 0x02 | 0x03 | **顶尖 ACLaS** |
+| `dahua` | 0x02 | 0x03 | 大华 |
+| `toieda` | 0x02 | 0x03 | METTLER TOLEDO |
+
+### 常用波特率
+
+| 波特率 | 适用场景 |
+|--------|----------|
+| **9600** | 大多数电子秤（推荐） |
+| 19200 | 部分工业设备 |
+| 38400 | 需要快速响应 |
+
+### 控制指令
+
+| 功能 | 指令 (Hex) | 说明 |
+|------|-----------|------|
+| 去皮 | `1B 54` (ESC T) | 去除容器重量 |
+| 清零 | `1B 7A` (ESC z) | 置零当前重量 |
+| 打印 | `1B 70 00 19 FA` | 触发打印机 |
+
+---
+
+## 权限问题
+
+### 问题原因
+
+串口设备属于系统级权限，普通 APK 无法直接访问：
+
+```
+java.io.IOException: Permission denied
+java.lang.SecurityException: Neither user nor current process has android.permission.HARDWARE_TEST
+```
+
+### 解决方案
+
+| 方案 | 说明 | 适用场景 |
 |------|------|----------|
-| `general` | 通用协议（帧头0x02/帧尾0x03） | 大多数国产秤 |
-| `dahua` | 大华协议 | 大华电子秤 |
-| `toieda` | 托利多协议 | METTLER TOLEDO |
-| `soki` | 顶尖协议 | 顶尖电子秤 |
+| **系统签名** | 使用厂商提供的 .keystore 签名 | 商业部署（推荐） |
+| **Root 权限** | 设备已 Root | 开发测试 |
+| **厂商 SDK** | 使用厂商提供的封装接口 | 特定设备 |
+| **网络模式** | TCP 连接，无需串口权限 | 远程设备 |
+
+### 获取系统签名
+
+1. 联系设备厂商技术支持
+2. 获取系统签名文件（`.keystore`）
+3. 使用该签名打包 APK
+4. 安装到 `/system/app/` 或签名后安装
 
 ---
 
-## 数据格式
+## 调试指南
 
-### 通用协议（十六进制）
+### 步骤 1：确定设备路径
 
-```
-02 47 53 2B 30 31 32 2E 35 30 30 03
-┬  ┬  ┬  ┬  ┗━━━━━━━━━━━━━━━┛  ┬
-│  │  │  │       数值          单位(kg)
-│  │  │  正号(+)
-│  │  稳定(G/S)
-│  重量单位(G=克,K=千克)
-帧头(0x02)                   帧尾(0x03)
+```bash
+# 在设备终端执行
+ls -l /dev/tty*
 ```
 
-### 文本格式
+### 步骤 2：测试串口连接
+
+使用 Android 串口调试助手应用测试：
+
+1. 选择端口：`/dev/ttyS1`
+2. 设置波特率：`9600`
+3. 观察数据输出
+
+### 步骤 3：观察数据格式
+
+稳定称重时的典型数据：
 
 ```
-ST,GS,+0.520,kg
-ST,US,+1.234,kg
+顶尖 OS2:  01 47 53 2B 30 2E 35 30 30 6B 67 0D
+通用协议:  02 47 53 2B 30 31 32 2E 35 30 30 6B 67 03
+文本格式:  ST,GS,+0.520,kg\r\n
 ```
 
-- `ST`: 起始位
-- `GS`: 稳定 (US = 不稳定)
-- `+`: 正号
-- `0.520`: 重量值
-- `kg`: 单位
+### 步骤 4：配置调试页面
 
----
-
-## 电子秤控制指令
-
-| 功能 | 指令 | 说明 |
-|------|------|------|
-| 去皮 | `ESC T` (0x1B 0x54) | 去除容器重量 |
-| 清零 | `ESC z` (0x1B 0x7A) | 置零当前重量 |
-| 打印 | `ESC p m t1 t2` | 钱箱弹出 |
-
----
-
-## 网络秤配置
-
-网络秤使用 TCP 连接，默认端口 `9101`。
+访问 `/device-debug` 页面进行配置：
 
 ```
-IP地址: 192.168.1.100
-端口: 9101
-协议: TCP
+串口模式: /dev/ttyS1
+波特率:   9600
+协议:     顶尖 OS2/ACLaS (soki)
 ```
 
----
+### 步骤 5：验证数据
 
-## USB HID 电子秤
-
-USB HID 秤通常模拟为键盘设备，数据通过按键事件输入。
-
-识别信息：
+在调试页面观察日志输出：
 
 ```
-VID: 厂商ID (如 0x0922)
-PID: 产品ID (如 0x8003)
-```
-
----
-
-## 调试建议
-
-1. **先查文档**：查看设备厂商提供的接口定义文档
-2. **Shell 命令**：在设备终端执行 `ls -l /dev/tty*` 查看可用端口
-3. **串口助手**：使用 Android 串口调试助手先测试
-4. **抓包分析**：连接电脑，使用逻辑分析仪或串口监视器
-5. **厂商支持**：联系设备厂商技术支持获取帮助
-
----
-
-## 示例代码
-
-### Kotlin (Android 原生)
-
-```kotlin
-// 使用 tp.xmaihh:serialport
-val serialHelper = object : SerialHelper("/dev/ttyS1", 9600) {
-    override fun onDataReceived(paramComBean: ComBean) {
-        val data = paramComBean.bRec
-        // 解析重量数据
-        parseWeight(data)
-    }
-}
-
-try {
-    serialHelper.open()
-    // 发送去皮指令
-    serialHelper.sendHex("1B 54")
-} catch (e: IOException) {
-    e.printStackTrace()
-}
-```
-
-### TypeScript (前端)
-
-```typescript
-import { Capacitor } from '@capacitor/core';
-import { Plugins } from '@capacitor/core';
-
-const { DevicePlugin } = Plugins;
-
-// 连接串口秤
-await DevicePlugin.scaleConnect({
-    port: '/dev/ttyS1',
-    baudRate: 9600,
-    protocol: 'general'
-});
-
-// 监听重量数据
-DevicePlugin.addListener('scaleData', (event) => {
-    console.log(`重量: ${event.weight} ${event.unit}`);
-});
+[秤] 秤原始数据: 01 47 53 2B 30 2E 35 30 30 6B 67 0D
+[秤] 顶尖OS2协议数据: 01 47 53 2B 30 2E 35 30 30 6B 67 0D
+[秤] 顶尖OS2解析: 0.520 kg (稳定=true)
 ```
 
 ---
 
 ## 故障排查
 
-| 问题 | 可能原因 | 解决方案 |
-|------|----------|----------|
-| Permission denied | 权限不足 | 使用系统签名或 Root |
-| 设备不存在 | 路径错误 | 确认正确的设备路径 |
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| Permission denied | 权限不足 | 使用系统签名 |
+| 数据全是 0 | 称重不稳定 | 等待稳定后再读取 |
 | 数据乱码 | 波特率不匹配 | 与秤体设置一致 |
-| 无数据输出 | 秤未发送数据 | 检查秤是否正常工作 |
-| 连接超时 | 网络不通 | 检查 IP 和端口 |
+| 无数据输出 | 路径错误/秤未开机 | 检查设备和连接 |
+| 协议解析失败 | 协议选择错误 | 根据实际数据选择协议 |
+
+---
+
+## 推荐配置
+
+```
+┌─────────────────────────────────────────────────┐
+│ 顶尖电子秤推荐配置                               │
+├─────────────────────────────────────────────────┤
+│  端口:   /dev/ttyS1        (或 /dev/ttyS2)     │
+│  波特率: 9600               (不要用其他)         │
+│  协议:   soki               (顶尖 OS2 协议)      │
+│  单位:   kg                 (自动换算)           │
+└─────────────────────────────────────────────────┘
+```
