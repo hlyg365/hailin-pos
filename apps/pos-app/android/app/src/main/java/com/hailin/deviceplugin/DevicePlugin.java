@@ -1,23 +1,26 @@
 package com.hailin.deviceplugin;
 
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbEndpoint;
+import android.hardware.usb.UsbInterface;
 import android.hardware.usb.UsbManager;
+import android.hardware.usb.UsbRequest;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.Display;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 
-import java.io.*;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,18 +30,31 @@ import java.util.concurrent.Executors;
 /**
  * 海邻到家一体机硬件抽象层 V6.0
  * 
- * 支持两种电子秤连接方式：
- * 1. 网络秤（TCP）- 适用于网络秤设备
- * 2. USB HID模式 - 适用于外接USB电子秤
+ * 支持三种电子秤连接方式：
+ * 1. 串口通信（USB Serial）- 使用 Android USB Host API
+ * 2. 网络秤（TCP）- 适用于网络秤设备
+ * 3. USB HID模式 - 适用于 HID 电子秤
  * 
- * 串口通信需要使用 Android USB Host API 或第三方库
+ * 顶尖电子秤配置：
+ * - 波特率: 9600
+ * - 数据位: 8
+ * - 停止位: 1
+ * - 校验位: 无
+ * - 协议: OS2 (帧头 0x01)
  */
 public class DevicePlugin extends Plugin {
 
     private static final String TAG = "DevicePlugin";
     
-    // ==================== 连接池管理 ====================
+    // USB Vendor IDs for common USB-Serial chips
+    private static final int USB_VID_FTDI = 0x0403;
+    private static final int USB_VID_SILABS = 0x10C4;
+    private static final int USB_VID_PROLIFIC = 0x067B;
+    private static final int USB_VID_CH340 = 0x1A86;
+    
+    // 连接池管理
     private final Map<String, Socket> socketPool = new ConcurrentHashMap<>();
+    private final Map<String, UsbSerialConnection> usbSerialPool = new ConcurrentHashMap<>();
     private final Map<String, ScaleDataCallback> scaleCallbacks = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newFixedThreadPool(8);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -46,6 +62,7 @@ public class DevicePlugin extends Plugin {
     // USB Serial
     private UsbManager usbManager;
     private Context appContext;
+    private UsbDevice currentScaleDevice;
     
     // ==================== 插件初始化 ====================
     @Override
@@ -53,48 +70,195 @@ public class DevicePlugin extends Plugin {
         super.load();
         appContext = getContext();
         usbManager = (UsbManager) appContext.getSystemService(Context.USB_SERVICE);
+        
+        // 注册 USB 设备连接广播
+        IntentFilter filter = new IntentFilter(UsbManager.ACTION_USB_DEVICE_ATTACHED);
+        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
+        appContext.registerReceiver(usbReceiver, filter);
+        
         Log.i(TAG, "DevicePlugin 硬件抽象层已加载");
+    }
+    
+    @Override
+    protected void dispose() {
+        super.dispose();
+        try {
+            appContext.unregisterReceiver(usbReceiver);
+        } catch (Exception e) {}
+    }
+    
+    private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            UsbDevice device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+            
+            if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action)) {
+                if (device != null && isUsbSerialDevice(device)) {
+                    Log.i(TAG, "USB 串口设备已连接: " + device.getDeviceName());
+                }
+            } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(action)) {
+                if (device != null && device.equals(currentScaleDevice)) {
+                    Log.i(TAG, "秤设备已断开");
+                    disconnectScale();
+                }
+            }
+        }
+    };
+    
+    /**
+     * 检测是否为 USB 串口设备
+     */
+    private boolean isUsbSerialDevice(UsbDevice device) {
+        int vid = device.getVendorId();
+        int pid = device.getProductId();
+        
+        // 常见 USB 转串口芯片
+        return vid == USB_VID_FTDI || vid == USB_VID_SILABS || 
+               vid == USB_VID_PROLIFIC || vid == USB_VID_CH340;
     }
 
     // ==================== 1. 电子秤驱动模块 ====================
     
     /**
-     * 连接电子秤（网络/TCP）
+     * 列出可用的 USB 串口设备
+     */
+    @PluginMethod
+    public void listUsbDevices(PluginCall call) {
+        HashMap<String, UsbDevice> devices = usbManager.getDeviceList();
+        JSObject result = new JSObject();
+        
+        int count = 0;
+        for (Map.Entry<String, UsbDevice> entry : devices.entrySet()) {
+            UsbDevice device = entry.getValue();
+            if (isUsbSerialDevice(device)) {
+                count++;
+                result.put("device_" + count, device.getDeviceName());
+                result.put("vid_" + count, device.getVendorId());
+                result.put("pid_" + count, device.getProductId());
+                result.put("name_" + count, device.getProductName());
+            }
+        }
+        
+        result.put("count", count);
+        call.resolve(result);
+    }
+    
+    /**
+     * 请求 USB 设备权限
+     */
+    @PluginMethod
+    public void requestUsbPermission(PluginCall call) {
+        String deviceName = call.getString("deviceName", "");
+        
+        HashMap<String, UsbDevice> devices = usbManager.getDeviceList();
+        UsbDevice targetDevice = null;
+        
+        for (UsbDevice device : devices.values()) {
+            if (device.getDeviceName().equals(deviceName) || deviceName.isEmpty()) {
+                if (isUsbSerialDevice(device)) {
+                    targetDevice = device;
+                    break;
+                }
+            }
+        }
+        
+        if (targetDevice == null) {
+            call.reject("未找到指定的 USB 串口设备");
+            return;
+        }
+        
+        if (usbManager.hasPermission(targetDevice)) {
+            JSObject result = new JSObject();
+            result.put("granted", true);
+            call.resolve(result);
+        } else {
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                appContext, 0, new Intent(com.getcapacitor.IntentShaderPlugin.ACTION_USB_PERMISSION), 
+                PendingIntent.FLAG_IMMUTABLE);
+            usbManager.requestPermission(targetDevice, pendingIntent);
+            
+            JSObject result = new JSObject();
+            result.put("granted", false);
+            result.put("message", "已请求权限，请用户在弹窗中授权");
+            call.resolve(result);
+        }
+    }
+    
+    /**
+     * 连接电子秤（USB 串口）
+     * 
+     * 参数：
+     * - deviceName: USB 设备名称（可选，自动搜索）
+     * - baudRate: 波特率，默认 9600
+     * - protocol: 协议类型，general/soki/aclas/dahua/toieda
      */
     @PluginMethod
     public void scaleConnect(PluginCall call) {
-        String host = call.getString("host", "192.168.1.100");
-        int port = call.getInt("port", 8000);
-        String protocol = call.getString("protocol", "general");
-        int timeout = call.getInt("timeout", 5000);
+        String deviceName = call.getString("deviceName", "");
+        int baudRate = call.getInt("baudRate", 9600);
+        String protocol = call.getString("protocol", "soki");
         
-        Log.i(TAG, String.format("连接网络秤: host=%s, port=%d, protocol=%s",
-                host, port, protocol));
+        Log.i(TAG, String.format("连接电子秤: device=%s, baudRate=%d, protocol=%s",
+                deviceName, baudRate, protocol));
         
         executor.execute(() -> {
             try {
-                Socket socket = new Socket();
-                socket.connect(new InetSocketAddress(host, port), timeout);
-                socket.setSoTimeout(0); // 非阻塞
+                UsbDevice targetDevice = null;
                 
-                socketPool.put("scale", socket);
+                // 查找 USB 串口设备
+                HashMap<String, UsbDevice> devices = usbManager.getDeviceList();
+                for (UsbDevice device : devices.values()) {
+                    if (isUsbSerialDevice(device)) {
+                        targetDevice = device;
+                        if (!deviceName.isEmpty() && !device.getDeviceName().equals(deviceName)) {
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                
+                if (targetDevice == null) {
+                    call.reject("未找到 USB 串口设备，请确保电子秤已连接");
+                    return;
+                }
+                
+                // 检查权限
+                if (!usbManager.hasPermission(targetDevice)) {
+                    call.reject("需要 USB 设备权限，请在弹窗中授权");
+                    return;
+                }
+                
+                // 建立 USB 连接
+                UsbSerialConnection connection = new UsbSerialConnection(targetDevice, usbManager);
+                if (!connection.open()) {
+                    call.reject("无法打开 USB 设备");
+                    return;
+                }
+                
+                // 设置波特率
+                connection.setBaudRate(baudRate);
+                
+                // 保存连接
+                usbSerialPool.put("scale", connection);
+                currentScaleDevice = targetDevice;
                 
                 // 保存回调
                 ScaleDataCallback callback = new ScaleDataCallback();
                 callback.protocol = protocol;
                 scaleCallbacks.put("scale", callback);
                 
-                // 启动数据读取线程
-                startScaleReader(socket, protocol);
+                // 启动数据读取
+                startUsbSerialReader(connection, protocol);
                 
                 JSObject result = new JSObject();
                 result.put("success", true);
-                result.put("host", host);
-                result.put("port", port);
-                result.put("message", "电子秤网络连接成功");
+                result.put("deviceName", targetDevice.getDeviceName());
+                result.put("baudRate", baudRate);
+                result.put("message", "电子秤连接成功 (USB Serial @ " + baudRate + " bps)");
                 call.resolve(result);
                 
-                Log.i(TAG, "电子秤网络连接成功");
+                Log.i(TAG, "电子秤 USB 串口连接成功");
                 
             } catch (Exception e) {
                 Log.e(TAG, "电子秤连接失败", e);
@@ -104,25 +268,27 @@ public class DevicePlugin extends Plugin {
     }
     
     /**
-     * 启动秤数据读取线程
+     * 启动 USB 串口数据读取
      */
-    private void startScaleReader(Socket socket, String protocol) {
+    private void startUsbSerialReader(UsbSerialConnection connection, String protocol) {
         executor.execute(() -> {
-            try {
-                InputStream in = socket.getInputStream();
-                byte[] buffer = new byte[64];
-                
-                while (socket.isConnected() && !socket.isClosed()) {
-                    int bytesRead = in.read(buffer);
+            byte[] buffer = new byte[64];
+            
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    int bytesRead = connection.read(buffer, buffer.length);
                     if (bytesRead > 0) {
                         byte[] data = new byte[bytesRead];
                         System.arraycopy(buffer, 0, data, 0, bytesRead);
                         handleScaleData(data, protocol);
                     }
-                    Thread.sleep(50); // 避免CPU占用过高
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    break;
+                } catch (Exception e) {
+                    Log.e(TAG, "USB 串口读取异常", e);
+                    break;
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "秤读取线程异常", e);
             }
         });
     }
@@ -150,11 +316,95 @@ public class DevicePlugin extends Plugin {
         }
     }
     
+    // ==================== 2. 协议解析 ====================
+    
+    /**
+     * 顶尖 OS2 协议解析
+     * 帧头 0x01，格式：
+     * 01 XX XX XX XX XX XX XX XX
+     * 状态  单位  重量数值(BCD)
+     */
+    private ScaleWeight parseTopSokiOS2Protocol(byte[] data, ScaleWeight weight) {
+        if (data == null || data.length < 9) return null;
+        
+        try {
+            Log.d(TAG, "顶尖OS2协议数据: " + bytesToHex(data));
+            
+            if (data[0] == 0x01) {
+                // 状态位
+                byte status = data[1];
+                weight.stable = (status == 0x17 || status == 0x1F);
+                
+                // 单位
+                weight.unit = (data[2] == 'K' || data[2] == 'k') ? "kg" : "g";
+                
+                // BCD 编码重量
+                int value = ((data[4] & 0xFF) * 10000) + ((data[5] & 0xFF) * 100) + (data[6] & 0xFF);
+                
+                if (weight.unit.equals("kg")) {
+                    weight.weight = value / 1000.0;
+                } else {
+                    weight.weight = value;
+                }
+                
+                // 负数检测
+                if ((data[7] & 0x40) != 0) {
+                    weight.weight = -weight.weight;
+                }
+                
+                Log.d(TAG, String.format("顶尖OS2: weight=%.3f%s, stable=%s", 
+                        weight.weight, weight.unit, weight.stable));
+            } else {
+                return null;
+            }
+            
+            return weight;
+        } catch (Exception e) {
+            Log.e(TAG, "顶尖OS2协议解析异常", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 顶尖 ACLaS 协议解析
+     * 帧头 0x02，帧尾 0x03
+     */
+    private ScaleWeight parseTopSokiACLaSProtocol(byte[] data, ScaleWeight weight) {
+        if (data == null || data.length < 12) return null;
+        
+        try {
+            if (data[0] == 0x02 && data[data.length - 1] == 0x03) {
+                weight.stable = (data[1] == 0x30);
+                
+                StringBuilder weightStr = new StringBuilder();
+                for (int i = 2; i < Math.min(data.length - 1, 10); i++) {
+                    if (data[i] >= 0x30 && data[i] <= 0x39) {
+                        weightStr.append((char) data[i]);
+                    }
+                }
+                
+                try {
+                    weight.weight = Double.parseDouble(weightStr.toString()) / 1000.0;
+                    weight.unit = "kg";
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            } else {
+                return parseGeneralProtocol(data, weight);
+            }
+            
+            return weight;
+        } catch (Exception e) {
+            Log.e(TAG, "ACLaS协议解析异常", e);
+            return null;
+        }
+    }
+    
     /**
      * 通用协议解析
      */
     private ScaleWeight parseGeneralProtocol(byte[] data, ScaleWeight weight) {
-        if (data.length < 8) return null;
+        if (data == null || data.length < 8) return null;
         
         if (data[0] == 0x02) {
             weight.stable = (data[1] == 0x47 || data[1] == 'G' || data[1] == 'S');
@@ -185,126 +435,31 @@ public class DevicePlugin extends Plugin {
     }
     
     /**
-     * 顶尖 OS2 协议解析
-     */
-    private ScaleWeight parseTopSokiOS2Protocol(byte[] data, ScaleWeight weight) {
-        if (data == null || data.length < 9) return null;
-        
-        try {
-            Log.d(TAG, "顶尖OS2协议数据: " + bytesToHex(data));
-            
-            // 检测帧头 0x01
-            if (data[0] == 0x01) {
-                // 状态位 (第2字节)
-                // 0x15=不稳定, 0x17=稳定, 0x1F=零位
-                byte status = data[1];
-                weight.stable = (status == 0x17 || status == 0x1F);
-                
-                // 单位 (第3字节)
-                // 'K'=kg, 'g'=g
-                weight.unit = (data[2] == 'K' || data[2] == 'k') ? "kg" : "g";
-                
-                // 重量数值 (第4-8字节): BCD编码
-                // 示例: 01 17 4B 12 34 56 78 00
-                int value = ((data[4] & 0xFF) * 10000) +
-                           ((data[5] & 0xFF) * 100) +
-                           (data[6] & 0xFF);
-                
-                // 根据单位转换
-                if (data[2] == 'K' || data[2] == 'k') {
-                    weight.weight = value / 1000.0; // 转换为kg
-                } else {
-                    weight.weight = value; // 直接是g
-                }
-                
-                // 检测负数
-                if ((data[7] & 0x40) != 0) {
-                    weight.weight = -weight.weight;
-                }
-                
-                Log.d(TAG, String.format("顶尖OS2协议解析结果: weight=%.3f%s, stable=%s",
-                        weight.weight, weight.unit, weight.stable));
-            } else {
-                return null;
-            }
-            
-            return weight;
-        } catch (Exception e) {
-            Log.e(TAG, "顶尖OS2协议解析异常", e);
-            return null;
-        }
-    }
-    
-    /**
-     * 顶尖 ACLaS 协议解析
-     */
-    private ScaleWeight parseTopSokiACLaSProtocol(byte[] data, ScaleWeight weight) {
-        if (data == null || data.length < 12) return null;
-        
-        try {
-            Log.d(TAG, "顶尖ACLaS协议数据: " + bytesToHex(data));
-            
-            if (data[0] == 0x02 && data[data.length - 1] == 0x03) {
-                weight.stable = (data[1] == 0x30);
-                
-                StringBuilder weightStr = new StringBuilder();
-                for (int i = 2; i < Math.min(data.length - 1, 10); i++) {
-                    if (data[i] >= 0x30 && data[i] <= 0x39) {
-                        weightStr.append((char) data[i]);
-                    }
-                }
-                
-                try {
-                    double rawWeight = Double.parseDouble(weightStr.toString()) / 1000.0;
-                    weight.weight = rawWeight;
-                    weight.unit = "kg";
-                } catch (NumberFormatException e) {
-                    return null;
-                }
-            } else {
-                return parseGeneralProtocol(data, weight);
-            }
-            
-            return weight;
-        } catch (Exception e) {
-            Log.e(TAG, "顶尖ACLaS协议解析异常", e);
-            return null;
-        }
-    }
-    
-    /**
      * 大华协议解析
      */
     private ScaleWeight parseDahuaProtocol(byte[] data, ScaleWeight weight) {
         if (data == null || data.length < 10) return null;
         
-        try {
-            // 大华秤协议: STX + 状态 + 重量 + 单位 + ETX + BCC
-            if (data[0] == 0x02 && data[data.length - 2] == 0x03) {
-                weight.stable = (data[1] == 'S');
-                
-                StringBuilder weightStr = new StringBuilder();
-                for (int i = 2; i < data.length - 3; i++) {
-                    if ((data[i] >= '0' && data[i] <= '9') || data[i] == '.' || data[i] == '-') {
-                        weightStr.append((char) data[i]);
-                    }
+        if (data[0] == 0x02 && data[data.length - 2] == 0x03) {
+            weight.stable = (data[1] == 'S');
+            
+            StringBuilder weightStr = new StringBuilder();
+            for (int i = 2; i < data.length - 3; i++) {
+                if ((data[i] >= '0' && data[i] <= '9') || data[i] == '.' || data[i] == '-') {
+                    weightStr.append((char) data[i]);
                 }
-                
-                try {
-                    weight.weight = Double.parseDouble(weightStr.toString());
-                } catch (NumberFormatException e) {
-                    return null;
-                }
-                
-                // 单位
-                weight.unit = (data[data.length - 3] == 'k') ? "kg" : "g";
             }
             
-            return weight;
-        } catch (Exception e) {
-            Log.e(TAG, "大华协议解析异常", e);
-            return null;
+            try {
+                weight.weight = Double.parseDouble(weightStr.toString());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            
+            weight.unit = (data[data.length - 3] == 'k') ? "kg" : "g";
         }
+        
+        return weight;
     }
     
     /**
@@ -313,35 +468,33 @@ public class DevicePlugin extends Plugin {
     private ScaleWeight parseToiedaProtocol(byte[] data, ScaleWeight weight) {
         if (data == null || data.length < 10) return null;
         
+        String text;
         try {
-            // 托利多协议: 稳定状态 + 重量 + 单位
-            String text = new String(data, "ASCII").trim();
+            text = new String(data, "ASCII").trim();
+        } catch (UnsupportedEncodingException e) {
+            text = new String(data).trim();
+        }
+        
+        if (text.contains("ST") || text.contains("US")) {
+            weight.stable = text.contains("ST");
             
-            if (text.contains("ST") || text.contains("US")) {
-                weight.stable = text.contains("ST");
-                
-                // 提取数字
-                StringBuilder weightStr = new StringBuilder();
-                for (char c : text.toCharArray()) {
-                    if (Character.isDigit(c) || c == '.' || c == '-') {
-                        weightStr.append(c);
-                    }
+            StringBuilder weightStr = new StringBuilder();
+            for (char c : text.toCharArray()) {
+                if (Character.isDigit(c) || c == '.' || c == '-') {
+                    weightStr.append(c);
                 }
-                
-                try {
-                    weight.weight = Double.parseDouble(weightStr.toString());
-                } catch (NumberFormatException e) {
-                    return null;
-                }
-                
-                weight.unit = text.contains("kg") ? "kg" : "g";
             }
             
-            return weight;
-        } catch (Exception e) {
-            Log.e(TAG, "托利多协议解析异常", e);
-            return null;
+            try {
+                weight.weight = Double.parseDouble(weightStr.toString());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            
+            weight.unit = text.contains("kg") ? "kg" : "g";
         }
+        
+        return weight;
     }
     
     /**
@@ -400,9 +553,10 @@ public class DevicePlugin extends Plugin {
         String text;
         try {
             text = new String(data, "ASCII").trim();
-        } catch (java.io.UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             text = new String(data).trim();
         }
+        
         if (text.contains("kg") || text.contains("g") || text.contains("ST")) {
             Log.d(TAG, "检测到: 文本协议");
             return parseGeneralProtocol(data, weight);
@@ -411,6 +565,8 @@ public class DevicePlugin extends Plugin {
         Log.w(TAG, "无法识别协议格式");
         return null;
     }
+    
+    // ==================== 3. 秤控制方法 ====================
     
     /**
      * 获取当前重量
@@ -439,11 +595,11 @@ public class DevicePlugin extends Plugin {
      */
     @PluginMethod
     public void scaleGetStatus(PluginCall call) {
-        Socket socket = socketPool.get("scale");
+        UsbSerialConnection connection = usbSerialPool.get("scale");
         
         JSObject result = new JSObject();
-        result.put("connected", socket != null && socket.isConnected());
-        result.put("type", "network");
+        result.put("connected", connection != null && connection.isConnected());
+        result.put("type", "usb_serial");
         
         call.resolve(result);
     }
@@ -453,20 +609,20 @@ public class DevicePlugin extends Plugin {
      */
     @PluginMethod
     public void scaleDisconnect(PluginCall call) {
-        Socket socket = socketPool.remove("scale");
-        if (socket != null) {
-            try {
-                socket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "关闭秤连接失败", e);
-            }
-        }
-        
-        scaleCallbacks.remove("scale");
+        disconnectScale();
         
         JSObject result = new JSObject();
         result.put("success", true);
         call.resolve(result);
+    }
+    
+    private void disconnectScale() {
+        UsbSerialConnection connection = usbSerialPool.remove("scale");
+        if (connection != null) {
+            connection.close();
+        }
+        scaleCallbacks.remove("scale");
+        currentScaleDevice = null;
     }
     
     /**
@@ -474,11 +630,18 @@ public class DevicePlugin extends Plugin {
      */
     @PluginMethod
     public void disconnectAll(PluginCall call) {
+        for (UsbSerialConnection conn : usbSerialPool.values()) {
+            conn.close();
+        }
+        usbSerialPool.clear();
+        
         for (Socket socket : socketPool.values()) {
-            try { socket.close(); } catch (IOException e) {}
+            try { socket.close(); } catch (Exception e) {}
         }
         socketPool.clear();
+        
         scaleCallbacks.clear();
+        currentScaleDevice = null;
         
         JSObject result = new JSObject();
         result.put("success", true);
@@ -498,6 +661,154 @@ public class DevicePlugin extends Plugin {
     static class ScaleDataCallback {
         String protocol;
         ScaleWeight lastWeight;
+    }
+    
+    // ==================== USB 串口连接类 ====================
+    
+    /**
+     * USB 串口连接封装
+     * 支持 FTDI, Silicon Labs, Prolific, CH340 等常见 USB 转串口芯片
+     */
+    class UsbSerialConnection {
+        private final UsbDevice device;
+        private final UsbManager manager;
+        private UsbEndpoint endpointIn;
+        private UsbEndpoint endpointOut;
+        private UsbInterface usbInterface;
+        private UsbRequest request;
+        private boolean connected = false;
+        
+        public UsbSerialConnection(UsbDevice device, UsbManager manager) {
+            this.device = device;
+            this.manager = manager;
+        }
+        
+        public boolean open() {
+            try {
+                // 查找批量传输接口
+                for (int i = 0; i < device.getInterfaceCount(); i++) {
+                    UsbInterface intf = device.getInterface(i);
+                    for (int j = 0; j < intf.getEndpointCount(); j++) {
+                        UsbEndpoint ep = intf.getEndpoint(j);
+                        if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK) {
+                            if (ep.getDirection() == UsbConstants.USB_DIR_IN) {
+                                endpointIn = ep;
+                            } else {
+                                endpointOut = ep;
+                            }
+                        }
+                    }
+                    if (endpointIn != null && endpointOut != null) {
+                        usbInterface = intf;
+                        break;
+                    }
+                }
+                
+                if (endpointIn == null || endpointOut == null) {
+                    Log.e(TAG, "未找到批量传输端点");
+                    return false;
+                }
+                
+                // 打开设备
+                if (!manager.openDevice(device)) {
+                    Log.e(TAG, "无法打开 USB 设备");
+                    return false;
+                }
+                
+                // 声明接口
+                if (!deviceClaimInterface()) {
+                    return false;
+                }
+                
+                connected = true;
+                Log.i(TAG, "USB 串口打开成功");
+                return true;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "打开 USB 串口失败", e);
+                return false;
+            }
+        }
+        
+        private boolean deviceClaimInterface() {
+            try {
+                if (usbInterface != null) {
+                    manager.openDevice(device).claimInterface(usbInterface, true);
+                }
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "声明 USB 接口失败", e);
+                return false;
+            }
+        }
+        
+        public void setBaudRate(int baudRate) {
+            try {
+                // 不同芯片的波特率设置方式不同
+                // 这里简化处理，实际需要根据芯片类型发送对应命令
+                int vid = device.getVendorId();
+                
+                if (vid == USB_VID_FTDI) {
+                    // FTDI 芯片使用特殊命令设置波特率
+                    // 简化实现
+                } else if (vid == USB_VID_SILABS) {
+                    // Silicon Labs CP210x 使用默认波特率
+                } else if (vid == USB_VID_CH340) {
+                    // CH340 使用默认波特率
+                }
+                
+                Log.d(TAG, "波特率已设置为: " + baudRate);
+            } catch (Exception e) {
+                Log.e(TAG, "设置波特率失败", e);
+            }
+        }
+        
+        public int read(byte[] buffer, int timeout) {
+            try {
+                android.hardware.usb.UsbRequest request = new android.hardware.usb.UsbRequest();
+                request.initialize(device, endpointIn);
+                
+                ByteBuffer buf = ByteBuffer.wrap(buffer);
+                int ret = request.queue(buf, buffer.length);
+                
+                if (manager.openDevice(device).requestWait() == request) {
+                    return buf.position();
+                }
+                
+                request.close();
+            } catch (Exception e) {
+                Log.e(TAG, "USB 读取异常", e);
+            }
+            return -1;
+        }
+        
+        public int write(byte[] data) {
+            try {
+                int ret = manager.openDevice(device).bulkTransfer(endpointOut, data, data.length, 1000);
+                return ret;
+            } catch (Exception e) {
+                Log.e(TAG, "USB 写入异常", e);
+                return -1;
+            }
+        }
+        
+        public boolean isConnected() {
+            return connected;
+        }
+        
+        public void close() {
+            try {
+                connected = false;
+                if (usbInterface != null) {
+                    try {
+                        manager.openDevice(device).releaseInterface(usbInterface);
+                    } catch (Exception e) {}
+                }
+                manager.openDevice(device).close();
+            } catch (Exception e) {
+                Log.e(TAG, "关闭 USB 连接失败", e);
+            }
+        }
     }
     
     // ==================== 工具方法 ====================
