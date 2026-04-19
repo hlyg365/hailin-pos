@@ -450,7 +450,7 @@ public class HailinHardwarePlugin extends Plugin {
     @PluginMethod
     public void printerPrintBarcode(PluginCall call) {
         String data = call.getString("data", "");
-        String type = call.getString("type", "CODE128"); // CODE128, EAN13, CODE39
+        String type = call.getString("type", "CODE128");
         int height = call.getInt("height", 80);
         int width = call.getInt("width", 2);
         
@@ -467,19 +467,19 @@ public class HailinHardwarePlugin extends Plugin {
             // 设置条码高度
             out.write(GS);
             out.write(0x68);
-            out.write(height);
+            out.write(height & 0xFF);
             
             // 设置条码宽度
             out.write(GS);
             out.write(0x77);
-            out.write(width);
+            out.write(width & 0xFF);
             
             // 选择条码类型并打印
             byte[] cmd;
             if ("EAN13".equals(type)) {
-                cmd = new byte[]{GS, 0x6B, 0x02, (byte) (dataBytes.length & 0xFF)};
+                cmd = new byte[]{GS, 0x6B, 0x02, (byte)(dataBytes.length & 0xFF)};
             } else {
-                cmd = new byte[]{GS, 0x6B, 0x00};
+                cmd = new byte[]{GS, 0x6B, 0x00, 0x00};
             }
             out.write(cmd, 0, cmd.length);
             out.write(dataBytes, 0, dataBytes.length);
