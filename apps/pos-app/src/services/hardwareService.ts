@@ -166,74 +166,183 @@ function emit(event: string, data: any): void {
   eventListeners.get(event)?.forEach(cb => cb(data));
 }
 
+// ==================== 扩展类型定义 ====================
+
+// 串口秤配置
+interface SerialScaleConfig {
+  type: 'serial' | 'network' | 'usb';
+  port?: string;        // 串口路径，如 /dev/ttyS1
+  host?: string;        // IP地址（网络秤）
+  baudRate?: number;    // 波特率
+  port?: number;        // TCP端口或串口波特率
+  dataBits?: number;    // 数据位
+  stopBits?: number;    // 停止位
+  parity?: 'none' | 'odd' | 'even';  // 校验位
+  protocol?: 'general' | 'dahua' | 'toieda' | 'soki';  // 秤协议
+}
+
+// USB HID秤配置
+interface USBScaleConfig {
+  vendorId?: number;
+  productId?: number;
+  protocol?: string;
+}
+
 // ==================== 电子秤服务 ====================
 
 export class ScaleService {
   private connected = false;
   private connectionId = 'scale';
+  private connectionType: 'serial' | 'network' | 'usb' = 'network';
   private protocol = 'general';
   private lastWeight: ScaleWeight | null = null;
   private pollingInterval: number | null = null;
   
   /**
-   * 连接电子秤
+   * 连接电子秤（自动识别类型）
+   * options.port: 串口路径或IP地址
+   * options.baudRate: 波特率（串口）或TCP端口（网络）
    */
   async connect(options: {
     port?: string;
     baudRate?: number;
     protocol?: string;
+    type?: 'serial' | 'network' | 'usb';
   } = {}): Promise<boolean> {
-    // 判断是否为网络连接（IP格式）
-    const isNetwork = options.port && (options.port.includes('.') || options.port.includes(':'));
-    const host = isNetwork ? options.port : undefined;
-    const serialPort = isNetwork ? undefined : (options.port || '/dev/ttyS0');
-    const tcpPort = options.baudRate || 9101; // baudRate 被复用为 TCP 端口
-    const baudRate = isNetwork ? 9600 : (options.baudRate || 9600);
+    // 判断连接类型
+    const { port, baudRate = 9600, protocol = 'general', type } = options;
     
-    this.protocol = options.protocol || 'general';
+    // 自动检测：如果 port 包含 IP 格式或 ':'，则为网络连接
+    const isNetwork = port?.includes('.') || port?.includes(':');
+    // 自动检测：如果 port 是 /dev/tty* 格式，则为串口
+    const isSerial = port?.startsWith('/dev/tty') || port?.startsWith('/dev/ttyS');
     
-    console.log(`[秤] 尝试连接: ${isNetwork ? 'TCP' : '串口'}`);
-    if (host) {
-      console.log(`[秤] 主机: ${host}:${tcpPort}`);
+    if (type === 'serial' || isSerial) {
+      return this.connectSerial(port || '/dev/ttyS1', baudRate, protocol);
+    } else if (type === 'usb') {
+      return this.connectUSB(options as USBScaleConfig);
+    } else if (isNetwork) {
+      return this.connectTCP(port!, baudRate, protocol);
+    } else {
+      // 默认尝试串口
+      return this.connectSerial(port || '/dev/ttyS1', baudRate, protocol);
     }
+  }
+  
+  /**
+   * 连接串口秤
+   * @param port 串口路径，如 /dev/ttyS1, /dev/ttyS2
+   * @param baudRate 波特率，如 9600, 19200, 38400
+   */
+  async connectSerial(port: string, baudRate: number, protocol: string): Promise<boolean> {
+    this.protocol = protocol;
+    this.connectionType = 'serial';
+    this.connectionId = 'scale';
+    
+    console.log(`[秤] 连接串口: ${port} @ ${baudRate}bps, 协议: ${protocol}`);
     
     try {
       if (hardwarePlugin) {
-        if (host) {
-          // 网络秤连接
-          console.log(`[秤] 调用原生网络连接: ${host}:${tcpPort}`);
-          const tcpResult = await hardwarePlugin.scaleConnectTcp({
-            host: host,
-            port: tcpPort,
-            protocol: this.protocol
-          });
-          this.connected = tcpResult.success;
-          this.connectionId = 'scale_tcp';
-          console.log(`[秤] 网络连接结果: ${tcpResult.success}`);
-        } else {
-          // 串口连接
-          const result = await hardwarePlugin.scaleConnect({
-            port: serialPort,
-            baudRate: baudRate,
-            protocol: this.protocol
-          });
-          this.connected = result.success;
-          this.connectionId = 'scale_serial';
+        const result = await hardwarePlugin.scaleConnect({
+          port,
+          baudRate,
+          dataBits: 8,
+          stopBits: 1,
+          parity: 'none',
+          protocol
+        });
+        this.connected = result.success;
+        
+        if (this.connected) {
+          console.log(`[秤] 串口连接成功`);
+          on('scaleData', this.handleScaleData);
         }
+        
+        return this.connected;
       } else {
-        // 模拟连接
+        // 模拟模式
         this.connected = true;
-        console.log('[秤] 模拟连接成功');
+        console.log('[秤] 串口模拟连接成功');
+        
+        // 启动模拟数据
+        this.startSimulatedReading();
+        
+        return true;
       }
-      
-      if (this.connected) {
-        // 监听秤数据
-        on('scaleData', this.handleScaleData);
-      }
-      
-      return this.connected;
     } catch (error: any) {
-      console.error('[秤] 连接失败:', error);
+      console.error('[秤] 串口连接失败:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * 连接USB HID电子秤
+   */
+  async connectUSB(config: USBScaleConfig = {}): Promise<boolean> {
+    this.protocol = config.protocol || 'general';
+    this.connectionType = 'usb';
+    
+    console.log(`[秤] 连接USB HID秤: VID=${config.vendorId?.toString(16)}, PID=${config.productId?.toString(16)}`);
+    
+    try {
+      if (hardwarePlugin) {
+        const result = await hardwarePlugin.scaleConnectUSB({
+          vendorId: config.vendorId,
+          productId: config.productId,
+          protocol: this.protocol
+        });
+        
+        if (result.success) {
+          this.connected = true;
+          on('scaleData', this.handleScaleData);
+        } else if (result.needPermission) {
+          console.warn('[秤] 需要USB权限');
+        }
+        
+        return result.success;
+      } else {
+        console.warn('[秤] USB连接需要原生插件');
+        return false;
+      }
+    } catch (error: any) {
+      console.error('[秤] USB连接失败:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * 连接网络电子秤（TCP）
+   */
+  async connectTCP(host: string, port: number, protocol: string): Promise<boolean> {
+    this.protocol = protocol;
+    this.connectionType = 'network';
+    
+    console.log(`[秤] 连接网络秤: ${host}:${port}`);
+    
+    try {
+      if (hardwarePlugin) {
+        const result = await hardwarePlugin.scaleConnectTcp({
+          host,
+          port: port || 9101,
+          protocol
+        });
+        this.connected = result.success;
+        
+        if (this.connected) {
+          console.log('[秤] 网络连接成功');
+          on('scaleData', this.handleScaleData);
+        }
+        
+        return this.connected;
+      } else {
+        // 模拟模式
+        this.connected = true;
+        console.log('[秤] 网络秤模拟连接成功');
+        this.startSimulatedReading();
+        return true;
+      }
+    } catch (error: any) {
+      console.error('[秤] 网络连接失败:', error);
       return false;
     }
   }
@@ -246,6 +355,43 @@ export class ScaleService {
     // 触发重量变化事件
     emit('weightChanged', data);
   };
+  
+  /**
+   * 启动模拟称重（用于开发调试）
+   */
+  private startSimulatedReading(): void {
+    let baseWeight = 0.5;
+    let stable = true;
+    
+    const interval = setInterval(() => {
+      if (!this.connected) {
+        clearInterval(interval);
+        return;
+      }
+      
+      // 模拟重量变化
+      baseWeight += (Math.random() - 0.5) * 0.02;
+      baseWeight = Math.max(0.1, Math.min(10, baseWeight));
+      
+      // 模拟稳定性变化
+      if (Math.random() > 0.95) {
+        stable = !stable;
+      }
+      
+      const weight: ScaleWeight = {
+        weight: Math.round(baseWeight * 1000) / 1000,
+        unit: 'kg',
+        stable,
+        timestamp: Date.now(),
+        raw: `模拟数据`
+      };
+      
+      this.lastWeight = weight;
+      emit('weightChanged', weight);
+      emit('scaleData', weight);
+      
+    }, 500);
+  }
   
   /**
    * 获取当前重量

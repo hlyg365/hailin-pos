@@ -18,9 +18,27 @@ export default function DeviceDebugPage() {
     scannerEnabled: true,
   });
   
-  // 配置
+  // 秤连接类型：serial, network, usb
+  const [scaleType, setScaleType] = useState<'serial' | 'network' | 'usb'>('network');
+  
+  // 串口配置
+  const [serialConfig, setSerialConfig] = useState({
+    port: '/dev/ttyS1',  // 默认使用主板串口2
+    baudRate: 9600,
+    protocol: 'general',
+  });
+  
+  // 网络秤配置
   const [scaleIP, setScaleIP] = useState('192.168.1.100');
   const [scalePort, setScalePort] = useState(9101);
+  
+  // USB配置
+  const [usbConfig, setUSBConfig] = useState({
+    vendorId: 0,
+    productId: 0,
+  });
+  
+  // 打印机配置
   const [printerIP, setPrinterIP] = useState('192.168.1.101');
   const [printerPort, setPrinterPort] = useState(9100);
   
@@ -65,26 +83,54 @@ export default function DeviceDebugPage() {
 
   // 测试连接电子秤
   const testScale = async () => {
-    if (!scaleIP) {
-      addLog('error', '请输入电子秤IP地址');
-      return;
-    }
-    
     setConnecting(true);
-    addLog('info', `正在连接电子秤 ${scaleIP}:${scalePort}...`);
     
     try {
-      const connected = await deviceManager.scale.connect({
-        port: scaleIP,
-        baudRate: scalePort,
-        protocol: 'general'
-      });
+      let connected = false;
+      
+      if (scaleType === 'serial') {
+        // 串口模式
+        addLog('info', `连接串口秤: ${serialConfig.port} @ ${serialConfig.baudRate}bps, 协议: ${serialConfig.protocol}`);
+        
+        connected = await deviceManager.scale.connect({
+          port: serialConfig.port,
+          baudRate: serialConfig.baudRate,
+          protocol: serialConfig.protocol,
+          type: 'serial'
+        });
+      } else if (scaleType === 'usb') {
+        // USB HID模式
+        addLog('info', `连接USB HID秤: VID=${usbConfig.vendorId.toString(16)}, PID=${usbConfig.productId.toString(16)}`);
+        
+        connected = await deviceManager.scale.connect({
+          type: 'usb',
+          vendorId: usbConfig.vendorId,
+          productId: usbConfig.productId,
+          protocol: 'general'
+        });
+      } else {
+        // 网络模式
+        if (!scaleIP) {
+          addLog('error', '请输入电子秤IP地址');
+          setConnecting(false);
+          return;
+        }
+        
+        addLog('info', `连接网络秤: ${scaleIP}:${scalePort}`);
+        
+        connected = await deviceManager.scale.connect({
+          port: scaleIP,
+          baudRate: scalePort,
+          protocol: 'general',
+          type: 'network'
+        });
+      }
       
       if (connected) {
         addLog('success', '电子秤连接成功！');
         deviceManager.scale.startContinuous(500);
       } else {
-        addLog('error', '电子秤连接失败，请检查IP和端口');
+        addLog('error', '电子秤连接失败，请检查配置');
       }
     } catch (e: any) {
       addLog('error', `连接异常: ${e.message}`);
@@ -241,32 +287,158 @@ export default function DeviceDebugPage() {
         {/* 电子秤配置 */}
         <div className="bg-white rounded-lg p-4 shadow">
           <h3 className="font-bold mb-3">⚖️ 电子秤</h3>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <input
-              type="text"
-              value={scaleIP}
-              onChange={(e) => setScaleIP(e.target.value)}
-              placeholder="IP地址"
-              className="px-3 py-2 border rounded"
-            />
-            <input
-              type="number"
-              value={scalePort}
-              onChange={(e) => setScalePort(parseInt(e.target.value) || 9101)}
-              placeholder="端口"
-              className="px-3 py-2 border rounded"
-            />
+          
+          {/* 连接类型选择 */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setScaleType('serial')}
+              className={`px-3 py-1 rounded text-sm ${scaleType === 'serial' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+            >
+              串口 (RS232)
+            </button>
+            <button
+              onClick={() => setScaleType('network')}
+              className={`px-3 py-1 rounded text-sm ${scaleType === 'network' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+            >
+              网络秤 (TCP)
+            </button>
+            <button
+              onClick={() => setScaleType('usb')}
+              className={`px-3 py-1 rounded text-sm ${scaleType === 'usb' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+            >
+              USB HID
+            </button>
+          </div>
+          
+          {scaleType === 'serial' && (
+            /* 串口配置 */
+            <div className="space-y-3 mb-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">串口路径</label>
+                  <select
+                    value={serialConfig.port}
+                    onChange={(e) => setSerialConfig({...serialConfig, port: e.target.value})}
+                    className="w-full px-3 py-2 border rounded"
+                  >
+                    <option value="/dev/ttyS0">/dev/ttyS0 (串口0)</option>
+                    <option value="/dev/ttyS1">/dev/ttyS1 (串口1)</option>
+                    <option value="/dev/ttyS2">/dev/ttyS2 (串口2)</option>
+                    <option value="/dev/ttyS3">/dev/ttyS3 (串口3)</option>
+                    <option value="/dev/ttyS4">/dev/ttyS4 (串口4)</option>
+                    <option value="/dev/ttyS5">/dev/ttyS5 (串口5)</option>
+                    <option value="/dev/ttyS6">/dev/ttyS6 (串口6)</option>
+                    <option value="/dev/ttyS7">/dev/ttyS7 (串口7)</option>
+                    <option value="/dev/ttyS8">/dev/ttyS8 (串口8)</option>
+                    <option value="/dev/ttyS9">/dev/ttyS9 (串口9)</option>
+                    <option value="/dev/ttyACM0">/dev/ttyACM0 (USB ACM)</option>
+                    <option value="/dev/ttyUSB0">/dev/ttyUSB0 (USB转串口)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">波特率</label>
+                  <select
+                    value={serialConfig.baudRate}
+                    onChange={(e) => setSerialConfig({...serialConfig, baudRate: parseInt(e.target.value)})}
+                    className="w-full px-3 py-2 border rounded"
+                  >
+                    <option value="600">600</option>
+                    <option value="1200">1200</option>
+                    <option value="2400">2400</option>
+                    <option value="4800">4800</option>
+                    <option value="9600">9600 (常用)</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="57600">57600</option>
+                    <option value="115200">115200</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">协议</label>
+                <select
+                  value={serialConfig.protocol}
+                  onChange={(e) => setSerialConfig({...serialConfig, protocol: e.target.value})}
+                  className="w-full px-3 py-2 border rounded"
+                >
+                  <option value="general">通用协议</option>
+                  <option value="dahua">大华协议</option>
+                  <option value="toieda">托利多协议</option>
+                  <option value="soki">顶尖协议</option>
+                </select>
+              </div>
+            </div>
+          )}
+          
+          {scaleType === 'network' && (
+            /* 网络秤配置 */
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <input
+                type="text"
+                value={scaleIP}
+                onChange={(e) => setScaleIP(e.target.value)}
+                placeholder="IP地址 (192.168.1.100)"
+                className="px-3 py-2 border rounded"
+              />
+              <input
+                type="number"
+                value={scalePort}
+                onChange={(e) => setScalePort(parseInt(e.target.value) || 9101)}
+                placeholder="端口 (9101)"
+                className="px-3 py-2 border rounded"
+              />
+              <button
+                onClick={testScale}
+                disabled={connecting}
+                className="bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                {connecting ? '连接中...' : '连接'}
+              </button>
+            </div>
+          )}
+          
+          {scaleType === 'usb' && (
+            /* USB HID配置 */
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <input
+                type="text"
+                value={usbConfig.vendorId ? `0x${usbConfig.vendorId.toString(16)}` : ''}
+                onChange={(e) => setUSBConfig({...usbConfig, vendorId: parseInt(e.target.value.replace('0x', ''), 16) || 0})}
+                placeholder="厂商ID (0x1234)"
+                className="px-3 py-2 border rounded"
+              />
+              <input
+                type="text"
+                value={usbConfig.productId ? `0x${usbConfig.productId.toString(16)}` : ''}
+                onChange={(e) => setUSBConfig({...usbConfig, productId: parseInt(e.target.value.replace('0x', ''), 16) || 0})}
+                placeholder="产品ID (0x5678)"
+                className="px-3 py-2 border rounded"
+              />
+              <button
+                onClick={testScale}
+                disabled={connecting}
+                className="bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                {connecting ? '连接中...' : '连接'}
+              </button>
+            </div>
+          )}
+          
+          {(scaleType === 'serial') && (
             <button
               onClick={testScale}
               disabled={connecting}
-              className="bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              className="w-full bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 py-2"
             >
-              {connecting ? '连接中...' : '连接'}
+              {connecting ? '连接中...' : '连接串口秤'}
             </button>
+          )}
+          
+          <div className="mt-2 text-xs text-gray-500">
+            {scaleType === 'serial' && '提示: 安卓一体机通常使用 /dev/ttyS1 或 /dev/ttyS2，波特率多为 9600'}
+            {scaleType === 'network' && '提示: 网络秤默认端口通常为 9101'}
+            {scaleType === 'usb' && '提示: USB HID秤通过USB连接，模拟键盘输入'}
           </div>
-          <p className="text-xs text-gray-500">
-            常见端口: 9101 (网络秤), 8100, 8080
-          </p>
         </div>
 
         {/* 打印机配置 */}
