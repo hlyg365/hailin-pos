@@ -41,6 +41,9 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     
+    // 海邻到家硬件插件
+    implementation project(':hailin-deviceplugin')
+    
     // ==================== 串口通信库 ====================
     // com.github.xmaihh:android-serialport - 支持 Android 串口通信
     // GitHub: https://github.com/xmaihh/android-serialport
