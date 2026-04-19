@@ -42,6 +42,9 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import tp.xmaihh.serialport.SerialHelper;
+import tp.xmaihh.serialport.byteutils.ByteUtils;
+
 /**
  * 海邻到家一体机硬件抽象层 V6.0
  * 
