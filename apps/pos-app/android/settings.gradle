@@ -2,8 +2,4 @@ include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 
-// 海邻到家硬件插件
-include ':hailin-deviceplugin'
-project(':hailin-deviceplugin').projectDir = new File('./app/src/main/java/com/hailin/deviceplugin')
-
 apply from: 'capacitor.settings.gradle'

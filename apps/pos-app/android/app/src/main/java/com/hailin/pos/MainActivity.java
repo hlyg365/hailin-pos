@@ -1,10 +1,8 @@
 package com.hailin.pos;
 
 import android.os.Bundle;
+import android.util.Log;
 import com.getcapacitor.BridgeActivity;
-import com.getcapacitor.Plugin;
-
-import com.hailin.deviceplugin.HailinHardwarePlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -13,5 +11,6 @@ public class MainActivity extends BridgeActivity {
         
         // 手动注册 HailinHardware 原生插件
         registerPlugin(HailinHardwarePlugin.class);
+        Log.i("MainActivity", "HailinHardwarePlugin 已注册");
     }
 }

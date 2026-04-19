@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
     backgroundColor: '#1E40AF', // 蓝色背景
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false,
+    webContentsDebuggingEnabled: true, // 调试模式开启，方便排查问题
   },
   plugins: {
     StatusBar: {
@@ -21,6 +21,7 @@ const config: CapacitorConfig = {
     },
     HailinHardware: {
       // 硬件插件配置
+      enabled: true,
       scaleHost: '192.168.1.100',
       scalePort: 9101,
       printerHost: '192.168.1.101',
