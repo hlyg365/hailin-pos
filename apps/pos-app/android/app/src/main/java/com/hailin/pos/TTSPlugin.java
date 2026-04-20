@@ -310,7 +310,6 @@ public class TTSPlugin extends Plugin implements TextToSpeech.OnInitListener {
             
             focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                     .setAudioAttributes(playbackAttributes)
-                    .setAcceptsDelayedFocusInput(true)
                     .setWillPauseWhenDucked(false)
                     .build();
             
