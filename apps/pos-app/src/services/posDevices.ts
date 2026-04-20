@@ -45,6 +45,13 @@ export interface ScaleReading {
   timestamp: number;
 }
 
+// 称重数据缓存，用于平滑过滤
+interface WeightCache {
+  readings: number[];
+  lastStableWeight: number;
+  lastStableTime: number;
+}
+
 export interface CashDrawerStatus {
   open: boolean;
   lastOpened?: number;
@@ -108,6 +115,16 @@ class SerialScale {
   private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
   private onReadingCallback?: (reading: ScaleReading) => void;
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
+  
+  // 数据平滑过滤
+  private weightCache: WeightCache = {
+    readings: [],
+    lastStableWeight: 0,
+    lastStableTime: 0,
+  };
+  private readonly CACHE_SIZE = 5;      // 缓存最近5次读数
+  private readonly STABLE_THRESHOLD = 0.005; // 稳定阈值 5g
+  private readonly STABLE_TIMEOUT = 2000;    // 稳定判定时间 2秒
   
   get status(): DeviceStatus {
     return { ...this._status };
@@ -346,19 +363,90 @@ class SerialScale {
     }
   }
   
-  // 顶尖协议解析
+  // 顶尖协议解析 (OS2X 系列)
+  // 帧格式: STX(0x02) + 重量ASCII(8字节) + ETX(0x03) + BCC(校验)
+  // 示例: 02 30 30 30 30 30 2E 30 30 03 B4
+  // 重量: "00000.00" = 0.00kg
   private parseSokiProtocol(data: string): ScaleReading | null {
-    // 顶尖格式: U2 01 03 01 000.000 kg\r\n
     try {
-      const match = data.match(/([SU])\s+(\d+\.\d+)\s*(kg|g)/i);
-      if (!match) return null;
+      // 转换为字节数组
+      const bytes: number[] = [];
+      for (let i = 0; i < data.length; i++) {
+        bytes.push(data.charCodeAt(i));
+      }
+      
+      // 检查帧头和帧尾
+      if (bytes[0] !== 0x02 || bytes[bytes.length - 2] !== 0x03) {
+        // 不是标准帧格式，尝试其他解析方式
+        return this.parseSokiAsciiFormat(data);
+      }
+      
+      // 提取重量数据 (字节 1-8)
+      let weightStr = '';
+      for (let i = 1; i < Math.min(9, bytes.length - 1); i++) {
+        weightStr += String.fromCharCode(bytes[i]);
+      }
+      
+      // 解析重量值
+      const weight = parseFloat(weightStr);
+      if (isNaN(weight)) return null;
+      
+      // 提取稳定状态 (从字节 9 或重量字符串判断)
+      // 通常 S = 稳定, U = 不稳定
+      const statusByte = bytes[9] || 0x53; // 默认稳定
+      const stable = (statusByte === 0x53 || statusByte === 0x73); // 'S' or 's'
       
       return {
-        weight: parseFloat(match[2]),
-        unit: match[3].toLowerCase() as 'kg' | 'g',
-        stable: match[1] === 'S',
+        weight,
+        unit: 'kg',
+        stable,
         timestamp: Date.now(),
       };
+    } catch {
+      // 尝试 ASCII 格式解析
+      return this.parseSokiAsciiFormat(data);
+    }
+  }
+  
+  // 顶尖协议 ASCII 格式解析
+  // 格式: U 000.000 kg 或 000.000kg
+  private parseSokiAsciiFormat(data: string): ScaleReading | null {
+    try {
+      // 尝试多种格式
+      // 格式1: "S 000.000 kg"
+      let match = data.match(/([SU])\s+(\d+\.\d+)\s*(kg|g)/i);
+      if (match) {
+        return {
+          weight: parseFloat(match[2]),
+          unit: match[3].toLowerCase() as 'kg' | 'g',
+          stable: match[1].toUpperCase() === 'S',
+          timestamp: Date.now(),
+        };
+      }
+      
+      // 格式2: "000.000kg" 或 "000.000 kg"
+      match = data.match(/(\d+\.?\d*)\s*(kg|g)/i);
+      if (match) {
+        return {
+          weight: parseFloat(match[1]),
+          unit: match[2].toLowerCase() as 'kg' | 'g',
+          stable: true, // ASCII 格式默认稳定
+          timestamp: Date.now(),
+        };
+      }
+      
+      // 格式3: 纯数字
+      const num = parseFloat(data.trim());
+      if (!isNaN(num)) {
+        return {
+          weight: Math.abs(num),
+          unit: 'kg',
+          stable: true,
+          timestamp: Date.now(),
+        };
+      }
+      
+      return null;
     } catch {
       return null;
     }

@@ -1148,16 +1148,42 @@ public class HailinHardwarePlugin extends Plugin {
         }
         
         void parseScaleData(byte[] data, int len) {
-            String raw = new String(data, 0, len);
-            Log.d(TAG, "秤原始数据: " + raw);
+            // 记录原始十六进制数据用于调试
+            StringBuilder hexBuilder = new StringBuilder();
+            for (int i = 0; i < len; i++) {
+                hexBuilder.append(String.format("%02X ", data[i]));
+            }
+            String hexDump = hexBuilder.toString();
+            Log.d(TAG, "秤原始数据[HEX]: " + hexDump);
             
-            // 解析秤协议数据
-            // 通用协议格式: ST,GS,+0.500,kg\r\n
+            // 尝试解析顶尖OS2二进制协议
+            // 格式: STX(0x02) + 重量ASCII + ETX(0x03) + BCC校验
+            // 例如: 02 30 30 30 30 30 2E 30 30 03 B4
+            ScaleWeight weight = parseSokiProtocol(data, len);
+            
+            if (weight != null) {
+                serial.lastWeight = weight;
+                
+                // 发送重量事件
+                JSObject event = new JSObject();
+                event.put("weight", weight.weight);
+                event.put("unit", weight.unit);
+                event.put("stable", weight.stable);
+                event.put("timestamp", weight.timestamp);
+                notifyListeners("scaleData", event);
+                return;
+            }
+            
+            // 备选：尝试解析通用文本协议
+            // 格式: ST,GS,+0.500,kg\r\n
+            String raw = new String(data, 0, len);
+            Log.d(TAG, "秤原始数据[TXT]: " + raw);
+            
             Pattern pattern = Pattern.compile("(ST|GS),([0-9]),([+-]?\\d+\\.\\d{3}),(\\w+)");
             Matcher matcher = pattern.matcher(raw);
             
             if (matcher.find()) {
-                ScaleWeight weight = new ScaleWeight();
+                weight = new ScaleWeight();
                 weight.weight = Double.parseDouble(matcher.group(3));
                 weight.unit = matcher.group(4);
                 weight.stable = "GS".equals(matcher.group(1));
@@ -1172,6 +1198,87 @@ public class HailinHardwarePlugin extends Plugin {
                 event.put("stable", weight.stable);
                 event.put("timestamp", weight.timestamp);
                 notifyListeners("scaleData", event);
+            }
+        }
+        
+        /**
+         * 解析顶尖OS2二进制协议
+         * 帧格式: STX(0x02) + 8字节重量ASCII + ETX(0x03) + BCC校验
+         * 例如: 02 30 30 30 30 30 2E 30 30 03 B4
+         *       -> "00000.00" = 0.00 kg
+         */
+        ScaleWeight parseSokiProtocol(byte[] data, int len) {
+            if (len < 5) return null;
+            
+            // 查找STX(0x02)和ETX(0x03)位置
+            int stxIndex = -1;
+            int etxIndex = -1;
+            
+            for (int i = 0; i < len; i++) {
+                if (data[i] == 0x02) {
+                    stxIndex = i;
+                } else if (data[i] == 0x03) {
+                    etxIndex = i;
+                    break;
+                }
+            }
+            
+            // 必须找到STX和ETX
+            if (stxIndex < 0 || etxIndex < 0 || etxIndex <= stxIndex) {
+                // 检查是否是纯ASCII格式 (例如 " 0.510 kg")
+                String raw = new String(data, 0, len).trim();
+                if (raw.matches("[\\s0-9.-]+kg")) {
+                    ScaleWeight w = new ScaleWeight();
+                    w.unit = "kg";
+                    w.stable = true;
+                    w.timestamp = System.currentTimeMillis();
+                    // 提取数字部分
+                    String numStr = raw.replaceAll("[^0-9.-]", "");
+                    try {
+                        w.weight = Double.parseDouble(numStr);
+                        return w;
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                }
+                return null;
+            }
+            
+            // 提取重量数据部分 (STX之后, ETX之前)
+            int weightStart = stxIndex + 1;
+            int weightLen = etxIndex - weightStart;
+            
+            if (weightLen < 4) return null;
+            
+            try {
+                String weightStr = new String(data, weightStart, weightLen, "US-ASCII");
+                Log.d(TAG, "OS2重量字符串: '" + weightStr + "'");
+                
+                // 重量字符串格式可能是:
+                // "00000.00" -> 0.00 kg
+                // "00001.235" -> 1.235 kg
+                // 去除前后空白
+                weightStr = weightStr.trim();
+                
+                ScaleWeight w = new ScaleWeight();
+                w.weight = Double.parseDouble(weightStr);
+                w.unit = "kg";
+                w.stable = true; // OS2协议，稳定位在状态字节中
+                w.timestamp = System.currentTimeMillis();
+                
+                // 检查状态字节（如果有）
+                if (etxIndex + 1 < len) {
+                    byte status = data[etxIndex + 1];
+                    // 稳定 = 0x0D, 不稳定 = 0x00 (或其他)
+                    w.stable = (status & 0x40) != 0; // 根据实际协议调整
+                }
+                
+                Log.d(TAG, "OS2解析成功: " + w.weight + " " + w.unit + " 稳定:" + w.stable);
+                return w;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "OS2协议解析失败: " + e.getMessage());
+                return null;
             }
         }
         

@@ -182,6 +182,8 @@ export default function CashierPage() {
     scannerEnabled: true,
   });
   const [isConnectingDevices, setIsConnectingDevices] = useState(false);
+  // 秤数据状态 - 用于触发重渲染显示实时重量
+  const [scaleWeight, setScaleWeight] = useState<{ weight: number; unit: string; stable: boolean } | null>(null);
 
   // 计算购物车金额
   // 购物车状态订阅（响应式）
@@ -288,9 +290,11 @@ export default function CashierPage() {
       handleBarcodeScan(data.barcode);
     });
     
-    // 监听秤数据事件，显示原始十六进制用于调试
+    // 监听秤数据事件，触发UI更新
     deviceEvents.on('weightChanged', (data: { weight: number; unit: string; stable: boolean; raw?: string; timestamp: number }) => {
       console.log('[收银台] 秤数据:', data);
+      // 更新秤数据状态以触发重渲染
+      setScaleWeight({ weight: data.weight, unit: data.unit, stable: data.stable });
       // 开发模式下显示原始十六进制数据
       if (data.raw) {
         console.log('[秤原始数据]', data.raw);
@@ -597,8 +601,16 @@ export default function CashierPage() {
                     <div className="flex items-center gap-3 sm:gap-6">
                       <div className="text-right">
                         <p className="text-xs sm:text-sm opacity-80">当前重量</p>
-                        <p className="text-2xl sm:text-4xl font-bold">0.000</p>
-                        <p className="text-xs sm:text-sm opacity-80">kg</p>
+                        <p className={`text-2xl sm:text-4xl font-bold ${deviceStatuses.scaleConnected ? 'text-yellow-200' : 'text-red-200'}`}>
+                          {deviceStatuses.scaleConnected 
+                            ? (scaleWeight ? scaleWeight.weight.toFixed(3) : (deviceManager.scale.currentWeight?.weight?.toFixed(3) || '0.000'))
+                            : '---'}
+                        </p>
+                        <p className="text-xs sm:text-sm opacity-80">
+                          {deviceStatuses.scaleConnected 
+                            ? (scaleWeight ? (scaleWeight.stable ? 'kg ✓' : 'kg (不稳定)') : (deviceManager.scale.currentWeight?.stable ? 'kg ✓' : 'kg (不稳定)'))
+                            : '未连接'}
+                        </p>
                       </div>
                       <div className="text-right border-l border-white/30 pl-3 sm:pl-6 hidden sm:block">
                         <p className="text-sm opacity-80">商品金额</p>
@@ -680,8 +692,8 @@ export default function CashierPage() {
                   {filteredProducts.map(product => (
                     <button key={product.id} onClick={() => {
                       if (!product.isStandard) {
-                        // 非标品（称重商品）使用电子秤数据或默认1kg
-                        const currentWeight = deviceManager.scale.currentWeight?.weight || 1;
+                        // 非标品（称重商品）使用秤数据或默认1kg
+                        const currentWeight = scaleWeight?.weight || deviceManager.scale.currentWeight?.weight || 1;
                         addItem(product, currentWeight);
                         // 添加后直接使用 totals.total（已自动更新）
                         deviceManager.customerDisplay.showAmount(totals.total + product.retailPrice * currentWeight, product.name);
