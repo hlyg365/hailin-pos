@@ -1092,7 +1092,7 @@ public class HailinHardwarePlugin extends Plugin {
         boolean isStable = false;
         
         // 归零检测
-        static final double ZERO_THRESHOLD = 0.02;  // 20g 以下认为是零
+        static final double ZERO_THRESHOLD = 0.005;  // 5g 以下认为是零
         long lastNonZeroTime = 0;
         
         void reset() {
