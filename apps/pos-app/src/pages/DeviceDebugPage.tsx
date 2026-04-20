@@ -194,7 +194,7 @@ export default function DeviceDebugPage() {
         addLog('info', '请检查:');
         addLog('info', '1. 电子秤是否已开机');
         addLog('info', '2. 串口线是否连接正确');
-        addLog('info', `3. 波特率是否匹配 (${baudRate || 2400})`);
+        addLog('info', `3. 波特率是否匹配 (${serialConfig.baudRate || 2400})`);
         addLog('info', '4. 是否使用了正确的串口号');
       }
     } catch (e: any) {
