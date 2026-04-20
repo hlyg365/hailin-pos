@@ -204,11 +204,34 @@ cd apps/pos-app
 pnpm dev
 ```
 
-### 构建
+### 构建并发布 APK
 ```bash
 cd apps/pos-app
 pnpm build
+rm -f public/*.apk
+npx cap sync android
+# 修复Java版本
+find android -name "*.gradle" -exec sed -i 's/VERSION_21/VERSION_17/g' {} \; 2>/dev/null
+cd android && ./gradlew assembleDebug
+# 复制APK
+cp android/app/build/outputs/apk/debug/app-debug.apk public/hailin-pos-vX.X.XXX.apk
+# 上传到对象存储（必须提供外网下载地址）
+cd apps/pos-app && node scripts/upload-apk.mjs
 ```
+
+### APK 下载地址规范
+**重要：每次构建APK后，必须上传到对象存储并提供外网下载地址！**
+
+使用 `scripts/upload-apk.mjs` 脚本自动上传：
+```bash
+node scripts/upload-apk.mjs
+```
+
+脚本会自动：
+1. 找到最新的APK文件
+2. 上传到对象存储
+3. 生成7天有效的签名URL
+4. 输出外网下载地址
 
 ---
 
