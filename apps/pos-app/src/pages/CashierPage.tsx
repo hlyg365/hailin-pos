@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useProductStore, useMemberStore, useOrderStore, useFinanceStore, useOfflineStore, useStoreStore, useAiConfigStore, useDeviceConfigStore } from '../store';
 import { deviceManager, deviceEvents, type DeviceStatus } from '../services/hardwareService';
+import { cashTTS } from '../services/ttsService';
 import type { Product } from '../types';
 
 // 检查清货模式
@@ -471,6 +472,9 @@ export default function CashierPage() {
       
       // 4. 更新客显屏 - 显示收款成功
       deviceManager.customerDisplay.showAmount(order.finalAmount, '支付成功');
+      
+      // 5. 语音播报 - 收款成功
+      cashTTS.paymentSuccess(order.finalAmount, selectedPay);
       
       // 完成
       setShowPayModal(false);
