@@ -329,6 +329,58 @@ export default function SettingsPage() {
             {/* 串口配置 */}
             {deviceConfig.scale.type === 'serial' && (
               <>
+                {/* 串口选择 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">选择串口设备</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={deviceConfig.scale.port || '/dev/ttyS0'}
+                      onChange={(e) => {
+                        deviceConfig.updateConfig('scale', { port: parseInt(e.target.value) || 0, address: e.target.value });
+                        addLog('info', `选择串口: ${e.target.value}`);
+                      }}
+                      className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="/dev/ttyS0">串口0 (ttyS0)</option>
+                      <option value="/dev/ttyS1">串口1 (ttyS1)</option>
+                      <option value="/dev/ttyUSB0">USB转串口0 (ttyUSB0)</option>
+                      <option value="/dev/ttyUSB1">USB转串口1 (ttyUSB1)</option>
+                      <option value="/dev/ttyUSB2">USB转串口2 (ttyUSB2)</option>
+                      <option value="/dev/ttyACM0">ACM串口0 (ttyACM0)</option>
+                      <option value="/dev/ttyACM1">ACM串口1 (ttyACM1)</option>
+                    </select>
+                    <button
+                      onClick={async () => {
+                        addLog('info', '正在检测电子秤...');
+                        // 使用Android原生插件检测秤
+                        if ((window as any).HailinHardware) {
+                          try {
+                            const result = await (window as any).HailinHardware.detectScale({
+                              port: deviceConfig.scale.address || '/dev/ttyS0',
+                              baudRate: deviceConfig.scale.baudRate || 2400,
+                            });
+                            if (result.success) {
+                              addLog('success', `检测到电子秤: ${result.deviceInfo || '顶尖OS2'}`);
+                            } else {
+                              addLog('error', `检测失败: ${result.error || '未找到设备'}`);
+                            }
+                          } catch (e: any) {
+                            addLog('error', `检测异常: ${e.message}`);
+                          }
+                        } else {
+                          addLog('warn', 'Android原生插件未加载，请确保APP已更新');
+                        }
+                      }}
+                      className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
+                    >
+                      检测
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    常用串口: ttyS0(主板串口)、ttyUSB0(CH340)、ttyACM0(USB Modem)
+                  </p>
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">通讯协议</label>
@@ -363,12 +415,12 @@ export default function SettingsPage() {
                 </div>
                 
                 <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                  💡 顶尖OS2系列默认波特率2400，请确保与电子秤本机设置一致
+                  💡 顶尖OS2系列: 协议=soki, 波特率=2400
                 </p>
                 
                 {!('serial' in navigator) && (
-                  <div className="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
-                    ⚠️ Web Serial API 需要Chrome/Edge等现代浏览器支持
+                  <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                    ℹ️ 将使用Android原生USB Serial插件连接
                   </div>
                 )}
               </>

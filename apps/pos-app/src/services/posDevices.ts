@@ -139,6 +139,11 @@ class SerialScale {
     return 'serial' in navigator;
   }
   
+  // 检查是否在Android原生环境
+  private static isAndroidNative(): boolean {
+    return typeof window !== 'undefined' && !!(window as any).HailinHardware;
+  }
+  
   // 获取可用串口列表
   async getAvailablePorts(): Promise<SerialPort[]> {
     if (!SerialScale.isSupported()) {
@@ -153,8 +158,16 @@ class SerialScale {
     }
   }
   
-  // 请求串口权限并连接
+  // 请求串口权限并连接（优先使用Android原生插件）
   async requestAndConnect(config: ScaleConfig): Promise<boolean> {
+    this.config = config;
+    
+    // 优先使用Android原生USB Serial插件
+    if (SerialScale.isAndroidNative()) {
+      return await this.connectAndroidNative(config);
+    }
+    
+    // 回退到Web Serial API
     if (!SerialScale.isSupported()) {
       this._status = { connected: false, online: false, error: '浏览器不支持Web Serial API' };
       return false;
@@ -178,6 +191,106 @@ class SerialScale {
         this._status = { connected: false, online: false, error: error.message };
       }
       return false;
+    }
+  }
+  
+  // Android原生USB Serial连接
+  private async connectAndroidNative(config: ScaleConfig): Promise<boolean> {
+    console.log('[秤] 使用Android原生USB Serial连接');
+    
+    try {
+      const hailin = (window as any).HailinHardware;
+      
+      // 使用Android原生串口连接
+      const result = await hailin.scaleConnect({
+        port: config.port || '/dev/ttyS0',
+        baudRate: config.baudRate || 2400,
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+        protocol: config.protocol || 'soki',
+      });
+      
+      if (result.success) {
+        console.log('[秤] Android原生串口连接成功');
+        this._status = { connected: true, online: true };
+        
+        // 启动数据监听
+        this.startAndroidNativeListener();
+        
+        return true;
+      } else {
+        console.error('[秤] Android原生串口连接失败:', result.error || result.message);
+        this._status = { connected: false, online: false, error: result.error || '连接失败' };
+        return false;
+      }
+    } catch (error: any) {
+      console.error('[秤] Android原生串口连接异常:', error);
+      this._status = { connected: false, online: false, error: error.message };
+      return false;
+    }
+  }
+  
+  // Android原生数据监听
+  private startAndroidNativeListener(): void {
+    const hailin = (window as any).HailinHardware;
+    if (!hailin) return;
+    
+    // 监听秤数据事件
+    hailin.addListener('scaleData', (data: any) => {
+      if (data && typeof data.weight === 'number') {
+        this.processRawData(data.weight, data.unit || 'kg', data.stable, data.raw);
+      }
+    });
+    
+    hailin.addListener('scaleWeight', (data: any) => {
+      if (data && typeof data.weight === 'number') {
+        this.processRawData(data.weight, data.unit || 'kg', data.stable, null);
+      }
+    });
+    
+    // 监听设备状态变化
+    hailin.addListener('scaleStatus', (data: any) => {
+      if (data) {
+        this._status.online = data.online !== false;
+        this._status.connected = data.connected !== false;
+        if (data.error) {
+          this._status.error = data.error;
+        }
+      }
+    });
+    
+    console.log('[秤] Android原生数据监听已启动');
+  }
+  
+  // 处理原始秤数据
+  private processRawData(weight: number, unit: string, stable: boolean, raw?: string): void {
+    // 数据平滑处理
+    this.weightCache.readings.push({ weight, timestamp: Date.now() });
+    if (this.weightCache.readings.length > this.CACHE_SIZE) {
+      this.weightCache.readings.shift();
+    }
+    
+    // 计算平均重量
+    const avgWeight = this.weightCache.readings.reduce((sum, r) => sum + r.weight, 0) / this.weightCache.readings.length;
+    
+    // 判断稳定性
+    const isStable = this.isWeightStable(avgWeight);
+    
+    this.lastReading = {
+      weight: avgWeight,
+      unit,
+      stable: isStable,
+      timestamp: Date.now(),
+    };
+    
+    if (raw) {
+      console.log('[秤] 原始数据:', raw);
+    }
+    
+    // 回调通知
+    if (this.onReadingCallback) {
+      this.onReadingCallback(this.lastReading);
     }
   }
   
