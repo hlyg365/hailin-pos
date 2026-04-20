@@ -126,14 +126,41 @@ interface HailinHardwarePlugin {
 
 // 尝试获取原生插件
 let hardwarePlugin: HailinHardwarePlugin | null = null;
+let pluginRetryCount = 0;
+const MAX_PLUGIN_RETRIES = 10;
 
-if (Capacitor.isNativePlatform()) {
-  try {
-    hardwarePlugin = registerPlugin('HailinHardware') as HailinHardwarePlugin;
-    console.log('[硬件服务] HailinHardware 原生插件已加载');
-  } catch (e) {
-    console.warn('[硬件服务] HailinHardware 原生插件未安装，将使用模拟实现');
+// 获取插件，带重试机制
+function getHardwarePlugin(): HailinHardwarePlugin | null {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      // 使用 Capacitor.getPlugin 获取已注册的插件
+      const plugin = (Capacitor as any).Plugins?.HailinHardware;
+      if (plugin) {
+        console.log('[硬件服务] HailinHardware 原生插件已加载');
+        return plugin as HailinHardwarePlugin;
+      }
+    } catch (e) {
+      console.warn('[硬件服务] 获取 HailinHardware 插件失败:', e);
+    }
   }
+  return null;
+}
+
+// 初始化插件
+hardwarePlugin = getHardwarePlugin();
+
+// 如果插件未立即可用，设置定时器重试
+if (!hardwarePlugin && Capacitor.isNativePlatform()) {
+  const retryInterval = setInterval(() => {
+    pluginRetryCount++;
+    hardwarePlugin = getHardwarePlugin();
+    if (hardwarePlugin || pluginRetryCount >= MAX_PLUGIN_RETRIES) {
+      clearInterval(retryInterval);
+      if (!hardwarePlugin) {
+        console.warn('[硬件服务] HailinHardware 原生插件未安装，将使用模拟实现');
+      }
+    }
+  }, 500);
 }
 
 // ==================== 事件总线 ====================
@@ -141,15 +168,20 @@ if (Capacitor.isNativePlatform()) {
 type EventCallback = (data: any) => void;
 const eventListeners: Map<string, Set<EventCallback>> = new Map();
 
-// 转发原生事件到前端
-if (hardwarePlugin) {
-  hardwarePlugin.addListener('scaleData', (data) => {
-    emit('scaleData', data);
-  });
-  hardwarePlugin.addListener('barcodeScanned', (data) => {
-    emit('barcodeScanned', data);
-  });
+// 转发原生事件到前端（延迟绑定，等待插件初始化）
+function bindPluginListeners() {
+  if (hardwarePlugin) {
+    hardwarePlugin.addListener('scaleData', (data) => {
+      emit('scaleData', data);
+    });
+    hardwarePlugin.addListener('barcodeScanned', (data) => {
+      emit('barcodeScanned', data);
+    });
+  }
 }
+
+// 延迟绑定事件
+setTimeout(bindPluginListeners, 1000);
 
 function on(event: string, callback: EventCallback): void {
   if (!eventListeners.has(event)) {
