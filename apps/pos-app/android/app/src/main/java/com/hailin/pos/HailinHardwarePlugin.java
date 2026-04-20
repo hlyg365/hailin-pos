@@ -93,6 +93,13 @@ public class HailinHardwarePlugin extends Plugin {
         
         executor.execute(() -> {
             try {
+                // 首先断开已有连接，避免端口占用
+                SerialConnection existingSerial = serialPool.remove("scale");
+                if (existingSerial != null) {
+                    Log.d(TAG, "[秤] 关闭已有串口连接");
+                    existingSerial.close();
+                }
+                
                 // 尝试USB转串口连接
                 SerialConnection serial = new SerialConnection();
                 boolean connected = serial.connect(port, baudRate, dataBits, stopBits, parity);
@@ -165,15 +172,18 @@ public class HailinHardwarePlugin extends Plugin {
         int baudRate = call.getInt("baudRate", 2400);
         
         executor.execute(() -> {
+            SerialConnection serial = null;
             try {
                 Log.i(TAG, "[秤] 检测电子秤: " + port + " @ " + baudRate);
                 
                 // 使用 SerialConnection 的正确方式
-                SerialConnection serial = new SerialConnection();
+                serial = new SerialConnection();
                 boolean connected = serial.connect(port, baudRate, 8, 1, "NONE");
                 
                 if (connected) {
-                    serialPool.put("scale", serial);
+                    // 检测成功，但不要在这里持有连接，让scaleConnect来管理
+                    serial.close();
+                    serial = null;
                     
                     JSObject result = new JSObject();
                     result.put("success", true);
@@ -202,6 +212,11 @@ public class HailinHardwarePlugin extends Plugin {
                 call.resolve(result);
                 
                 Log.e(TAG, "[秤] 检测异常: " + e.getMessage());
+            } finally {
+                // 确保连接被关闭
+                if (serial != null) {
+                    serial.close();
+                }
             }
         });
     }
@@ -1233,8 +1248,11 @@ public class HailinHardwarePlugin extends Plugin {
                     input = new FileInputStream(device);
                     output = new FileOutputStream(device);
                     
-                    // 尝试通过反射设置串口参数
-                    setBaudRate(port, baudRate);
+                    // 尝试通过stty命令设置串口参数
+                    boolean baudSet = setBaudRate(port, baudRate);
+                    if (!baudSet) {
+                        Log.w(TAG, "波特率设置失败，串口可能使用默认波特率，这可能导致电子秤无法正常通信");
+                    }
                     
                     connected = true;
                     Log.d(TAG, "串口连接成功: " + port);
@@ -1252,28 +1270,70 @@ public class HailinHardwarePlugin extends Plugin {
             }
         }
         
-        // 通过反射设置波特率
-        private void setBaudRate(String port, int baudRate) {
+        // 通过stty命令设置波特率
+        private boolean setBaudRate(String port, int baudRate) {
             try {
-                // Android串口设备路径通常是 /dev/ttyS* 或 /dev/ttyUSB*
-                // 波特率需要通过ioctl设置，这里简化处理
-                Log.d(TAG, "尝试设置波特率: " + baudRate);
+                Log.d(TAG, "使用stty设置波特率: " + port + " @ " + baudRate);
                 
-                // 获取SerialPort的波特率常量
-                int[] baudRates = {0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400};
-                int[] baudRateConstants = {0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400};
+                // 首先尝试用stty命令设置波特率
+                // stty命令格式: stty -F /dev/ttyS0 2400 raw
+                String sttyCmd = "stty -F " + port + " " + baudRate + " raw -echo -echoe -echok -echoctl -echoke";
+                Log.d(TAG, "执行命令: " + sttyCmd);
                 
-                // 尝试使用反射访问Termios
-                try {
-                    Class<?> termiosClass = Class.forName("android.system.Termios");
-                    // Termios设置需要native调用，这里只记录日志
-                    Log.d(TAG, "Termios类可用，尝试设置波特率...");
-                } catch (ClassNotFoundException e) {
-                    Log.d(TAG, "Termios类不可用，跳过波特率设置");
+                Process process = Runtime.getRuntime().exec(sttyCmd);
+                int exitCode = process.waitFor();
+                
+                if (exitCode == 0) {
+                    Log.d(TAG, "stty波特率设置成功: " + baudRate);
+                    return true;
+                } else {
+                    // 读取错误信息
+                    BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+                    StringBuilder errorMsg = new StringBuilder();
+                    String line;
+                    while ((line = errorReader.readLine()) != null) {
+                        errorMsg.append(line).append("\n");
+                    }
+                    Log.e(TAG, "stty设置失败，退出码: " + exitCode + ", 错误: " + errorMsg.toString());
+                    
+                    // 尝试备选方案：使用setserial
+                    return trySetSerial(port, baudRate);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "stty命令执行异常", e);
+                return false;
+            }
+        }
+        
+        // 备选方案：使用setserial命令
+        private boolean trySetSerial(String port, int baudRate) {
+            try {
+                // setserial命令格式: setserial -v /dev/ttyS0 spd_cust divisor 2400
+                // 有些系统需要特殊处理
+                String[] cmds = {
+                    "setserial -v " + port + " baud_base 2400 spd_cust divisor 5",
+                    "stty -F " + port + " 2400"
+                };
+                
+                for (String cmd : cmds) {
+                    try {
+                        Log.d(TAG, "尝试备选命令: " + cmd);
+                        Process process = Runtime.getRuntime().exec(cmd);
+                        int exitCode = process.waitFor();
+                        if (exitCode == 0) {
+                            Log.d(TAG, "备选命令成功: " + cmd);
+                            return true;
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "备选命令失败: " + cmd + " - " + e.getMessage());
+                    }
                 }
                 
+                Log.w(TAG, "所有波特率设置方法都失败，将使用默认波特率");
+                return false;
             } catch (Exception e) {
-                Log.e(TAG, "设置波特率失败", e);
+                Log.e(TAG, "setserial执行异常", e);
+                return false;
             }
         }
         
