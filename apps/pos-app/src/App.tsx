@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import CashierPage from './pages/CashierPage';
@@ -15,25 +16,36 @@ import AuthPage from './pages/AuthPage';
 import CustomerDisplay from './pages/CustomerDisplay';
 import DeviceDebugPage from './pages/DeviceDebugPage';
 import { useEmployeeStore } from './store';
-import { Capacitor } from '@capacitor/core';
 
-// 收银台认证守卫 - 未登录时直接显示收银台（收银台页面自己处理）
+// 检测是否为原生APP - 使用useState在组件内检测更可靠
+function useIsNativeApp() {
+  const [isNative] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    // 检查Capacitor
+    const hasCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
+    // 检查UserAgent
+    const isMobileUA = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    // 检查URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceApp = urlParams.get('app') === '1';
+    return hasCapacitor || isMobileUA || forceApp;
+  });
+  return isNative;
+}
+
+// 收银台认证守卫
 function CashierAuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 检测是否为原生APP
-const isNativeApp = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
-
-// 默认路由 - 根据平台决定行为
+// 默认路由
 function DefaultRoute() {
+  const isNativeApp = useIsNativeApp();
+  
   if (isNativeApp) {
-    // 原生APP端：直接显示收银台登录页
     return <Navigate to="/pos/login" replace />;
-  } else {
-    // Web端：显示首页
-    return <HomePage />;
   }
+  return <HomePage />;
 }
 
 function App() {
