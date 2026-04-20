@@ -17,31 +17,19 @@ import DeviceDebugPage from './pages/DeviceDebugPage';
 import { useEmployeeStore } from './store';
 import { Capacitor } from '@capacitor/core';
 
-// 收银台认证守卫 - 未登录显示收银台登录页
+// 收银台认证守卫 - 未登录时直接显示收银台（收银台页面自己处理）
 function CashierAuthGuard({ children }: { children: React.ReactNode }) {
-  const { currentEmployee } = useEmployeeStore();
-  
-  if (!currentEmployee) {
-    // 未登录，显示收银台登录页
-    return <Navigate to="/pos/login" replace />;
-  }
-  
   return <>{children}</>;
 }
 
 // 检测是否为原生APP
-const isNativeApp = Capacitor.isNativePlatform();
+const isNativeApp = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
 
 // 默认路由 - 根据平台决定行为
 function DefaultRoute() {
-  const { currentEmployee } = useEmployeeStore();
-  
   if (isNativeApp) {
-    // 原生APP端：已登录直接进入收银台，未登录进入收银台登录页
-    if (currentEmployee) {
-      return <Navigate to="/pos/cashier" replace />;
-    }
-    return <Navigate to="/pos/cashier" replace />;
+    // 原生APP端：直接显示收银台登录页
+    return <Navigate to="/pos/login" replace />;
   } else {
     // Web端：显示首页
     return <HomePage />;
