@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 5000;
-const ROOT = '/workspace/projects/apps/pos-app/dist';
+const DIST_DIR = '/workspace/projects/apps/pos-app/dist';
+const PUBLIC_DIR = '/workspace/projects/apps/pos-app/public';
 
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -18,7 +19,13 @@ const mimeTypes = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(ROOT, req.url === '/' ? 'index.html' : req.url);
+  // 先检查dist目录
+  let filePath = path.join(DIST_DIR, req.url === '/' ? 'index.html' : req.url);
+  
+  // 如果dist中没有，检查public目录
+  if (!fs.existsSync(filePath)) {
+    filePath = path.join(PUBLIC_DIR, req.url);
+  }
   
   if (!fs.existsSync(filePath)) {
     res.writeHead(404);

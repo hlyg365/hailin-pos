@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import CashierPage from './pages/CashierPage';
@@ -17,35 +17,30 @@ import CustomerDisplay from './pages/CustomerDisplay';
 import DeviceDebugPage from './pages/DeviceDebugPage';
 import { useEmployeeStore } from './store';
 
-// 检测是否为原生APP - 使用useState在组件内检测更可靠
-function useIsNativeApp() {
-  const [isNative] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    // 检查Capacitor
-    const hasCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
-    // 检查UserAgent
-    const isMobileUA = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    // 检查URL参数
-    const urlParams = new URLSearchParams(window.location.search);
-    const forceApp = urlParams.get('app') === '1';
-    return hasCapacitor || isMobileUA || forceApp;
-  });
-  return isNative;
-}
-
 // 收银台认证守卫
 function CashierAuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 默认路由
+// 默认路由 - APP直接进入收银台登录页，PC显示首页
 function DefaultRoute() {
-  const isNativeApp = useIsNativeApp();
+  // 检查是否在Android APP中运行
+  const isAndroidApp = typeof window !== 'undefined' && 
+    /Android/.test(navigator.userAgent) &&
+    (window as any).Capacitor?.Plugins?.AppInfo !== undefined;
   
-  if (isNativeApp) {
+  // 简化的检测：只要有Capacitor就认为是APP
+  const hasCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+  
+  console.log('[路由] isAndroidApp:', isAndroidApp, 'hasCapacitor:', hasCapacitor, 'userAgent:', navigator.userAgent);
+  
+  if (hasCapacitor) {
+    // APP端：直接进入收银台登录页
     return <Navigate to="/pos/login" replace />;
+  } else {
+    // PC端：显示首页
+    return <HomePage />;
   }
-  return <HomePage />;
 }
 
 function App() {
