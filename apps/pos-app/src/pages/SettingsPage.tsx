@@ -422,8 +422,89 @@ export default function SettingsPage() {
                   💡 顶尖OS2系列: 协议=soki, 波特率=2400
                 </p>
                 
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700 mb-4">
+                  <div className="font-medium mb-2">🔍 设备检测工具</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        addLog('info', '正在列出USB设备...');
+                        const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                        const hailin = capacitorPlugins?.HailinHardware || (window as any).HailinHardware;
+                        
+                        if (hailin?.listUsbDevices) {
+                          try {
+                            const result = await hailin.listUsbDevices();
+                            if (result.count > 0) {
+                              addLog('success', `发现 ${result.count} 个USB设备`);
+                              // 尝试解析设备信息
+                              try {
+                                const devs = JSON.parse(JSON.stringify(result.devices));
+                                Object.values(devs).forEach((d: any) => {
+                                  addLog('info', `  - ${d.name || '未知'} [${d.chipType}] VID:${d.vendorId} PID:${d.productId}`);
+                                });
+                              } catch (e) {
+                                addLog('warn', '设备信息: ' + JSON.stringify(result.devices));
+                              }
+                            } else {
+                              addLog('warn', '未发现USB设备');
+                            }
+                          } catch (e: any) {
+                            addLog('error', `列出USB设备失败: ${e.message}`);
+                          }
+                        } else if (hailin?.listTtyDevices) {
+                          try {
+                            const result = await hailin.listTtyDevices();
+                            if (result.count > 0) {
+                              addLog('success', `发现 ${result.count} 个tty设备`);
+                            } else {
+                              addLog('warn', '未发现tty设备');
+                            }
+                          } catch (e: any) {
+                            addLog('error', `列出设备失败: ${e.message}`);
+                          }
+                        } else {
+                          addLog('warn', '设备检测功能不可用');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                    >
+                      📋 列出设备
+                    </button>
+                    
+                    <button
+                      onClick={async () => {
+                        addLog('info', '正在检测电子秤...');
+                        const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                        const hailin = capacitorPlugins?.HailinHardware || (window as any).HailinHardware;
+                        
+                        if (hailin?.detectScale) {
+                          try {
+                            const result = await hailin.detectScale({
+                              port: deviceConfig.scale.address || '/dev/ttyS0',
+                              baudRate: deviceConfig.scale.baudRate || 2400,
+                              protocol: deviceConfig.scale.protocol || 'soki',
+                            });
+                            if (result.success) {
+                              addLog('success', `检测到电子秤: ${result.deviceInfo || '顶尖OS2'}`);
+                            } else {
+                              addLog('error', `检测失败: ${result.error || '未找到设备'}`);
+                            }
+                          } catch (e: any) {
+                            addLog('error', `检测异常: ${e.message}`);
+                          }
+                        } else {
+                          addLog('warn', '检测功能不可用，请更新APP');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                    >
+                      ⚖️ 检测秤
+                    </button>
+                  </div>
+                </div>
+                
                 {!('serial' in navigator) && (
-                  <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                  <div className="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
                     ℹ️ 将使用Android原生USB Serial插件连接
                   </div>
                 )}

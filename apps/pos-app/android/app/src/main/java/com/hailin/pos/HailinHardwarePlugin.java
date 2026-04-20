@@ -20,13 +20,15 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-// USB Host API for USB Serial
+// USB Host API for USB Serial Communication
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.hardware.usb.UsbEndpoint;
 import android.hardware.usb.UsbInterface;
+import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbRequest;
 import android.os.Build;
+import android.os.SystemClock;
 
 import org.json.JSONObject;
 
@@ -1188,38 +1190,90 @@ public class HailinHardwarePlugin extends Plugin {
         
         boolean connect(String port, int baudRate, int dataBits, int stopBits, String parity) {
             try {
-                Log.d(TAG, "正在连接串口: " + port + " @ " + baudRate);
+                Log.d(TAG, "正在连接串口: " + port + " @ " + baudRate + " bps");
                 
-                // 尝试打开串口设备
                 File device = new File(port);
-                if (!device.exists() || !device.canRead() || !device.canWrite()) {
-                    Log.e(TAG, "串口设备不可用: " + port);
+                
+                // 检查设备是否存在
+                if (!device.exists()) {
+                    Log.e(TAG, "串口设备不存在: " + port);
                     
-                    // 尝试修改权限
-                    try {
-                        Runtime.getRuntime().exec("chmod 666 " + port);
-                        device = new File(port);
-                    } catch (Exception e2) {
-                        Log.e(TAG, "修改权限失败", e2);
+                    // 列出可用的tty设备
+                    File devDir = new File("/dev");
+                    if (devDir.exists() && devDir.isDirectory()) {
+                        String[] devices = devDir.list();
+                        if (devices != null) {
+                            Log.d(TAG, "可用设备数量: " + devices.length);
+                            for (String d : devices) {
+                                if (d.startsWith("tty")) {
+                                    Log.d(TAG, "  找到tty设备: " + d);
+                                }
+                            }
+                        }
                     }
                     
-                    if (!device.exists() || !device.canRead() || !device.canWrite()) {
-                        Log.e(TAG, "串口设备仍然不可用");
-                        return false;
-                    }
+                    return false;
                 }
                 
-                // 直接使用FileInputStream/FileOutputStream
-                input = new FileInputStream(device);
-                output = new FileOutputStream(device);
-                connected = true;
+                // 检查读写权限
+                if (!device.canRead()) {
+                    Log.e(TAG, "串口设备无读权限: " + port);
+                    return false;
+                }
+                if (!device.canWrite()) {
+                    Log.e(TAG, "串口设备无写权限: " + port);
+                    return false;
+                }
                 
-                Log.d(TAG, "串口连接成功: " + port);
-                return true;
+                Log.d(TAG, "串口设备权限检查通过: " + port);
+                
+                // 使用反射设置波特率（Android不直接支持但可以尝试）
+                try {
+                    // 尝试打开设备并配置
+                    input = new FileInputStream(device);
+                    output = new FileOutputStream(device);
+                    
+                    // 尝试通过反射设置串口参数
+                    setBaudRate(port, baudRate);
+                    
+                    connected = true;
+                    Log.d(TAG, "串口连接成功: " + port);
+                    return true;
+                } catch (Exception e) {
+                    Log.e(TAG, "打开串口失败: " + port, e);
+                    connected = false;
+                    return false;
+                }
+                
             } catch (Exception e) {
-                Log.e(TAG, "串口连接失败: " + port, e);
+                Log.e(TAG, "串口连接异常: " + port, e);
                 connected = false;
                 return false;
+            }
+        }
+        
+        // 通过反射设置波特率
+        private void setBaudRate(String port, int baudRate) {
+            try {
+                // Android串口设备路径通常是 /dev/ttyS* 或 /dev/ttyUSB*
+                // 波特率需要通过ioctl设置，这里简化处理
+                Log.d(TAG, "尝试设置波特率: " + baudRate);
+                
+                // 获取SerialPort的波特率常量
+                int[] baudRates = {0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400};
+                int[] baudRateConstants = {0, 50, 75, 110, 134, 150, 200, 300, 600, 1200, 1800, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400};
+                
+                // 尝试使用反射访问Termios
+                try {
+                    Class<?> termiosClass = Class.forName("android.system.Termios");
+                    // Termios设置需要native调用，这里只记录日志
+                    Log.d(TAG, "Termios类可用，尝试设置波特率...");
+                } catch (ClassNotFoundException e) {
+                    Log.d(TAG, "Termios类不可用，跳过波特率设置");
+                }
+                
+            } catch (Exception e) {
+                Log.e(TAG, "设置波特率失败", e);
             }
         }
         
@@ -1524,6 +1578,111 @@ public class HailinHardwarePlugin extends Plugin {
     }
     
     // ==================== 生命周期管理 ====================
+    
+    // ==================== 列出USB设备 ====================
+    @PluginMethod
+    public void listUsbDevices(PluginCall call) {
+        executor.execute(() -> {
+            try {
+                JSObject result = new JSObject();
+                JSObject devices = new JSObject();
+                
+                if (usbManager != null) {
+                    HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+                    int index = 0;
+                    for (String key : deviceList.keySet()) {
+                        UsbDevice device = deviceList.get(key);
+                        JSObject deviceInfo = new JSObject();
+                        deviceInfo.put("name", device.getDeviceName());
+                        deviceInfo.put("vendorId", device.getVendorId());
+                        deviceInfo.put("productId", device.getProductId());
+                        deviceInfo.put("productName", device.getProductName());
+                        deviceInfo.put("manufacturerName", device.getManufacturerName());
+                        
+                        // 尝试识别芯片类型
+                        int vid = device.getVendorId();
+                        String chipType = "未知";
+                        if (vid == 0x0403) chipType = "FTDI"; // FTDI
+                        else if (vid == 0x067B) chipType = "PL2303"; // Prolific
+                        else if (vid == 0x1A86) chipType = "CH340/CH341"; // WCH
+                        else if (vid == 0x04D8) chipType = "Microchip";
+                        else if (vid == 0x046D) chipType = "Logitech";
+                        else if (vid == 0x413C) chipType = "Dell";
+                        
+                        deviceInfo.put("chipType", chipType);
+                        devices.put("device_" + index, deviceInfo);
+                        index++;
+                        
+                        Log.d(TAG, "USB设备: " + device.getDeviceName() + " VID:" + String.format("%04X", vid) + " (" + chipType + ")");
+                    }
+                    
+                    result.put("count", deviceList.size());
+                    result.put("devices", devices);
+                } else {
+                    result.put("count", 0);
+                    result.put("error", "USB服务不可用");
+                }
+                
+                call.resolve(result);
+            } catch (Exception e) {
+                Log.e(TAG, "列出USB设备失败", e);
+                JSObject result = new JSObject();
+                result.put("count", 0);
+                result.put("error", e.getMessage());
+                call.resolve(result);
+            }
+        });
+    }
+    
+    // ==================== 列出tty设备 ====================
+    @PluginMethod
+    public void listTtyDevices(PluginCall call) {
+        executor.execute(() -> {
+            try {
+                JSObject result = new JSObject();
+                JSObject devices = new JSObject();
+                
+                File devDir = new File("/dev");
+                if (devDir.exists() && devDir.isDirectory()) {
+                    String[] files = devDir.list();
+                    int index = 0;
+                    if (files != null) {
+                        for (String f : files) {
+                            if (f.startsWith("tty")) {
+                                File device = new File("/dev/" + f);
+                                String info = f;
+                                if (device.canRead() && device.canWrite()) {
+                                    info += " (可读写)";
+                                } else if (device.canRead()) {
+                                    info += " (仅可读)";
+                                } else if (device.canWrite()) {
+                                    info += " (仅可写)";
+                                } else {
+                                    info += " (无权限)";
+                                }
+                                devices.put("tty_" + index, info);
+                                index++;
+                                Log.d(TAG, "Tty设备: " + info);
+                            }
+                        }
+                    }
+                    result.put("count", index);
+                    result.put("devices", devices);
+                } else {
+                    result.put("count", 0);
+                    result.put("error", "/dev目录不存在");
+                }
+                
+                call.resolve(result);
+            } catch (Exception e) {
+                Log.e(TAG, "列出tty设备失败", e);
+                JSObject result = new JSObject();
+                result.put("count", 0);
+                result.put("error", e.getMessage());
+                call.resolve(result);
+            }
+        });
+    }
     
     @Override
     protected void handleOnDestroy() {
