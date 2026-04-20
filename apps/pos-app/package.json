@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "npx serve dist -l 5000 -s"
+    "serve": "node server.cjs"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.0",
