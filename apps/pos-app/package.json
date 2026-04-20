@@ -8,12 +8,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "serve": "node server.cjs"
+    "serve": "node server.cjs",
+    "postinstall": "npx cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.0",
     "@capacitor/cli": "^5.7.0",
     "@capacitor/core": "^5.7.0",
+    "@capacitor/preferences": "^8.0.1",
     "@capacitor/status-bar": "^5.0.8",
     "clsx": "^2.0.0",
     "lucide-react": "^0.294.0",

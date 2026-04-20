@@ -2,10 +2,25 @@
 // 海邻到家 V6.0 - 全局状态管理
 // ============================================
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { Preferences } from '@capacitor/preferences';
 import type { 
   Store, Employee, Product, Inventory, Order, Member
 } from '../types';
+
+// Capacitor Preferences 存储适配器
+const capacitorStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    const { value } = await Preferences.get({ key: name });
+    return value;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await Preferences.set({ key: name, value });
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await Preferences.remove({ key: name });
+  },
+};
 
 // ============ 门店状态 ============
 interface StoreState {
@@ -522,6 +537,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'hailin-settings',
+      storage: createJSONStorage(() => capacitorStorage),
     }
   )
 );
@@ -1052,6 +1068,9 @@ export const useDeviceConfigStore = create<DeviceConfigState>()(
       })),
       setAutoConnect: (enabled) => set({ autoConnect: enabled }),
     }),
-    { name: 'hailin-device-config' }
+    {
+      name: 'hailin-device-config',
+      storage: createJSONStorage(() => capacitorStorage),
+    }
   )
 );

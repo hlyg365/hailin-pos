@@ -23,6 +23,27 @@ allprojects {
         mavenCentral()
         maven { url 'https://jitpack.io' }
     }
+    
+    // 全局Java版本设置
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs.addAll(['-source', '17', '-target', '17'])
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    
+    // 为所有子项目设置Java版本
+    subprojects {
+        tasks.withType(JavaCompile).configureEach {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+        afterEvaluate { project ->
+            project.tasks.withType(JavaCompile).configureEach {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {

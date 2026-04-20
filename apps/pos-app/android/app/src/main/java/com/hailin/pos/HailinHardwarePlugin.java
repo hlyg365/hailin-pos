@@ -1275,28 +1275,34 @@ public class HailinHardwarePlugin extends Plugin {
                     notifyListeners("scaleData", event);
                     Log.d(TAG, "发送稳定重量: " + processedWeight.weight + " kg");
                 } else {
-                    // 数据不稳定，发送原始值的粗略估计（带不稳定标记）
-                    ScaleWeight roughWeight = new ScaleWeight();
-                    double sum = 0;
-                    int count = 0;
-                    for (int i = 0; i < serial.stableCount && i < SerialConnection.STABLE_COUNT; i++) {
-                        sum += serial.weightHistory[i];
-                        count++;
+                    // 数据不稳定
+                    // 如果原始重量接近零（小于50g），强制归零
+                    if (rawWeight.weight < 0.05) {
+                        ScaleWeight zeroWeight = new ScaleWeight();
+                        zeroWeight.weight = 0;
+                        zeroWeight.unit = "kg";
+                        zeroWeight.stable = true;
+                        zeroWeight.timestamp = System.currentTimeMillis();
+                        serial.lastWeight = zeroWeight;
+                        
+                        JSObject event = new JSObject();
+                        event.put("weight", 0);
+                        event.put("unit", "kg");
+                        event.put("stable", true);
+                        event.put("timestamp", zeroWeight.timestamp);
+                        notifyListeners("scaleData", event);
+                        Log.d(TAG, "秤归零（原始重量太小）: 0.000 kg");
+                    } else {
+                        // 数据不稳定且重量较大，只记录不发送
+                        ScaleWeight roughWeight = new ScaleWeight();
+                        roughWeight.weight = rawWeight.weight;
+                        roughWeight.unit = "kg";
+                        roughWeight.stable = false;
+                        roughWeight.timestamp = System.currentTimeMillis();
+                        serial.lastWeight = roughWeight;
+                        // 不发送不稳定数据，让前端显示等待稳定
+                        Log.d(TAG, "数据不稳定，等待: " + rawWeight.weight + " kg");
                     }
-                    roughWeight.weight = (count > 0) ? (sum / count) : rawWeight.weight;
-                    roughWeight.unit = "kg";
-                    roughWeight.stable = false;  // 标记为不稳定
-                    roughWeight.timestamp = System.currentTimeMillis();
-                    
-                    serial.lastWeight = roughWeight;
-                    
-                    JSObject event = new JSObject();
-                    event.put("weight", roughWeight.weight);
-                    event.put("unit", roughWeight.unit);
-                    event.put("stable", false);
-                    event.put("timestamp", roughWeight.timestamp);
-                    notifyListeners("scaleData", event);
-                    Log.d(TAG, "发送不稳定重量: " + roughWeight.weight + " kg");
                 }
                 return;
             }
