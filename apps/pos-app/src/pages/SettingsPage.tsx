@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useDeviceConfigStore, useStoreStore, useAiConfigStore } from '../store';
 import { deviceManager, type ScaleConfig, type PrinterConfig } from '../services/posDevices';
@@ -28,26 +28,63 @@ export default function SettingsPage() {
   const [printing, setPrinting] = useState(false);
   const [printResult, setPrintResult] = useState<string>('');
   
+  // 连接日志
+  const [logs, setLogs] = useState<Array<{ time: string; type: 'info' | 'success' | 'error' | 'warn'; message: string }>>([]);
+  const logRef = useRef<HTMLDivElement>(null);
+  
+  // 连接中状态
+  const [connecting, setConnecting] = useState<string | null>(null);
+  
   // 秤协议选项
   const scaleProtocols = [
-    { value: 'general', label: '通用协议' },
-    { value: 'dahua', label: '大华协议' },
+    { value: 'soki', label: '顶尖协议 (OS2系列)' },
     { value: 'toieda', label: '托利多协议' },
-    { value: 'soki', label: '顶尖协议' },
+    { value: 'dahua', label: '大华协议' },
+    { value: 'general', label: '通用协议' },
   ];
   
   // 波特率选项
-  const baudRates = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
+  const baudRates = [1200, 2400, 4800, 9600, 19200, 38400];
+  
+  // 添加日志
+  const addLog = (type: 'info' | 'success' | 'error' | 'warn', message: string) => {
+    const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    setLogs(prev => [...prev.slice(-49), { time, type, message }]);
+    setTimeout(() => {
+      if (logRef.current) {
+        logRef.current.scrollTop = logRef.current.scrollHeight;
+      }
+    }, 100);
+  };
   
   // 刷新设备状态
   useEffect(() => {
     const updateStatus = () => {
-      setDeviceStatuses(deviceManager.getAllStatus());
+      const status = deviceManager.getAllStatus();
+      setDeviceStatuses(status);
+      
+      // 更新秤读数
+      const scaleStatus = status.networkScale || status.serialScale;
+      if (scaleStatus?.connected) {
+        const currentWeight = deviceManager.scale?.currentWeight;
+        if (currentWeight) {
+          setScaleReading({
+            weight: currentWeight.weight,
+            unit: currentWeight.unit,
+            stable: currentWeight.stable,
+          });
+        }
+      }
     };
     
     updateStatus();
-    const interval = setInterval(updateStatus, 3000);
-    return () => clearInterval(interval);
+    addLog('info', '页面初始化，开始监控设备状态');
+    
+    const interval = setInterval(updateStatus, 1000);
+    return () => {
+      clearInterval(interval);
+      addLog('info', '页面关闭，停止监控');
+    };
   }, []);
   
   // 秤数据监听
@@ -61,154 +98,190 @@ export default function SettingsPage() {
     });
   }, []);
   
-  // 连接串口秤
-  const connectSerialScale = async () => {
+  // 连接电子秤
+  const connectScale = async () => {
+    setConnecting('scale');
+    addLog('info', `开始连接电子秤... 配置: ${deviceConfig.scale.type === 'network' ? '网口' : '串口'}`);
+    
     try {
-      const config: ScaleConfig = {
-        type: 'serial',
-        baudRate: deviceConfig.scale.baudRate || 2400,
-        protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'general',
-      };
+      let success = false;
       
-      const success = await deviceManager.serialScale.requestAndConnect(config);
-      
-      if (success) {
-        deviceConfig.updateConfig('scale', { enabled: true });
-        setDeviceStatuses(deviceManager.getAllStatus());
+      if (deviceConfig.scale.type === 'network') {
+        // 网络秤
+        if (!deviceConfig.scale.address) {
+          addLog('error', 'IP地址不能为空');
+          setConnecting(null);
+          return;
+        }
+        
+        addLog('info', `连接 ${deviceConfig.scale.address}:${deviceConfig.scale.port || 8080}`);
+        
+        const config: ScaleConfig = {
+          type: 'network',
+          address: deviceConfig.scale.address,
+          port: deviceConfig.scale.port || 8080,
+          protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
+        };
+        
+        success = await deviceManager.connectScale(config);
+        
+        if (success) {
+          deviceConfig.updateConfig('scale', { enabled: true });
+          addLog('success', '网络秤连接成功！');
+        } else {
+          addLog('error', '网络秤连接失败，请检查IP地址和端口');
+        }
       } else {
-        alert('连接电子秤失败，请检查串口连接');
+        // 串口秤
+        addLog('info', `使用串口连接，波特率: ${deviceConfig.scale.baudRate || 2400}`);
+        
+        const config: ScaleConfig = {
+          type: 'serial',
+          baudRate: deviceConfig.scale.baudRate || 2400,
+          protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
+        };
+        
+        success = await deviceManager.serialScale.requestAndConnect(config);
+        
+        if (success) {
+          deviceConfig.updateConfig('scale', { enabled: true });
+          addLog('success', '串口秤连接成功！');
+        } else {
+          addLog('error', '串口秤连接失败，请检查串口线连接');
+        }
       }
+      
+      // 更新状态
+      setTimeout(() => {
+        setDeviceStatuses(deviceManager.getAllStatus());
+      }, 500);
+      
     } catch (error: any) {
-      alert('连接失败: ' + error.message);
+      addLog('error', `连接异常: ${error.message}`);
+    } finally {
+      setConnecting(null);
     }
   };
   
-  // 连接网络秤
-  const connectNetworkScale = async () => {
-    const config: ScaleConfig = {
-      type: 'network',
-      address: deviceConfig.scale.address,
-      port: deviceConfig.scale.port || 8080,
-      protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'general',
-    };
-    
-    const success = await deviceManager.connectScale(config);
-    
-    if (success) {
-      deviceConfig.updateConfig('scale', { enabled: true });
-      setDeviceStatuses(deviceManager.getAllStatus());
-    } else {
-      alert('连接网络秤失败，请检查IP地址');
-    }
+  // 断开电子秤
+  const disconnectScale = async () => {
+    addLog('info', '正在断开电子秤...');
+    await deviceManager.disconnectScale();
+    deviceConfig.updateConfig('scale', { enabled: false });
+    setDeviceStatuses(deviceManager.getAllStatus());
+    addLog('warn', '电子秤已断开');
   };
   
   // 连接打印机
   const connectPrinter = async () => {
-    const config: PrinterConfig = {
-      type: 'network',
-      address: deviceConfig.receiptPrinter.address,
-      port: deviceConfig.receiptPrinter.port || 9100,
-      width: deviceConfig.receiptPrinter.width || 58,
-    };
+    if (!deviceConfig.receiptPrinter.address) {
+      addLog('error', '打印机IP地址不能为空');
+      return;
+    }
     
-    const success = await deviceManager.connectPrinter(config);
+    setConnecting('printer');
+    addLog('info', `连接打印机 ${deviceConfig.receiptPrinter.address}:${deviceConfig.receiptPrinter.port || 9100}`);
     
-    if (success) {
-      deviceConfig.updateConfig('receiptPrinter', { enabled: true });
+    try {
+      const config: PrinterConfig = {
+        type: 'network',
+        address: deviceConfig.receiptPrinter.address,
+        port: deviceConfig.receiptPrinter.port || 9100,
+        width: deviceConfig.receiptPrinter.width || 58,
+      };
+      
+      const success = await deviceManager.connectPrinter(config);
+      
+      if (success) {
+        deviceConfig.updateConfig('receiptPrinter', { enabled: true });
+        addLog('success', '打印机连接成功！');
+      } else {
+        addLog('error', '打印机连接失败');
+      }
+      
       setDeviceStatuses(deviceManager.getAllStatus());
-    } else {
-      alert('连接打印机失败，请检查IP地址');
+    } catch (error: any) {
+      addLog('error', `打印机连接异常: ${error.message}`);
+    } finally {
+      setConnecting(null);
     }
   };
   
-  // 打开客显屏
-  const openCustomerDisplay = async () => {
-    const success = await deviceManager.openCustomerDisplay();
-    
-    if (success) {
-      deviceConfig.updateConfig('customerDisplay', { enabled: true });
-      setDeviceStatuses(deviceManager.getAllStatus());
-    } else {
-      alert('打开客显屏失败，请允许浏览器弹窗');
-    }
-  };
-  
-  // 打开钱箱
-  const testOpenCashDrawer = async () => {
-    const success = await deviceManager.openCashDrawer();
-    setPrintResult(success ? '钱箱已打开' : '钱箱打开失败');
-    setTimeout(() => setPrintResult(''), 3000);
+  // 断开打印机
+  const disconnectPrinter = async () => {
+    addLog('info', '正在断开打印机...');
+    await deviceManager.disconnectPrinter();
+    deviceConfig.updateConfig('receiptPrinter', { enabled: false });
+    setDeviceStatuses(deviceManager.getAllStatus());
+    addLog('warn', '打印机已断开');
   };
   
   // 测试打印
   const testPrint = async () => {
     setPrinting(true);
-    setPrintResult('正在打印...');
+    addLog('info', '正在测试打印...');
     
     try {
-      await deviceManager.printReceipt({
-        storeName: currentStore?.name || '海邻到家',
-        orderNo: 'TEST' + Date.now().toString().slice(-8),
-        datetime: new Date().toLocaleString('zh-CN'),
-        items: [
-          { name: '测试商品', qty: 1, price: 9.9, total: 9.9 },
-          { name: '农夫山泉', qty: 2, price: 2.0, total: 4.0 },
-        ],
-        total: 13.9,
-        paymentMethod: '测试',
-        memberInfo: '会员享98折优惠',
-      });
-      setPrintResult('打印成功！');
-    } catch (error) {
-      setPrintResult('打印失败');
+      const success = await deviceManager.printTest();
+      
+      if (success) {
+        addLog('success', '打印测试成功！');
+        setPrintResult('success');
+      } else {
+        addLog('error', '打印测试失败');
+        setPrintResult('error');
+      }
+    } catch (error: any) {
+      addLog('error', `打印异常: ${error.message}`);
+      setPrintResult('error');
+    } finally {
+      setPrinting(false);
+      setTimeout(() => setPrintResult(''), 3000);
     }
-    
-    setPrinting(false);
-    setTimeout(() => setPrintResult(''), 3000);
   };
   
   // 秤操作
-  const handleScaleZero = () => deviceManager.scaleZero();
-  const handleScaleTare = () => deviceManager.scaleTare();
+  const handleScaleZero = () => {
+    addLog('info', '执行归零操作');
+    deviceManager.scaleZero();
+  };
+  
+  const handleScaleTare = () => {
+    addLog('info', '执行去皮操作');
+    deviceManager.scaleTare();
+  };
+  
+  // 清空日志
+  const clearLogs = () => setLogs([]);
+  
+  const isScaleConnected = deviceStatuses.serialScale?.connected || deviceStatuses.networkScale?.connected;
+  const isPrinterConnected = deviceStatuses.printer?.connected;
   
   return (
     <div className="min-h-screen bg-gray-100">
       {/* 顶部导航 */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-blue-600 hover:text-blue-700">← 返回</Link>
-            <h1 className="text-lg font-semibold">收银设备设置</h1>
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link to="/" className="text-gray-500 hover:text-gray-700">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </Link>
+            <h1 className="text-lg font-bold">设备设置</h1>
           </div>
-          <div className="text-sm text-gray-500">{currentStore?.name || '未选择门店'}</div>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-1 rounded text-xs ${isScaleConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {isScaleConnected ? '✅ 秤已连接' : '⚪ 秤未连接'}
+            </span>
+            <span className={`px-2 py-1 rounded text-xs ${isPrinterConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              {isPrinterConnected ? '✅ 打印已连接' : '⚪ 打印未连接'}
+            </span>
+          </div>
         </div>
       </header>
-      
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* 设备概览 */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold mb-4">设备连接状态</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { name: '电子秤', icon: '⚖️', status: deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected },
-              { name: '小票打印机', icon: '🖨️', status: deviceStatuses.printer.connected },
-              { name: '客显屏', icon: '📺', status: deviceStatuses.customerDisplay.connected },
-              { name: '钱箱', icon: '💰', status: deviceStatuses.printer.connected },
-            ].map((device) => (
-              <div key={device.name} className={`p-4 rounded-lg ${device.status ? 'bg-green-50' : 'bg-gray-50'}`}>
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{device.icon}</span>
-                  <div>
-                    <p className="font-medium">{device.name}</p>
-                    <p className={`text-sm ${device.status ? 'text-green-600' : 'text-gray-400'}`}>
-                      {device.status ? '已连接' : '未连接'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+
+      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         
         {/* 电子秤设置 */}
         <div className="bg-white rounded-xl shadow-sm p-6">
@@ -216,8 +289,8 @@ export default function SettingsPage() {
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <span className="text-2xl">⚖️</span> 电子秤设置
             </h2>
-            <span className={`px-3 py-1 rounded-full text-sm ${deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected ? '已连接' : '未连接'}
+            <span className={`px-3 py-1 rounded-full text-sm ${isScaleConnected ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+              {isScaleConnected ? '已连接' : '未连接'}
             </span>
           </div>
           
@@ -226,20 +299,26 @@ export default function SettingsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">连接方式</label>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
                     checked={deviceConfig.scale.type === 'serial'}
-                    onChange={() => deviceConfig.updateConfig('scale', { type: 'serial' })}
+                    onChange={() => {
+                      deviceConfig.updateConfig('scale', { type: 'serial' });
+                      addLog('info', '切换为串口连接模式');
+                    }}
                     className="text-blue-600"
                   />
                   <span>串口 (USB/RS232)</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
                     checked={deviceConfig.scale.type === 'network'}
-                    onChange={() => deviceConfig.updateConfig('scale', { type: 'network' })}
+                    onChange={() => {
+                      deviceConfig.updateConfig('scale', { type: 'network' });
+                      addLog('info', '切换为网口连接模式');
+                    }}
                     className="text-blue-600"
                   />
                   <span>网口 (TCP/IP)</span>
@@ -250,44 +329,46 @@ export default function SettingsPage() {
             {/* 串口配置 */}
             {deviceConfig.scale.type === 'serial' && (
               <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">通讯协议</label>
-                  <select
-                    value={deviceConfig.scale.protocol || 'soki'}
-                    onChange={(e) => deviceConfig.updateConfig('scale', { protocol: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    {scaleProtocols.map((p) => (
-                      <option key={p.value} value={p.value}>{p.label}</option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">通讯协议</label>
+                    <select
+                      value={deviceConfig.scale.protocol || 'soki'}
+                      onChange={(e) => {
+                        deviceConfig.updateConfig('scale', { protocol: e.target.value });
+                        addLog('info', `协议改为: ${e.target.value}`);
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      {scaleProtocols.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
+                    <select
+                      value={deviceConfig.scale.baudRate || 2400}
+                      onChange={(e) => {
+                        deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) });
+                        addLog('info', `波特率改为: ${e.target.value}`);
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      {baudRates.map((rate) => (
+                        <option key={rate} value={rate}>{rate} bps</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
-                  <select
-                    value={deviceConfig.scale.baudRate || 2400}
-                    onChange={(e) => deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    {baudRates.map((rate) => (
-                      <option key={rate} value={rate}>{rate} bps</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">请确保与电子秤本机设置一致（顶尖OS2常用2400）</p>
-                </div>
-                
-                <button
-                  onClick={connectSerialScale}
-                  disabled={!('serial' in navigator)}
-                  className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {'serial' in navigator ? '选择串口并连接' : '浏览器不支持串口'}
-                </button>
+                <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                  💡 顶尖OS2系列默认波特率2400，请确保与电子秤本机设置一致
+                </p>
                 
                 {!('serial' in navigator) && (
                   <div className="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
-                    ⚠️ Web Serial API 需要Chrome/Edge等现代浏览器支持。请使用Chrome、Edge或Opera浏览器。
+                    ⚠️ Web Serial API 需要Chrome/Edge等现代浏览器支持
                   </div>
                 )}
               </>
@@ -303,7 +384,9 @@ export default function SettingsPage() {
                       type="text"
                       placeholder="192.168.1.100"
                       value={deviceConfig.scale.address || ''}
-                      onChange={(e) => deviceConfig.updateConfig('scale', { address: e.target.value })}
+                      onChange={(e) => {
+                        deviceConfig.updateConfig('scale', { address: e.target.value });
+                      }}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -313,7 +396,9 @@ export default function SettingsPage() {
                       type="number"
                       placeholder="8080"
                       value={deviceConfig.scale.port || 8080}
-                      onChange={(e) => deviceConfig.updateConfig('scale', { port: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        deviceConfig.updateConfig('scale', { port: parseInt(e.target.value) || 8080 });
+                      }}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -323,7 +408,10 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">通讯协议</label>
                   <select
                     value={deviceConfig.scale.protocol || 'soki'}
-                    onChange={(e) => deviceConfig.updateConfig('scale', { protocol: e.target.value })}
+                    onChange={(e) => {
+                      deviceConfig.updateConfig('scale', { protocol: e.target.value });
+                      addLog('info', `协议改为: ${e.target.value}`);
+                    }}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     {scaleProtocols.map((p) => (
@@ -331,31 +419,70 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                
-                <button
-                  onClick={connectNetworkScale}
-                  className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                >
-                  连接网络秤
-                </button>
               </>
             )}
             
+            {/* 连接/断开按钮 */}
+            <div className="flex gap-3">
+              {isScaleConnected ? (
+                <>
+                  <button
+                    onClick={disconnectScale}
+                    className="flex-1 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                  >
+                    断开连接
+                  </button>
+                  <button
+                    onClick={connectScale}
+                    disabled={connecting === 'scale'}
+                    className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {connecting === 'scale' ? '连接中...' : '重新连接'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={connectScale}
+                  disabled={connecting === 'scale'}
+                  className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {connecting === 'scale' ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      连接中...
+                    </>
+                  ) : (
+                    <>🔗 连接电子秤</>
+                  )}
+                </button>
+              )}
+            </div>
+            
             {/* 秤读数显示 */}
-            {(deviceStatuses.serialScale.connected || deviceStatuses.networkScale.connected) && (
-              <div className="p-4 bg-gray-50 rounded-lg">
+            {isScaleConnected && (
+              <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-medium">实时重量</span>
-                  <span className={`px-2 py-1 rounded text-sm ${scaleReading.stable ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {scaleReading.stable ? '稳定' : '不稳定'}
+                  <span className={`px-3 py-1 rounded-full text-sm ${scaleReading.stable ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {scaleReading.stable ? '✓ 稳定' : '⏳ 不稳定'}
                   </span>
                 </div>
-                <div className="text-4xl font-bold text-center mb-4">
-                  {scaleReading.weight.toFixed(3)} {scaleReading.unit}
+                <div className="text-5xl font-bold text-center mb-4 text-gray-800">
+                  {scaleReading.weight.toFixed(3)} <span className="text-2xl text-gray-500">kg</span>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={handleScaleZero} className="flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300">归零</button>
-                  <button onClick={handleScaleTare} className="flex-1 py-2 bg-gray-200 rounded hover:bg-gray-300">去皮</button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={handleScaleZero} 
+                    className="py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                  >
+                    🎯 归零
+                  </button>
+                  <button 
+                    onClick={handleScaleTare} 
+                    className="py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                  >
+                    ⚖️ 去皮
+                  </button>
                 </div>
               </div>
             )}
@@ -368,8 +495,8 @@ export default function SettingsPage() {
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <span className="text-2xl">🖨️</span> 小票打印机设置
             </h2>
-            <span className={`px-3 py-1 rounded-full text-sm ${deviceStatuses.printer.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {deviceStatuses.printer.connected ? '已连接' : '未连接'}
+            <span className={`px-3 py-1 rounded-full text-sm ${isPrinterConnected ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+              {isPrinterConnected ? '已连接' : '未连接'}
             </span>
           </div>
           
@@ -391,141 +518,113 @@ export default function SettingsPage() {
                   type="number"
                   placeholder="9100"
                   value={deviceConfig.receiptPrinter.port || 9100}
-                  onChange={(e) => deviceConfig.updateConfig('receiptPrinter', { port: parseInt(e.target.value) })}
+                  onChange={(e) => deviceConfig.updateConfig('receiptPrinter', { port: parseInt(e.target.value) || 9100 })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">纸张宽度</label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={deviceConfig.receiptPrinter.width === 58}
-                    onChange={() => deviceConfig.updateConfig('receiptPrinter', { width: 58 })}
-                    className="text-blue-600"
-                  />
-                  <span>58mm (小票)</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={deviceConfig.receiptPrinter.width === 80}
-                    onChange={() => deviceConfig.updateConfig('receiptPrinter', { width: 80 })}
-                    className="text-blue-600"
-                  />
-                  <span>80mm (长票)</span>
-                </label>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">纸宽</label>
+              <select
+                value={deviceConfig.receiptPrinter.width || 58}
+                onChange={(e) => deviceConfig.updateConfig('receiptPrinter', { width: parseInt(e.target.value) })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={58}>58mm (小票)</option>
+                <option value={80}>80mm (宽行)</option>
+              </select>
             </div>
             
-            <button
-              onClick={connectPrinter}
-              className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              连接打印机
-            </button>
-            
-            {/* 测试按钮 */}
-            {deviceStatuses.printer.connected && (
-              <div className="grid grid-cols-2 gap-4">
+            <div className="flex gap-3">
+              {isPrinterConnected ? (
+                <>
+                  <button
+                    onClick={disconnectPrinter}
+                    className="flex-1 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                  >
+                    断开连接
+                  </button>
+                  <button
+                    onClick={testPrint}
+                    disabled={printing}
+                    className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {printing ? '打印中...' : '🧪 测试打印'}
+                  </button>
+                </>
+              ) : (
                 <button
-                  onClick={testPrint}
-                  disabled={printing}
-                  className="py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+                  onClick={connectPrinter}
+                  disabled={connecting === 'printer'}
+                  className="w-full py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
                 >
-                  {printing ? '打印中...' : '测试打印'}
+                  {connecting === 'printer' ? '连接中...' : '🔗 连接打印机'}
                 </button>
-                <button
-                  onClick={testOpenCashDrawer}
-                  className="py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-                >
-                  弹出钱箱
-                </button>
-              </div>
-            )}
+              )}
+            </div>
             
             {printResult && (
-              <div className="p-3 bg-blue-50 rounded-lg text-center text-blue-700">{printResult}</div>
+              <div className={`p-3 rounded-lg text-center ${printResult === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {printResult === 'success' ? '✓ 打印测试成功！' : '✗ 打印测试失败'}
+              </div>
             )}
-            
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium mb-2">打印机连接说明</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• 网络打印机：确保打印机与收银机在同一网络，填写打印机IP地址</li>
-                <li>• 默认端口：9100（大多数网络打印机标准端口）</li>
-                <li>• 钱箱：钱箱连接到打印机的钱箱口，打开钱箱即触发打印</li>
-              </ul>
-            </div>
           </div>
         </div>
         
-        {/* 客显屏设置 */}
+        {/* 连接日志 */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span className="text-2xl">📺</span> 客显屏设置
+              <span className="text-2xl">📋</span> 连接日志
             </h2>
-            <span className={`px-3 py-1 rounded-full text-sm ${deviceStatuses.customerDisplay.connected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {deviceStatuses.customerDisplay.connected ? '已打开' : '未打开'}
-            </span>
+            <button
+              onClick={clearLogs}
+              className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1 border rounded"
+            >
+              清空
+            </button>
           </div>
           
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600 mb-4">
-                客显屏会在新窗口中显示商品信息和金额，顾客可以看到购买详情。
-              </p>
-              <button
-                onClick={openCustomerDisplay}
-                className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-              >
-                {deviceStatuses.customerDisplay.connected ? '重新打开客显屏' : '打开客显屏'}
-              </button>
-            </div>
-            
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h4 className="font-medium mb-2">分屏设置说明</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Windows: 系统设置 → 显示 → 选择"扩展这些显示器"</li>
-                <li>• Mac: 系统设置 → 显示器 →  arrangement → 勾选"镜像内建显示器"</li>
-                <li>• 客显屏会自动在新窗口中显示</li>
-              </ul>
-            </div>
+          <div 
+            ref={logRef}
+            className="bg-gray-900 text-gray-100 rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm"
+          >
+            {logs.length === 0 ? (
+              <div className="text-gray-500 text-center py-8">
+                暂无日志
+              </div>
+            ) : (
+              logs.map((log, i) => (
+                <div key={i} className="flex gap-2 mb-1">
+                  <span className="text-gray-500">[{log.time}]</span>
+                  <span className={
+                    log.type === 'success' ? 'text-green-400' :
+                    log.type === 'error' ? 'text-red-400' :
+                    log.type === 'warn' ? 'text-yellow-400' : 'text-gray-300'
+                  }>
+                    {log.type === 'success' ? '✅' :
+                     log.type === 'error' ? '❌' :
+                     log.type === 'warn' ? '⚠️' : 'ℹ️'} {log.message}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
         
-        {/* 保存设置 */}
-        <div className="flex gap-4">
-          <button
-            onClick={() => deviceConfig.setAutoConnect(true)}
-            className={`flex-1 py-3 rounded-lg font-medium ${
-              deviceConfig.autoConnect 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            自动连接设备
-          </button>
-          <Link
-            to="/device-debug"
-            className="flex-1 py-3 bg-purple-500 text-white rounded-lg font-medium text-center hover:bg-purple-600"
-          >
-            设备调试工具
-          </Link>
-        </div>
-        
-        {/* 设备调试提示 */}
-        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h4 className="font-medium text-yellow-800 mb-2">设备连接问题？</h4>
-          <ul className="text-sm text-yellow-700 space-y-1">
-            <li>1. 请确保设备的IP地址在同一网络</li>
-            <li>2. 电子秤默认端口: 9101, 打印机默认端口: 9100</li>
-            <li>3. 点击"设备调试工具"进行详细测试</li>
-            <li>4. 检查设备电源和网络指示灯</li>
-          </ul>
+        {/* 保存提示 */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">💡</span>
+            <div>
+              <p className="font-medium text-blue-800">配置自动保存</p>
+              <p className="text-sm text-blue-600 mt-1">
+                所有设备配置会自动保存，下次打开应用时会自动尝试连接已保存的设备。
+                如需更换设备，请先断开当前连接再重新配置。
+              </p>
+            </div>
+          </div>
         </div>
       </main>
     </div>

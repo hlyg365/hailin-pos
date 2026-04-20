@@ -222,16 +222,16 @@ export default function CashierPage() {
     
     console.log('[收银台] 开始连接设备...');
     console.log('[收银台] 当前设备配置:', JSON.stringify({
-      scale: { enabled: deviceConfig.scale.enabled, address: deviceConfig.scale.address, port: deviceConfig.scale.tcpPort || deviceConfig.scale.port },
+      scale: { enabled: deviceConfig.scale.enabled, address: deviceConfig.scale.address, port: deviceConfig.scale.tcpPort || deviceConfig.scale.port, type: deviceConfig.scale.type },
       printer: { enabled: deviceConfig.receiptPrinter.enabled, address: deviceConfig.receiptPrinter.address, port: deviceConfig.receiptPrinter.port },
       label: { enabled: deviceConfig.labelPrinter?.enabled, address: deviceConfig.labelPrinter?.address, port: deviceConfig.labelPrinter?.port }
     }));
     
     try {
-      // 检查是否有可用的设备配置
-      const hasScaleConfig = deviceConfig.scale.enabled && deviceConfig.scale.address;
-      const hasPrinterConfig = deviceConfig.receiptPrinter.enabled && deviceConfig.receiptPrinter.address;
-      const hasLabelConfig = deviceConfig.labelPrinter?.enabled && deviceConfig.labelPrinter?.address;
+      // 检查是否有可用的设备配置（有IP地址就尝试连接）
+      const hasScaleConfig = deviceConfig.scale.address && deviceConfig.scale.type === 'network';
+      const hasPrinterConfig = deviceConfig.receiptPrinter.address;
+      const hasLabelConfig = deviceConfig.labelPrinter?.address;
       
       if (!hasScaleConfig && !hasPrinterConfig && !hasLabelConfig) {
         console.warn('[收银台] 未配置任何设备，请先在设置中配置设备IP地址');
@@ -242,7 +242,7 @@ export default function CashierPage() {
       const status = await deviceManager.init({
         scale: hasScaleConfig ? {
           host: deviceConfig.scale.address,
-          port: deviceConfig.scale.tcpPort || deviceConfig.scale.port || 9101,
+          port: deviceConfig.scale.tcpPort || deviceConfig.scale.port || 8080,
         } : undefined,
         receiptPrinter: hasPrinterConfig ? {
           host: deviceConfig.receiptPrinter.address,
