@@ -1024,8 +1024,16 @@ interface DeviceConfigState {
     mode: 'window' | 'embedded';
   };
   autoConnect: boolean;
+  printReceipt: boolean;  // 打印小票
+  aiBarcode: boolean;     // AI条码识别
+  aiVision: boolean;      // AI视觉称重
+  clearanceMode: boolean; // 晚8点清货
   updateConfig: (device: string, config: Partial<any>) => void;
   setAutoConnect: (enabled: boolean) => void;
+  setPrintReceipt: (enabled: boolean) => void;
+  setAIBarcode: (enabled: boolean) => void;
+  setAIVision: (enabled: boolean) => void;
+  setClearanceMode: (enabled: boolean) => void;
 }
 
 export const useDeviceConfigStore = create<DeviceConfigState>()(
@@ -1063,10 +1071,18 @@ export const useDeviceConfigStore = create<DeviceConfigState>()(
         mode: 'window',
       },
       autoConnect: true,
+      printReceipt: true,    // 默认开启打印小票
+      aiBarcode: true,        // 默认开启AI条码
+      aiVision: false,         // 默认关闭AI视觉称重
+      clearanceMode: true,    // 默认开启晚8点清货
       updateConfig: (device, config) => set((state) => ({
         [device]: { ...state[device as keyof DeviceConfigState], ...config }
       })),
       setAutoConnect: (enabled) => set({ autoConnect: enabled }),
+      setPrintReceipt: (enabled) => set({ printReceipt: enabled }),
+      setAIBarcode: (enabled) => set({ aiBarcode: enabled }),
+      setAIVision: (enabled) => set({ aiVision: enabled }),
+      setClearanceMode: (enabled) => set({ clearanceMode: enabled }),
     }),
     {
       name: 'hailin-device-config',

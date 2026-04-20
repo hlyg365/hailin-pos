@@ -21,7 +21,6 @@ const storeModules = [
   { id: 'delivery', label: '配送', icon: '🚚' },
   { id: 'reports', label: '报表', icon: '📊' },
   { id: 'member', label: '会员', icon: '👥' },
-  { id: 'settings', label: '设置', icon: '⚙️' },
 ];
 
 export default function CashierPage() {
@@ -549,12 +548,8 @@ export default function CashierPage() {
           </button>
           <button onClick={() => setShowDevicePanel(true)} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600">
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            <span className="hidden sm:inline">设备</span>
-          </button>
-          <Link to="/settings" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-blue-600">
-            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
             <span className="hidden sm:inline">设置</span>
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -1463,218 +1458,210 @@ export default function CashierPage() {
               </div>
             </div>
           )}
-
-          {/* ========== 系统设置 ========== */}
-          {activeModule === 'settings' && (
-            <div className="flex-1 bg-white p-4 sm:p-6 overflow-auto">
-              <div className="max-w-2xl mx-auto">
-                <h2 className="text-lg sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3"><span className="text-2xl sm:text-3xl">⚙️</span> 系统设置</h2>
-                
-                {/* AI识别配置提示 */}
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">🤖</span>
-                      <div>
-                        <p className="font-medium text-purple-800">AI条码识别</p>
-                        <p className="text-sm text-purple-600">总部采购入库时自动识别商品信息</p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">已启用</span>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl shadow-sm border mb-6">
-                  <div className="p-4 border-b"><h3 className="font-semibold">门店信息</h3></div>
-                  <div className="p-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-sm text-gray-600 mb-1">门店名称</label><input type="text" defaultValue={currentStore?.name || '海邻到家便利店'} className="w-full px-3 py-2 border rounded-lg" /></div>
-                      <div><label className="block text-sm text-gray-600 mb-1">门店编号</label><input type="text" defaultValue={currentStore?.id || 'STORE001'} className="w-full px-3 py-2 border rounded-lg bg-gray-50" disabled /></div>
-                    </div>
-                    <div><label className="block text-sm text-gray-600 mb-1">门店地址</label><input type="text" defaultValue={currentStore?.address || '上海市浦东新区张江镇'} className="w-full px-3 py-2 border rounded-lg" /></div>
-                    <div><label className="block text-sm text-gray-600 mb-1">联系电话</label><input type="text" defaultValue="021-12345678" className="w-full px-3 py-2 border rounded-lg" /></div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border mb-6">
-                  <div className="p-4 border-b"><h3 className="font-semibold">收银设置</h3></div>
-                  <div className="p-4 space-y-4">
-                    {[
-                      { title: '允许赊账', desc: '允许欠款销售', checked: false },
-                      { title: '打印小票', desc: '交易完成后自动打印', checked: true },
-                      { title: '找零提示', desc: '现金支付时显示找零金额', checked: true },
-                      { title: '语音播报', desc: '支付成功后语音播报金额', checked: true },
-                    ].map((item, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div><p className="font-medium">{item.title}</p><p className="text-sm text-gray-500">{item.desc}</p></div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" defaultChecked={item.checked} className="sr-only peer" />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border mb-6">
-                  <div className="p-4 border-b"><h3 className="font-semibold">晚8点清货</h3></div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div><p className="font-medium">自动开启清货模式</p><p className="text-sm text-gray-500">20:00 - 23:00 自动8折</p></div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" defaultChecked className="sr-only peer" />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-sm text-gray-600 mb-1">开始时间</label><input type="time" defaultValue="20:00" className="w-full px-3 py-2 border rounded-lg" /></div>
-                      <div><label className="block text-sm text-gray-600 mb-1">结束时间</label><input type="time" defaultValue="23:00" className="w-full px-3 py-2 border rounded-lg" /></div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl shadow-sm border mb-6">
-                  <div className="p-4 border-b"><h3 className="font-semibold">关于系统</h3></div>
-                  <div className="p-4">
-                    <div className="flex items-center gap-4 mb-4">
-                      <img src="/logo.png" alt="Logo" className="w-16 h-16 rounded-xl" />
-                      <div><p className="font-bold text-lg">海邻到家 V6.0</p><p className="text-sm text-gray-500">智能便利店管理系统</p></div>
-                    </div>
-                    <p className="text-sm text-gray-500">© 2024 海邻到家 版权所有 | 技术支持: support@hailin.com</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </main>
       </div>
 
       {/* 底部 */}
       <div className="bg-black/30 text-center py-1.5 sm:py-3"><p className="text-blue-200/60 text-xs sm:text-sm">{hasItems ? '收银完成请出示付款码' : '如有疑问请联系店员'}</p></div>
 
-      {/* 设备状态面板 */}
+      {/* 设备与设置面板 */}
       {showDevicePanel && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-[500px] max-h-[80vh] overflow-hidden">
+          <div className="bg-white rounded-xl w-[500px] max-h-[85vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold">收银设备管理</h3>
+              <h3 className="font-semibold">设备与设置</h3>
               <button onClick={() => setShowDevicePanel(false)} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
             </div>
-            <div className="p-4 space-y-4">
-              {/* 设备连接控制 */}
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div>
-                  <p className="font-medium">设备自动连接</p>
-                  <p className="text-xs text-gray-500">开启后自动连接已配置设备</p>
-                </div>
-                <button 
-                  onClick={() => deviceConfig.setAutoConnect(!deviceConfig.autoConnect)}
-                  className={`w-12 h-6 rounded-full transition ${deviceConfig.autoConnect ? 'bg-blue-500' : 'bg-gray-300'}`}
-                >
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.autoConnect ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                </button>
-              </div>
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               
-              {/* 手动连接按钮 */}
-              <button 
-                onClick={connectDevices}
-                disabled={isConnectingDevices}
-                className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isConnectingDevices ? (
-                  <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>连接中...</>
-                ) : (
-                  <>🔄 刷新连接</>
-                )}
-              </button>
-              
-              {/* 设备列表 */}
-              {[
-                { name: '扫码枪', icon: '📷', status: deviceStatuses.scannerEnabled, key: 'scanner' },
-                { name: '小票打印机', icon: '🖨️', status: deviceStatuses.printerConnected, key: 'printer' },
-                { name: '标签打印机', icon: '🏷️', status: deviceStatuses.labelPrinterConnected, key: 'labelPrinter' },
-                { name: '电子秤', icon: '⚖️', status: deviceStatuses.scaleConnected, key: 'scale' },
-              ].map((device, i) => (
-                <div key={i} className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{device.icon}</span>
-                      <div>
-                        <p className="font-medium">{device.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {device.status ? '🟢 已连接' : '⚪ 未连接'}
-                        </p>
-                      </div>
+              {/* 常用设置 */}
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4">
+                <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <span>⚙️</span> 常用设置
+                </h4>
+                <div className="space-y-3">
+                  {/* 设备自动连接 */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">设备自动连接</p>
+                      <p className="text-xs text-gray-500">开启后自动连接已配置设备</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {device.key === 'printer' && deviceConfig.receiptPrinter.enabled ? (
-                        <button 
-                          onClick={() => {
-                            setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
-                            setTempDeviceConfig({ 
-                              address: deviceConfig.receiptPrinter.address, 
-                              port: deviceConfig.receiptPrinter.port 
-                            });
-                          }}
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-                        >
-                          {editingDeviceConfig === device.key ? '收起' : '配置'}
-                        </button>
-                      ) : device.key === 'scale' && deviceConfig.scale.enabled ? (
-                        <button 
-                          onClick={() => {
-                            setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
-                            setTempDeviceConfig({ 
-                              address: deviceConfig.scale.address, 
-                              port: deviceConfig.scale.tcpPort || deviceConfig.scale.port 
-                            });
-                          }}
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-                        >
-                          {editingDeviceConfig === device.key ? '收起' : '配置'}
-                        </button>
-                      ) : null}
-                      <span className={`px-3 py-1 rounded-full text-sm ${device.status ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                        {device.status ? '已连接' : '未连接'}
-                      </span>
-                    </div>
+                    <button 
+                      onClick={() => deviceConfig.setAutoConnect(!deviceConfig.autoConnect)}
+                      className={`w-12 h-6 rounded-full transition ${deviceConfig.autoConnect ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.autoConnect ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
                   </div>
                   
-                  {/* 设备配置输入 */}
-                  {editingDeviceConfig === device.key && (
-                    <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          placeholder="IP地址 (如 192.168.1.100)"
-                          value={tempDeviceConfig.address}
-                          onChange={(e) => setTempDeviceConfig({ ...tempDeviceConfig, address: e.target.value })}
-                          className="flex-1 px-2 py-1 text-sm border rounded"
-                        />
-                        <input 
-                          type="number" 
-                          placeholder="端口"
-                          value={tempDeviceConfig.port}
-                          onChange={(e) => setTempDeviceConfig({ ...tempDeviceConfig, port: parseInt(e.target.value) || 9100 })}
-                          className="w-20 px-2 py-1 text-sm border rounded"
-                        />
-                      </div>
-                      <button 
-                        onClick={() => {
-                          if (device.key === 'printer') {
-                            deviceConfig.updateConfig('receiptPrinter', tempDeviceConfig);
-                          } else if (device.key === 'scale') {
-                            deviceConfig.updateConfig('scale', { ...tempDeviceConfig, tcpPort: tempDeviceConfig.port });
-                          }
-                          setEditingDeviceConfig(null);
-                          connectDevices();
-                        }}
-                        className="w-full py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
-                      >
-                        保存并重连
-                      </button>
+                  {/* 打印小票 */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">打印小票</p>
+                      <p className="text-xs text-gray-500">交易完成后自动打印</p>
                     </div>
-                  )}
+                    <button 
+                      onClick={() => deviceConfig.setPrintReceipt(!deviceConfig.printReceipt)}
+                      className={`w-12 h-6 rounded-full transition ${deviceConfig.printReceipt ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.printReceipt ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                  
+                  {/* AI条码识别 */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">AI条码识别</p>
+                      <p className="text-xs text-gray-500">未知条码联网查询商品库</p>
+                    </div>
+                    <button 
+                      onClick={() => deviceConfig.setAIBarcode(!deviceConfig.aiBarcode)}
+                      className={`w-12 h-6 rounded-full transition ${deviceConfig.aiBarcode ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.aiBarcode ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                  
+                  {/* AI视觉称重 */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">AI视觉称重</p>
+                      <p className="text-xs text-gray-500">非标品摄像头识别重量</p>
+                    </div>
+                    <button 
+                      onClick={() => deviceConfig.setAIVision(!deviceConfig.aiVision)}
+                      className={`w-12 h-6 rounded-full transition ${deviceConfig.aiVision ? 'bg-blue-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.aiVision ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                  
+                  {/* 晚8点清货 */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">晚8点清货</p>
+                      <p className="text-xs text-gray-500">20:00-23:00自动8折</p>
+                    </div>
+                    <button 
+                      onClick={() => deviceConfig.setClearanceMode(!deviceConfig.clearanceMode)}
+                      className={`w-12 h-6 rounded-full transition ${deviceConfig.clearanceMode ? 'bg-green-500' : 'bg-gray-300'}`}
+                    >
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition ${deviceConfig.clearanceMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
                 </div>
-              ))}
-
+              </div>
+              
+              {/* 设备管理 */}
+              <div>
+                <h4 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+                  <span>📱</span> 收银设备
+                </h4>
+                
+                {/* 手动连接按钮 */}
+                <button 
+                  onClick={connectDevices}
+                  disabled={isConnectingDevices}
+                  className="w-full py-2.5 mb-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                >
+                  {isConnectingDevices ? (
+                    <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>连接中...</>
+                  ) : (
+                    <>🔄 刷新连接</>
+                  )}
+                </button>
+                
+                {/* 设备列表 */}
+                {[
+                  { name: '扫码枪', icon: '📷', status: deviceStatuses.scannerEnabled, key: 'scanner' },
+                  { name: '小票打印机', icon: '🖨️', status: deviceStatuses.printerConnected, key: 'printer' },
+                  { name: '标签打印机', icon: '🏷️', status: deviceStatuses.labelPrinterConnected, key: 'labelPrinter' },
+                  { name: '电子秤', icon: '⚖️', status: deviceStatuses.scaleConnected, key: 'scale' },
+                ].map((device, i) => (
+                  <div key={i} className="p-3 bg-gray-50 rounded-lg mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{device.icon}</span>
+                        <div>
+                          <p className="font-medium">{device.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {device.status ? '🟢 已连接' : '⚪ 未连接'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {device.key === 'printer' && deviceConfig.receiptPrinter.enabled ? (
+                          <button 
+                            onClick={() => {
+                              setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
+                              setTempDeviceConfig({ 
+                                address: deviceConfig.receiptPrinter.address, 
+                                port: deviceConfig.receiptPrinter.port 
+                              });
+                            }}
+                            className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                          >
+                            {editingDeviceConfig === device.key ? '收起' : '配置'}
+                          </button>
+                        ) : device.key === 'scale' && deviceConfig.scale.enabled ? (
+                          <button 
+                            onClick={() => {
+                              setEditingDeviceConfig(editingDeviceConfig === device.key ? null : device.key);
+                              setTempDeviceConfig({ 
+                                address: deviceConfig.scale.address, 
+                                port: deviceConfig.scale.tcpPort || deviceConfig.scale.port 
+                              });
+                            }}
+                            className="text-xs px-2 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                          >
+                            {editingDeviceConfig === device.key ? '收起' : '配置'}
+                          </button>
+                        ) : null}
+                        <span className={`px-3 py-1 rounded-full text-sm ${device.status ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {device.status ? '已连接' : '未连接'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* 设备配置输入 */}
+                    {editingDeviceConfig === device.key && (
+                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="IP地址 (如 192.168.1.100)"
+                            value={tempDeviceConfig.address}
+                            onChange={(e) => setTempDeviceConfig({ ...tempDeviceConfig, address: e.target.value })}
+                            className="flex-1 px-2 py-1 text-sm border rounded"
+                          />
+                          <input 
+                            type="number" 
+                            placeholder="端口"
+                            value={tempDeviceConfig.port}
+                            onChange={(e) => setTempDeviceConfig({ ...tempDeviceConfig, port: parseInt(e.target.value) || 9100 })}
+                            className="w-20 px-2 py-1 text-sm border rounded"
+                          />
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (device.key === 'printer') {
+                              deviceConfig.updateConfig('receiptPrinter', tempDeviceConfig);
+                            } else if (device.key === 'scale') {
+                              deviceConfig.updateConfig('scale', { ...tempDeviceConfig, tcpPort: tempDeviceConfig.port });
+                            }
+                            setEditingDeviceConfig(null);
+                            connectDevices();
+                          }}
+                          className="w-full py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                        >
+                          保存并重连
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
               <div className="text-center text-xs text-gray-400 pt-2">
                 💡 提示：小票打印机和电子秤需要配置IP地址
               </div>
