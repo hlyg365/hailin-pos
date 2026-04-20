@@ -1080,6 +1080,104 @@ public class HailinHardwarePlugin extends Plugin {
         boolean connected = false;
         ScaleWeight lastWeight;
         
+        // 数据平滑和稳定检测
+        static final int STABLE_COUNT = 3;  // 连续3次稳定才认为稳定
+        static final double STABLE_THRESHOLD = 0.005;  // 5g 稳定阈值
+        static final long STABLE_TIME_MS = 500;  // 500ms 内稳定
+        
+        double[] weightHistory = new double[STABLE_COUNT];
+        int historyIndex = 0;
+        int stableCount = 0;
+        long lastStableTime = 0;
+        boolean isStable = false;
+        
+        // 归零检测
+        static final double ZERO_THRESHOLD = 0.02;  // 20g 以下认为是零
+        long lastNonZeroTime = 0;
+        
+        void reset() {
+            lastWeight = null;
+            historyIndex = 0;
+            stableCount = 0;
+            isStable = false;
+            lastStableTime = 0;
+            lastNonZeroTime = 0;
+            for (int i = 0; i < weightHistory.length; i++) {
+                weightHistory[i] = 0;
+            }
+        }
+        
+        /**
+         * 处理称重数据，进行平滑和稳定检测
+         * @return 处理后的ScaleWeight，如果数据不稳定返回null
+         */
+        ScaleWeight processWeight(double rawWeight) {
+            long now = System.currentTimeMillis();
+            
+            // 归零检测：如果重量为0或接近0，持续超过2秒，强制归零
+            if (rawWeight <= ZERO_THRESHOLD) {
+                if (lastNonZeroTime > 0 && (now - lastNonZeroTime) > 2000) {
+                    // 归零
+                    ScaleWeight w = new ScaleWeight();
+                    w.weight = 0;
+                    w.unit = "kg";
+                    w.stable = true;
+                    w.timestamp = now;
+                    isStable = true;
+                    lastStableTime = now;
+                    return w;
+                }
+            } else {
+                lastNonZeroTime = now;
+            }
+            
+            // 添加到历史数据
+            weightHistory[historyIndex] = rawWeight;
+            historyIndex = (historyIndex + 1) % STABLE_COUNT;
+            stableCount++;
+            if (stableCount > STABLE_COUNT) stableCount = STABLE_COUNT;
+            
+            // 计算平均重量
+            double sum = 0;
+            int count = Math.min(stableCount, STABLE_COUNT);
+            for (int i = 0; i < count; i++) {
+                sum += weightHistory[i];
+            }
+            double avgWeight = sum / count;
+            
+            // 检查是否稳定：所有历史数据在阈值范围内波动
+            boolean stable = true;
+            for (int i = 0; i < count; i++) {
+                if (Math.abs(weightHistory[i] - avgWeight) > STABLE_THRESHOLD) {
+                    stable = false;
+                    break;
+                }
+            }
+            
+            // 如果稳定，更新稳定时间
+            if (stable && count >= STABLE_COUNT) {
+                if (!isStable) {
+                    lastStableTime = now;
+                }
+                isStable = true;
+                
+                // 只有稳定超过一定时间才认为真正稳定
+                if ((now - lastStableTime) >= 300) {
+                    ScaleWeight w = new ScaleWeight();
+                    w.weight = Math.round(avgWeight * 1000.0) / 1000.0;  // 保留3位小数
+                    w.unit = "kg";
+                    w.stable = true;
+                    w.timestamp = now;
+                    return w;
+                }
+            } else {
+                isStable = false;
+            }
+            
+            // 不稳定时返回粗略平均值（不精确但可用）
+            return null;
+        }
+        
         boolean connect(String port, int baudRate, int dataBits, int stopBits, String parity) {
             // Android串口通信需要通过USB转接或系统串口
             // 这里简化处理，实际需要 UsbSerialLibrary
@@ -1157,25 +1255,53 @@ public class HailinHardwarePlugin extends Plugin {
             Log.d(TAG, "秤原始数据[HEX]: " + hexDump);
             
             // 尝试解析顶尖OS2二进制协议
-            // 格式: STX(0x02) + 重量ASCII + ETX(0x03) + BCC校验
-            // 例如: 02 30 30 30 30 30 2E 30 30 03 B4
-            ScaleWeight weight = parseSokiProtocol(data, len);
+            ScaleWeight rawWeight = parseSokiProtocol(data, len);
             
-            if (weight != null) {
-                serial.lastWeight = weight;
+            if (rawWeight != null) {
+                Log.d(TAG, "解析原始重量: " + rawWeight.weight + " kg, stable=" + rawWeight.stable);
                 
-                // 发送重量事件
-                JSObject event = new JSObject();
-                event.put("weight", weight.weight);
-                event.put("unit", weight.unit);
-                event.put("stable", weight.stable);
-                event.put("timestamp", weight.timestamp);
-                notifyListeners("scaleData", event);
+                // 使用数据平滑处理
+                ScaleWeight processedWeight = serial.processWeight(rawWeight.weight);
+                
+                if (processedWeight != null) {
+                    // 稳定数据，发送事件
+                    serial.lastWeight = processedWeight;
+                    
+                    JSObject event = new JSObject();
+                    event.put("weight", processedWeight.weight);
+                    event.put("unit", processedWeight.unit);
+                    event.put("stable", processedWeight.stable);
+                    event.put("timestamp", processedWeight.timestamp);
+                    notifyListeners("scaleData", event);
+                    Log.d(TAG, "发送稳定重量: " + processedWeight.weight + " kg");
+                } else {
+                    // 数据不稳定，发送原始值的粗略估计（带不稳定标记）
+                    ScaleWeight roughWeight = new ScaleWeight();
+                    double sum = 0;
+                    int count = 0;
+                    for (int i = 0; i < serial.stableCount && i < SerialConnection.STABLE_COUNT; i++) {
+                        sum += serial.weightHistory[i];
+                        count++;
+                    }
+                    roughWeight.weight = (count > 0) ? (sum / count) : rawWeight.weight;
+                    roughWeight.unit = "kg";
+                    roughWeight.stable = false;  // 标记为不稳定
+                    roughWeight.timestamp = System.currentTimeMillis();
+                    
+                    serial.lastWeight = roughWeight;
+                    
+                    JSObject event = new JSObject();
+                    event.put("weight", roughWeight.weight);
+                    event.put("unit", roughWeight.unit);
+                    event.put("stable", false);
+                    event.put("timestamp", roughWeight.timestamp);
+                    notifyListeners("scaleData", event);
+                    Log.d(TAG, "发送不稳定重量: " + roughWeight.weight + " kg");
+                }
                 return;
             }
             
             // 备选：尝试解析通用文本协议
-            // 格式: ST,GS,+0.500,kg\r\n
             String raw = new String(data, 0, len);
             Log.d(TAG, "秤原始数据[TXT]: " + raw);
             
@@ -1183,20 +1309,26 @@ public class HailinHardwarePlugin extends Plugin {
             Matcher matcher = pattern.matcher(raw);
             
             if (matcher.find()) {
-                weight = new ScaleWeight();
+                ScaleWeight weight = new ScaleWeight();
                 weight.weight = Double.parseDouble(matcher.group(3));
                 weight.unit = matcher.group(4);
                 weight.stable = "GS".equals(matcher.group(1));
                 weight.timestamp = System.currentTimeMillis();
                 
-                serial.lastWeight = weight;
+                // 使用数据平滑处理
+                ScaleWeight processedWeight = serial.processWeight(weight.weight);
                 
-                // 发送重量事件
+                if (processedWeight != null) {
+                    serial.lastWeight = processedWeight;
+                } else {
+                    serial.lastWeight = weight;
+                }
+                
                 JSObject event = new JSObject();
-                event.put("weight", weight.weight);
-                event.put("unit", weight.unit);
-                event.put("stable", weight.stable);
-                event.put("timestamp", weight.timestamp);
+                event.put("weight", serial.lastWeight.weight);
+                event.put("unit", serial.lastWeight.unit);
+                event.put("stable", serial.lastWeight.stable);
+                event.put("timestamp", serial.lastWeight.timestamp);
                 notifyListeners("scaleData", event);
             }
         }
