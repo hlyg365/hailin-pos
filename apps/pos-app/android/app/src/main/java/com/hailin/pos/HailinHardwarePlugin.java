@@ -20,6 +20,14 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+// USB Host API for USB Serial
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
+import android.hardware.usb.UsbEndpoint;
+import android.hardware.usb.UsbInterface;
+import android.hardware.usb.UsbRequest;
+import android.os.Build;
+
 import org.json.JSONObject;
 
 import java.io.*;
@@ -1179,11 +1187,40 @@ public class HailinHardwarePlugin extends Plugin {
         }
         
         boolean connect(String port, int baudRate, int dataBits, int stopBits, String parity) {
-            // Android串口通信需要通过USB转接或系统串口
-            // 这里简化处理，实际需要 UsbSerialLibrary
-            Log.d(TAG, "串口连接模拟: " + port + " @ " + baudRate);
-            connected = true;
-            return true;
+            try {
+                Log.d(TAG, "正在连接串口: " + port + " @ " + baudRate);
+                
+                // 尝试打开串口设备
+                File device = new File(port);
+                if (!device.exists() || !device.canRead() || !device.canWrite()) {
+                    Log.e(TAG, "串口设备不可用: " + port);
+                    
+                    // 尝试修改权限
+                    try {
+                        Runtime.getRuntime().exec("chmod 666 " + port);
+                        device = new File(port);
+                    } catch (Exception e2) {
+                        Log.e(TAG, "修改权限失败", e2);
+                    }
+                    
+                    if (!device.exists() || !device.canRead() || !device.canWrite()) {
+                        Log.e(TAG, "串口设备仍然不可用");
+                        return false;
+                    }
+                }
+                
+                // 直接使用FileInputStream/FileOutputStream
+                input = new FileInputStream(device);
+                output = new FileOutputStream(device);
+                connected = true;
+                
+                Log.d(TAG, "串口连接成功: " + port);
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "串口连接失败: " + port, e);
+                connected = false;
+                return false;
+            }
         }
         
         void send(byte[] data) {
