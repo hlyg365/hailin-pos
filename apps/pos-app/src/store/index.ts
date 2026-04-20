@@ -1047,7 +1047,7 @@ export const useDeviceConfigStore = create<DeviceConfigState>()(
         address: '',
         port: 8080,
         tcpPort: 8080,
-        baudRate: 9600,
+        baudRate: 2400,
         protocol: 'general',
       },
       customerDisplay: {

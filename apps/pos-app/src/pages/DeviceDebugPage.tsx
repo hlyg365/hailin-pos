@@ -194,7 +194,7 @@ export default function DeviceDebugPage() {
         addLog('info', '请检查:');
         addLog('info', '1. 电子秤是否已开机');
         addLog('info', '2. 串口线是否连接正确');
-        addLog('info', '3. 波特率是否匹配 (9600)');
+        addLog('info', `3. 波特率是否匹配 (${baudRate || 2400})`);
         addLog('info', '4. 是否使用了正确的串口号');
       }
     } catch (e: any) {
@@ -510,7 +510,7 @@ export default function DeviceDebugPage() {
           </button>
           
           <div className="mt-2 text-xs text-gray-500">
-            {scaleType === 'serial' && '提示: 安卓一体机通常使用 /dev/ttyS1 或 /dev/ttyS2，波特率多为 9600'}
+            {scaleType === 'serial' && '提示: 顶尖OS2电子秤使用 /dev/ttyS1 或 /dev/ttyS3，波特率多为 2400'}
             {scaleType === 'network' && '提示: 网络秤默认端口通常为 9101'}
             {scaleType === 'usb' && '提示: USB HID秤通过USB连接，模拟键盘输入'}
           </div>
@@ -617,7 +617,7 @@ export default function DeviceDebugPage() {
             <li>• 检查设备电源和网络指示灯</li>
             <li>• 确认设备的IP地址（通常在设备上打印）</li>
             <li>• 网络秤默认端口: 9101，打印机默认端口: 9100</li>
-            <li>• 串口模式: /dev/ttyS1，波特率 9600</li>
+            <li>• 串口模式: /dev/ttyS1，顶尖OS2波特率: 2400</li>
             <li>• 钱箱需要通过打印机接口控制</li>
             <li>• 客显屏需要设备支持双屏显示</li>
             <li>• 串口权限问题: 需要系统签名或 Root</li>

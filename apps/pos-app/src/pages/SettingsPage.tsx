@@ -66,7 +66,7 @@ export default function SettingsPage() {
     try {
       const config: ScaleConfig = {
         type: 'serial',
-        baudRate: deviceConfig.scale.baudRate || 9600,
+        baudRate: deviceConfig.scale.baudRate || 2400,
         protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'general',
       };
       
@@ -266,7 +266,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
                   <select
-                    value={deviceConfig.scale.baudRate || 9600}
+                    value={deviceConfig.scale.baudRate || 2400}
                     onChange={(e) => deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
@@ -274,7 +274,7 @@ export default function SettingsPage() {
                       <option key={rate} value={rate}>{rate} bps</option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">请确保与电子秤本机设置一致（常用9600或115200）</p>
+                  <p className="text-xs text-gray-500 mt-1">请确保与电子秤本机设置一致（顶尖OS2常用2400）</p>
                 </div>
                 
                 <button
