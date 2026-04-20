@@ -27,22 +27,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 默认重定向到登录页
+// 默认显示首页（四端入口）
 function DefaultRoute() {
-  const { currentEmployee } = useEmployeeStore();
-  
-  if (currentEmployee) {
-    // 已登录，根据角色跳转到对应页面
-    const rolePaths = {
-      admin: '/dashboard',
-      manager: '/assistant',
-      cashier: '/pos/cashier',
-    };
-    return <Navigate to={rolePaths[currentEmployee.role] || '/pos/cashier'} replace />;
-  }
-  
-  // 未登录，跳转到登录页
-  return <Navigate to="/login" replace />;
+  return <HomePage />;
 }
 
 function App() {
