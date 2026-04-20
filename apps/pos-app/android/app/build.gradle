@@ -41,6 +41,9 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
     
+    // 自定义HailinHardware插件
+    implementation project(':HailinHardware')
+    
     // ==================== 串口通信库 ====================
     // 使用原生 FileInputStream/FileOutputStream 直接操作串口设备文件
     // 无需额外依赖
