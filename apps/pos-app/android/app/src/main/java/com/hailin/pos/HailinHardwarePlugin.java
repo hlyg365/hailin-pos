@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  * 海邻到家一体机硬件抽象层
  * 完整支持：电子秤、打印机、钱箱、扫码枪、客显屏、AI识别
  */
-@CapacitorPlugin
+@CapacitorPlugin(name = "HailinHardware")
 public class HailinHardwarePlugin extends Plugin {
 
     private static final String TAG = "HailinHardware";
