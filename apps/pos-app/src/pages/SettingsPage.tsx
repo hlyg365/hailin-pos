@@ -393,18 +393,27 @@ export default function SettingsPage() {
                             const result = await hailin.listTtyDevices();
                             if (result.count > 0) {
                               addLog('success', `发现 ${result.count} 个串口设备:`);
+                              // 解析设备列表 { "ttyS4": "可读写", "ttyS5": "可读写", ... }
                               const devs = JSON.parse(JSON.stringify(result.devices));
-                              Object.values(devs).forEach((d: any) => {
-                                addLog('info', `  ✓ /dev/${d}`);
+                              const deviceList: { name: string; permission: string }[] = [];
+                              
+                              Object.entries(devs).forEach(([name, perm]: [string, any]) => {
+                                deviceList.push({ name, permission: perm });
+                                addLog('info', `  /dev/${name} - ${perm}`);
                               });
-                              // 自动选择第一个可读写的设备
-                              const writableDevices = Object.values(devs).filter((d: any) => 
-                                d.includes('可读写') || d.includes('读写')
+                              
+                              // 过滤出可读写的设备
+                              const writableDevices = deviceList.filter(d => 
+                                d.permission.includes('可读写') || d.permission.includes('读写')
                               );
+                              
                               if (writableDevices.length > 0) {
-                                const firstWritable = (writableDevices[0] as string).split(' ')[0];
-                                deviceConfig.updateConfig('scale', { address: `/dev/${firstWritable}` });
-                                addLog('success', `已自动选择: /dev/${firstWritable}`);
+                                // 优先选择ttyS开头的设备
+                                const preferredDevice = writableDevices.find(d => d.name.startsWith('ttyS')) || writableDevices[0];
+                                deviceConfig.updateConfig('scale', { address: `/dev/${preferredDevice.name}` });
+                                addLog('success', `已自动选择: /dev/${preferredDevice.name}`);
+                              } else {
+                                addLog('warn', '未发现可读写的串口设备');
                               }
                             } else {
                               addLog('warn', '未发现串口设备，请检查电子秤连接');
