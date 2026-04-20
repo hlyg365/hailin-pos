@@ -141,7 +141,23 @@ class SerialScale {
   
   // 检查是否在Android原生环境
   private static isAndroidNative(): boolean {
-    return typeof window !== 'undefined' && !!(window as any).HailinHardware;
+    if (typeof window === 'undefined') return false;
+    // 优先检查 Capacitor.Plugins
+    const capacitorPlugins = (window as any).Capacitor?.Plugins;
+    if (capacitorPlugins?.HailinHardware) {
+      return true;
+    }
+    // 回退检查 window.HailinHardware
+    return !!(window as any).HailinHardware;
+  }
+  
+  // 获取Android原生插件
+  private static getAndroidPlugin(): any {
+    const capacitorPlugins = (window as any).Capacitor?.Plugins;
+    if (capacitorPlugins?.HailinHardware) {
+      return capacitorPlugins.HailinHardware;
+    }
+    return (window as any).HailinHardware;
   }
   
   // 获取可用串口列表
@@ -198,9 +214,14 @@ class SerialScale {
   private async connectAndroidNative(config: ScaleConfig): Promise<boolean> {
     console.log('[秤] 使用Android原生USB Serial连接');
     
+    const hailin = SerialScale.getAndroidPlugin();
+    if (!hailin) {
+      console.error('[秤] Android原生插件未加载');
+      this._status = { connected: false, online: false, error: 'Android原生插件未加载，请确保APP已更新' };
+      return false;
+    }
+    
     try {
-      const hailin = (window as any).HailinHardware;
-      
       // 使用Android原生串口连接
       const result = await hailin.scaleConnect({
         port: config.port || '/dev/ttyS0',
@@ -233,7 +254,7 @@ class SerialScale {
   
   // Android原生数据监听
   private startAndroidNativeListener(): void {
-    const hailin = (window as any).HailinHardware;
+    const hailin = SerialScale.getAndroidPlugin();
     if (!hailin) return;
     
     // 监听秤数据事件

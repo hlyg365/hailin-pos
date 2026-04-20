@@ -334,12 +334,12 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">选择串口设备</label>
                   <div className="flex gap-2">
                     <select
-                      value={deviceConfig.scale.port || '/dev/ttyS0'}
+                      value={deviceConfig.scale.address || '/dev/ttyS0'}
                       onChange={(e) => {
-                        deviceConfig.updateConfig('scale', { port: parseInt(e.target.value) || 0, address: e.target.value });
+                        deviceConfig.updateConfig('scale', { address: e.target.value, port: 0 });
                         addLog('info', `选择串口: ${e.target.value}`);
                       }}
-                      className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       <option value="/dev/ttyS0">串口0 (ttyS0)</option>
                       <option value="/dev/ttyS1">串口1 (ttyS1)</option>
@@ -352,12 +352,16 @@ export default function SettingsPage() {
                     <button
                       onClick={async () => {
                         addLog('info', '正在检测电子秤...');
-                        // 使用Android原生插件检测秤
-                        if ((window as any).HailinHardware) {
+                        // 优先检查 Capacitor.Plugins
+                        const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                        const hailin = capacitorPlugins?.HailinHardware || (window as any).HailinHardware;
+                        
+                        if (hailin) {
                           try {
-                            const result = await (window as any).HailinHardware.detectScale({
+                            const result = await hailin.detectScale({
                               port: deviceConfig.scale.address || '/dev/ttyS0',
                               baudRate: deviceConfig.scale.baudRate || 2400,
+                              protocol: deviceConfig.scale.protocol || 'soki',
                             });
                             if (result.success) {
                               addLog('success', `检测到电子秤: ${result.deviceInfo || '顶尖OS2'}`);
@@ -368,7 +372,7 @@ export default function SettingsPage() {
                             addLog('error', `检测异常: ${e.message}`);
                           }
                         } else {
-                          addLog('warn', 'Android原生插件未加载，请确保APP已更新');
+                          addLog('warn', 'Android原生插件未加载，请确保APP已更新到最新版本');
                         }
                       }}
                       className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
