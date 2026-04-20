@@ -101,8 +101,8 @@ class SerialScale {
   private reader: ReadableStreamDefaultReader | null = null;
   private config: ScaleConfig = {
     type: 'serial',
-    baudRate: 9600,
-    protocol: 'general',
+    baudRate: 2400,
+    protocol: 'soki',
   };
   private _status: DeviceStatus = { connected: false, online: false };
   private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
