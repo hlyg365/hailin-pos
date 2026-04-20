@@ -147,6 +147,65 @@ public class HailinHardwarePlugin extends Plugin {
     }
     
     /**
+     * 检测电子秤（通过尝试连接并读取数据验证）
+     */
+    @PluginMethod
+    public void detectScale(PluginCall call) {
+        String port = call.getString("port", "/dev/ttyS1");
+        int baudRate = call.getInt("baudRate", 2400);
+        
+        executor.execute(() -> {
+            try {
+                Log.i(TAG, "[秤] 检测电子秤: " + port + " @ " + baudRate);
+                
+                // 尝试打开串口
+                SerialConnection serial = new SerialConnection(port, baudRate, 8, 1, 0);
+                serial.open();
+                
+                // 等待数据（最多3秒）
+                Thread.sleep(500);
+                
+                // 尝试读取数据
+                byte[] buffer = new byte[64];
+                int bytesRead = serial.read(buffer, 1000);
+                
+                if (bytesRead > 0) {
+                    // 成功读取到数据
+                    serialPool.put("scale", serial);
+                    
+                    JSObject result = new JSObject();
+                    result.put("success", true);
+                    result.put("detected", true);
+                    result.put("port", port);
+                    result.put("baudRate", baudRate);
+                    result.put("protocol", "soki");
+                    result.put("deviceInfo", "顶尖OS2电子秤");
+                    call.resolve(result);
+                    
+                    Log.i(TAG, "[秤] 检测成功！读取到 " + bytesRead + " 字节");
+                } else {
+                    serial.close();
+                    JSObject result = new JSObject();
+                    result.put("success", false);
+                    result.put("detected", false);
+                    result.put("error", "未检测到数据");
+                    call.resolve(result);
+                    
+                    Log.w(TAG, "[秤] 检测失败：未检测到数据");
+                }
+            } catch (Exception e) {
+                JSObject result = new JSObject();
+                result.put("success", false);
+                result.put("detected", false);
+                result.put("error", e.getMessage());
+                call.resolve(result);
+                
+                Log.e(TAG, "[秤] 检测异常: " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
      * 秤去皮操作
      */
     @PluginMethod
