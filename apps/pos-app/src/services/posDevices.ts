@@ -510,7 +510,7 @@ class SerialScale {
 // ============ 网络电子秤服务 ============
 class NetworkScale {
   private deviceId: string | null = null;
-  private config: ScaleConfig = { type: 'network', baudRate: 9600, protocol: 'general' };
+  private config: ScaleConfig = { type: 'network', baudRate: 2400, protocol: 'soki' };
   private _status: DeviceStatus = { connected: false, online: false };
   private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
   private onReadingCallback?: (reading: ScaleReading) => void;

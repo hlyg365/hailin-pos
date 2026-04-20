@@ -75,11 +75,11 @@ public class HailinHardwarePlugin extends Plugin {
     @PluginMethod
     public void scaleConnect(PluginCall call) {
         String port = call.getString("port", "/dev/ttyS0");
-        int baudRate = call.getInt("baudRate", 9600);
+        int baudRate = call.getInt("baudRate", 2400);
         int dataBits = call.getInt("dataBits", 8);
         int stopBits = call.getInt("stopBits", 1);
         String parity = call.getString("parity", "none");
-        String protocol = call.getString("protocol", "general");
+        String protocol = call.getString("protocol", "soki");
         
         executor.execute(() -> {
             try {
@@ -116,7 +116,7 @@ public class HailinHardwarePlugin extends Plugin {
     public void scaleConnectTcp(PluginCall call) {
         String host = call.getString("host");
         int port = call.getInt("port", 9101);
-        String protocol = call.getString("protocol", "general");
+        String protocol = call.getString("protocol", "soki");
         
         if (host == null) {
             call.reject("IP地址不能为空");
