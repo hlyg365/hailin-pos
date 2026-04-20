@@ -134,13 +134,21 @@ class SerialScale {
     return { ...this.lastReading };
   }
   
-  // 检查是否支持Web Serial API
+  // 检查是否支持Web Serial API或Android原生插件
   static isSupported(): boolean {
-    return 'serial' in navigator;
+    // Web Serial API
+    if ('serial' in navigator) {
+      return true;
+    }
+    // Android原生插件
+    if (SerialScale.isAndroidNative()) {
+      return true;
+    }
+    return false;
   }
   
   // 检查是否在Android原生环境（增加重试机制）
-  private static isAndroidNative(): boolean {
+  static isAndroidNative(): boolean {
     if (typeof window === 'undefined') return false;
     
     // 优先检查 Capacitor.Plugins
@@ -357,6 +365,11 @@ class SerialScale {
   // 连接到指定串口
   async connect(config: ScaleConfig): Promise<boolean> {
     this.config = config;
+    // 优先使用Android原生USB Serial插件
+    if (SerialScale.isAndroidNative()) {
+      return await this.connectAndroidNative(config);
+    }
+
     
     if (!this.port) {
       // 尝试自动连接第一个可用串口
