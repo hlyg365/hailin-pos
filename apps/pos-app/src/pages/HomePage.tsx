@@ -1,10 +1,12 @@
-import { Link } from 'react-router-dom';
-import { useStoreStore, useFinanceStore, useAlertStore } from '../store';
+import { Link, useNavigate } from 'react-router-dom';
+import { useStoreStore, useFinanceStore, useAlertStore, useEmployeeStore } from '../store';
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const { currentStore } = useStoreStore();
   const { todaySales, todayOrders, todayCash, depositPending } = useFinanceStore();
   const { lowStockAlerts } = useAlertStore();
+  const { currentEmployee, logout } = useEmployeeStore();
 
   const isClearanceMode = () => {
     const hour = new Date().getHours();
@@ -34,6 +36,26 @@ export default function HomePage() {
                 <p className="text-sm text-blue-100">当前门店</p>
                 <p className="font-semibold">{currentStore?.name || '未选择'}</p>
               </div>
+              {currentEmployee ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm bg-blue-800 px-2 py-1 rounded">
+                    {currentEmployee.name} ({currentEmployee.role === 'admin' ? '管理员' : currentEmployee.role === 'manager' ? '店长' : '收银员'})
+                  </span>
+                  <button
+                    onClick={() => { logout(); navigate('/login'); }}
+                    className="text-sm text-blue-200 hover:text-white underline"
+                  >
+                    退出
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"
+                >
+                  登录
+                </Link>
+              )}
             </div>
           </div>
         </div>

@@ -45,16 +45,8 @@ interface EmployeeState {
 }
 
 export const useEmployeeStore = create<EmployeeState>((set) => ({
-  currentEmployee: {
-    id: 'emp001',
-    name: '张三',
-    phone: '13800138000',
-    role: 'cashier',
-    storeId: 'store001',
-    status: 'active',
-    hiredAt: new Date().toISOString(),
-  },
-  isAuthenticated: true,
+  currentEmployee: null, // 默认未登录
+  isAuthenticated: false,
   login: (employee) => set({ currentEmployee: employee, isAuthenticated: true }),
   logout: () => set({ currentEmployee: null, isAuthenticated: false }),
 }));
