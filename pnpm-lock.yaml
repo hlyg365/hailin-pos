@@ -32,9 +32,6 @@ importers:
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
-      hailin-hardware:
-        specifier: file:./hailin-hardware-plugin
-        version: file:apps/pos-app/hailin-hardware-plugin
       lucide-react:
         specifier: ^0.294.0
         version: 0.294.0(react@18.3.1)
@@ -1485,9 +1482,6 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
-
-  hailin-hardware@file:apps/pos-app/hailin-hardware-plugin:
-    resolution: {directory: apps/pos-app/hailin-hardware-plugin, type: directory}
 
   har-schema@2.0.0:
     resolution: {integrity: sha512-Oqluz6zhGX8cyRaTQlFMPw80bSJVG2x/cFb8ZPhUILGgHka9SsokCCOQgpveePerqidZOrT14ipqfJb7ILcW5Q==}
@@ -4283,10 +4277,6 @@ snapshots:
       responselike: 2.0.1
 
   graceful-fs@4.2.11: {}
-
-  hailin-hardware@file:apps/pos-app/hailin-hardware-plugin:
-    dependencies:
-      '@capacitor/core': 5.7.8
 
   har-schema@2.0.0: {}
 

@@ -329,7 +329,7 @@ export default function SettingsPage() {
             {/* 串口配置 */}
             {deviceConfig.scale.type === 'serial' && (
               <>
-                {/* 串口选择 */}
+                {/* 串口选择 - 自动检测可用设备 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">选择串口设备</label>
                   <div className="flex gap-2">
@@ -341,6 +341,10 @@ export default function SettingsPage() {
                       }}
                       className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                     >
+                      {/* 动态设备列表将通过自动检测填充 */}
+                      <option value="/dev/ttyS4">串口4 (ttyS4) - 推荐</option>
+                      <option value="/dev/ttyS5">串口5 (ttyS5)</option>
+                      <option value="/dev/ttyS6">串口6 (ttyS6)</option>
                       <option value="/dev/ttyS0">串口0 (ttyS0)</option>
                       <option value="/dev/ttyS1">串口1 (ttyS1)</option>
                       <option value="/dev/ttyUSB0">USB转串口0 (ttyUSB0)</option>
@@ -349,6 +353,73 @@ export default function SettingsPage() {
                       <option value="/dev/ttyACM0">ACM串口0 (ttyACM0)</option>
                       <option value="/dev/ttyACM1">ACM串口1 (ttyACM1)</option>
                     </select>
+                    <button
+                      onClick={async () => {
+                        addLog('info', '正在自动检测可用串口...');
+                        
+                        // 获取Android原生插件（带重试）
+                        const getPlugin = (retries = 3): Promise<any> => {
+                          return new Promise((resolve) => {
+                            const tryGet = (r: number) => {
+                              const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                              if (capacitorPlugins?.HailinHardware) {
+                                resolve(capacitorPlugins.HailinHardware);
+                                return;
+                              }
+                              const hw = (window as any).HailinHardware;
+                              if (hw) {
+                                if (!(window as any).Capacitor) (window as any).Capacitor = {};
+                                if (!(window as any).Capacitor.Plugins) (window as any).Capacitor.Plugins = {};
+                                (window as any).Capacitor.Plugins.HailinHardware = hw;
+                                resolve(hw);
+                                return;
+                              }
+                              if (r > 0) {
+                                addLog('info', `等待插件加载... 剩余: ${r}`);
+                                setTimeout(() => tryGet(r - 1), 500);
+                              } else {
+                                resolve(null);
+                              }
+                            };
+                            tryGet(retries);
+                          });
+                        };
+                        
+                        const hailin = await getPlugin();
+                        
+                        if (hailin && hailin.listTtyDevices) {
+                          try {
+                            addLog('info', '正在列出可用串口设备...');
+                            const result = await hailin.listTtyDevices();
+                            if (result.count > 0) {
+                              addLog('success', `发现 ${result.count} 个串口设备:`);
+                              const devs = JSON.parse(JSON.stringify(result.devices));
+                              Object.values(devs).forEach((d: any) => {
+                                addLog('info', `  ✓ /dev/${d}`);
+                              });
+                              // 自动选择第一个可读写的设备
+                              const writableDevices = Object.values(devs).filter((d: any) => 
+                                d.includes('可读写') || d.includes('读写')
+                              );
+                              if (writableDevices.length > 0) {
+                                const firstWritable = (writableDevices[0] as string).split(' ')[0];
+                                deviceConfig.updateConfig('scale', { address: `/dev/${firstWritable}` });
+                                addLog('success', `已自动选择: /dev/${firstWritable}`);
+                              }
+                            } else {
+                              addLog('warn', '未发现串口设备，请检查电子秤连接');
+                            }
+                          } catch (e: any) {
+                            addLog('error', `检测失败: ${e.message}`);
+                          }
+                        } else {
+                          addLog('error', '插件未就绪，请等待几秒后重试');
+                        }
+                      }}
+                      className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
+                    >
+                      自动检测
+                    </button>
                     <button
                       onClick={async () => {
                         addLog('info', '正在检测电子秤...');
