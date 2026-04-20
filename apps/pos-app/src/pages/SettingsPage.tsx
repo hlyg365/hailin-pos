@@ -352,11 +352,39 @@ export default function SettingsPage() {
                     <button
                       onClick={async () => {
                         addLog('info', '正在检测电子秤...');
-                        // 优先检查 Capacitor.Plugins
-                        const capacitorPlugins = (window as any).Capacitor?.Plugins;
-                        const hailin = capacitorPlugins?.HailinHardware || (window as any).HailinHardware;
+                        
+                        // 获取Android原生插件（带重试）
+                        const getPlugin = (retries = 3): Promise<any> => {
+                          return new Promise((resolve) => {
+                            const tryGet = (r: number) => {
+                              const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                              if (capacitorPlugins?.HailinHardware) {
+                                resolve(capacitorPlugins.HailinHardware);
+                                return;
+                              }
+                              const hw = (window as any).HailinHardware;
+                              if (hw) {
+                                if (!(window as any).Capacitor) (window as any).Capacitor = {};
+                                if (!(window as any).Capacitor.Plugins) (window as any).Capacitor.Plugins = {};
+                                (window as any).Capacitor.Plugins.HailinHardware = hw;
+                                resolve(hw);
+                                return;
+                              }
+                              if (r > 0) {
+                                addLog('info', `等待插件加载... 剩余: ${r}`);
+                                setTimeout(() => tryGet(r - 1), 500);
+                              } else {
+                                resolve(null);
+                              }
+                            };
+                            tryGet(retries);
+                          });
+                        };
+                        
+                        const hailin = await getPlugin();
                         
                         if (hailin) {
+                          addLog('info', 'Android原生插件已就绪');
                           try {
                             const result = await hailin.detectScale({
                               port: deviceConfig.scale.address || '/dev/ttyS0',
@@ -372,7 +400,8 @@ export default function SettingsPage() {
                             addLog('error', `检测异常: ${e.message}`);
                           }
                         } else {
-                          addLog('warn', 'Android原生插件未加载，请确保APP已更新到最新版本');
+                          addLog('error', 'Android原生插件未加载，请确保APP已更新');
+                          addLog('info', '提示：完全关闭APP后重新打开，等待插件加载');
                         }
                       }}
                       className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
@@ -427,43 +456,88 @@ export default function SettingsPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={async () => {
-                        addLog('info', '正在列出USB设备...');
-                        const capacitorPlugins = (window as any).Capacitor?.Plugins;
-                        const hailin = capacitorPlugins?.HailinHardware || (window as any).HailinHardware;
+                        addLog('info', '正在列出设备...');
                         
+                        // 获取Android原生插件（带重试）
+                        const getPlugin = (retries = 3): Promise<any> => {
+                          return new Promise((resolve) => {
+                            const tryGet = (r: number) => {
+                              const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                              if (capacitorPlugins?.HailinHardware) {
+                                resolve(capacitorPlugins.HailinHardware);
+                                return;
+                              }
+                              const hw = (window as any).HailinHardware;
+                              if (hw) {
+                                if (!(window as any).Capacitor) (window as any).Capacitor = {};
+                                if (!(window as any).Capacitor.Plugins) (window as any).Capacitor.Plugins = {};
+                                (window as any).Capacitor.Plugins.HailinHardware = hw;
+                                resolve(hw);
+                                return;
+                              }
+                              if (r > 0) {
+                                addLog('info', `等待插件... ${r}`);
+                                setTimeout(() => tryGet(r - 1), 500);
+                              } else {
+                                resolve(null);
+                              }
+                            };
+                            tryGet(retries);
+                          });
+                        };
+                        
+                        const hailin = await getPlugin();
+                        
+                        if (!hailin) {
+                          addLog('error', 'Android原生插件未加载');
+                          return;
+                        }
+                        
+                        // 先列出tty设备
+                        if (hailin?.listTtyDevices) {
+                          try {
+                            const result = await hailin.listTtyDevices();
+                            if (result.count > 0) {
+                              addLog('success', `发现 ${result.count} 个串口设备`);
+                              // 解析设备信息
+                              try {
+                                const devs = JSON.parse(JSON.stringify(result.devices));
+                                Object.values(devs).forEach((d: any) => {
+                                  addLog('info', `  /dev/${d}`);
+                                });
+                              } catch (e) {
+                                addLog('info', JSON.stringify(result.devices));
+                              }
+                            } else {
+                              addLog('warn', '未发现串口设备');
+                            }
+                          } catch (e: any) {
+                            addLog('error', `列出串口失败: ${e.message}`);
+                          }
+                        } else {
+                          addLog('warn', '串口列表功能不可用');
+                        }
+                        
+                        // 列出USB设备
                         if (hailin?.listUsbDevices) {
                           try {
                             const result = await hailin.listUsbDevices();
                             if (result.count > 0) {
                               addLog('success', `发现 ${result.count} 个USB设备`);
-                              // 尝试解析设备信息
                               try {
                                 const devs = JSON.parse(JSON.stringify(result.devices));
                                 Object.values(devs).forEach((d: any) => {
-                                  addLog('info', `  - ${d.name || '未知'} [${d.chipType}] VID:${d.vendorId} PID:${d.productId}`);
+                                  addLog('info', `  USB: ${d.name || '未知'} [${d.chipType || '?'}]`);
                                 });
                               } catch (e) {
-                                addLog('warn', '设备信息: ' + JSON.stringify(result.devices));
+                                // ignore
                               }
                             } else {
-                              addLog('warn', '未发现USB设备');
+                              addLog('info', '未发现USB设备');
                             }
                           } catch (e: any) {
-                            addLog('error', `列出USB设备失败: ${e.message}`);
+                            addLog('error', `列出USB失败: ${e.message}`);
                           }
-                        } else if (hailin?.listTtyDevices) {
-                          try {
-                            const result = await hailin.listTtyDevices();
-                            if (result.count > 0) {
-                              addLog('success', `发现 ${result.count} 个tty设备`);
-                            } else {
-                              addLog('warn', '未发现tty设备');
-                            }
-                          } catch (e: any) {
-                            addLog('error', `列出设备失败: ${e.message}`);
-                          }
-                        } else {
-                          addLog('warn', '设备检测功能不可用');
                         }
                       }}
                       className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
@@ -474,8 +548,41 @@ export default function SettingsPage() {
                     <button
                       onClick={async () => {
                         addLog('info', '正在检测电子秤...');
-                        const capacitorPlugins = (window as any).Capacitor?.Plugins;
-                        const hailin = capacitorPlugins?.HailinHardware || (window as any).HailinHardware;
+                        
+                        // 获取Android原生插件（带重试）
+                        const getPlugin = (retries = 3): Promise<any> => {
+                          return new Promise((resolve) => {
+                            const tryGet = (r: number) => {
+                              const capacitorPlugins = (window as any).Capacitor?.Plugins;
+                              if (capacitorPlugins?.HailinHardware) {
+                                resolve(capacitorPlugins.HailinHardware);
+                                return;
+                              }
+                              const hw = (window as any).HailinHardware;
+                              if (hw) {
+                                if (!(window as any).Capacitor) (window as any).Capacitor = {};
+                                if (!(window as any).Capacitor.Plugins) (window as any).Capacitor.Plugins = {};
+                                (window as any).Capacitor.Plugins.HailinHardware = hw;
+                                resolve(hw);
+                                return;
+                              }
+                              if (r > 0) {
+                                addLog('info', `等待插件... ${r}`);
+                                setTimeout(() => tryGet(r - 1), 500);
+                              } else {
+                                resolve(null);
+                              }
+                            };
+                            tryGet(retries);
+                          });
+                        };
+                        
+                        const hailin = await getPlugin();
+                        
+                        if (!hailin) {
+                          addLog('error', 'Android原生插件未加载');
+                          return;
+                        }
                         
                         if (hailin?.detectScale) {
                           try {
