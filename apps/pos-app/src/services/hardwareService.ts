@@ -1370,7 +1370,7 @@ export class DeviceManager {
         const result = await this.scale.connect({
           port: config.scale.host,  // 作为 host/IP 使用
           baudRate: config.scale.port || 9101,  // 作为 TCP 端口
-          protocol: 'general'
+          protocol: 'soki'  // 顶尖OS2协议
         });
         console.log(`[设备管理] 电子秤连接结果: ${result}`);
       } catch (e: any) {

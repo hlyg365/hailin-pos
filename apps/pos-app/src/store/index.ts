@@ -1048,7 +1048,7 @@ export const useDeviceConfigStore = create<DeviceConfigState>()(
         port: 8080,
         tcpPort: 8080,
         baudRate: 2400,
-        protocol: 'general',
+        protocol: 'soki',  // 顶尖OS2协议
       },
       customerDisplay: {
         enabled: true,
