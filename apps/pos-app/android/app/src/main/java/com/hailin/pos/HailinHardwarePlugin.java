@@ -158,19 +158,11 @@ public class HailinHardwarePlugin extends Plugin {
             try {
                 Log.i(TAG, "[秤] 检测电子秤: " + port + " @ " + baudRate);
                 
-                // 尝试打开串口
-                SerialConnection serial = new SerialConnection(port, baudRate, 8, 1, 0);
-                serial.open();
+                // 使用 SerialConnection 的正确方式
+                SerialConnection serial = new SerialConnection();
+                boolean connected = serial.connect(port, baudRate, 8, 1, 0);
                 
-                // 等待数据（最多3秒）
-                Thread.sleep(500);
-                
-                // 尝试读取数据
-                byte[] buffer = new byte[64];
-                int bytesRead = serial.read(buffer, 1000);
-                
-                if (bytesRead > 0) {
-                    // 成功读取到数据
+                if (connected) {
                     serialPool.put("scale", serial);
                     
                     JSObject result = new JSObject();
@@ -182,16 +174,15 @@ public class HailinHardwarePlugin extends Plugin {
                     result.put("deviceInfo", "顶尖OS2电子秤");
                     call.resolve(result);
                     
-                    Log.i(TAG, "[秤] 检测成功！读取到 " + bytesRead + " 字节");
+                    Log.i(TAG, "[秤] 检测成功！");
                 } else {
-                    serial.close();
                     JSObject result = new JSObject();
                     result.put("success", false);
                     result.put("detected", false);
-                    result.put("error", "未检测到数据");
+                    result.put("error", "无法打开串口");
                     call.resolve(result);
                     
-                    Log.w(TAG, "[秤] 检测失败：未检测到数据");
+                    Log.w(TAG, "[秤] 检测失败：无法打开串口");
                 }
             } catch (Exception e) {
                 JSObject result = new JSObject();
