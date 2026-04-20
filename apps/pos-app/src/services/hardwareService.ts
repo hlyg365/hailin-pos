@@ -401,8 +401,9 @@ export class ScaleService {
    * 启动模拟称重（用于开发调试）
    */
   private startSimulatedReading(): void {
-    let baseWeight = 0.5;
+    let baseWeight = 0;  // 初始重量为0，空秤状态
     let stable = true;
+    let lastUpdate = Date.now();
     
     const interval = setInterval(() => {
       if (!this.connected) {
@@ -410,12 +411,15 @@ export class ScaleService {
         return;
       }
       
-      // 模拟重量变化
-      baseWeight += (Math.random() - 0.5) * 0.02;
-      baseWeight = Math.max(0.1, Math.min(10, baseWeight));
+      // 模拟空秤状态（约2秒后）
+      if (Date.now() - lastUpdate > 2000) {
+        // 空秤时重量为0且稳定
+        baseWeight = 0;
+        stable = true;
+      }
       
-      // 模拟稳定性变化
-      if (Math.random() > 0.95) {
+      // 模拟稳定性变化（重量>0时可能不稳定）
+      if (baseWeight > 0 && Math.random() > 0.9) {
         stable = !stable;
       }
       
@@ -431,7 +435,7 @@ export class ScaleService {
       emit('weightChanged', weight);
       emit('scaleData', weight);
       
-    }, 500);
+    }, 300);  // 300ms更新频率，实时响应
   }
   
   /**

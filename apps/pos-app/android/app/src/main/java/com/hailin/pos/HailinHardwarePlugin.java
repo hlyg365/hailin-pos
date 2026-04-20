@@ -1220,25 +1220,42 @@ public class HailinHardwarePlugin extends Plugin {
     class ReaderThread extends Thread {
         private volatile boolean running = true;
         private SerialConnection serial;
+        private Socket socket;  // 网络秤socket
         private String protocol;
         
         ReaderThread(SerialConnection serial, String protocol) {
             this.serial = serial;
+            this.protocol = protocol;
+            this.socket = null;
+        }
+        
+        ReaderThread(Socket socket, String protocol) {
+            this.socket = socket;
+            this.serial = null;
             this.protocol = protocol;
         }
         
         @Override
         public void run() {
             byte[] buffer = new byte[64];
-            while (running && serial.connected) {
+            while (running) {
                 try {
-                    if (serial.input != null) {
+                    if (serial != null && serial.input != null) {
+                        // 串口读取
                         int len = serial.input.read(buffer);
                         if (len > 0) {
                             parseScaleData(buffer, len);
                         }
+                    } else if (socket != null && socket.isConnected() && !socket.isClosed()) {
+                        // 网络秤读取
+                        if (socket.getInputStream() != null) {
+                            int len = socket.getInputStream().read(buffer);
+                            if (len > 0) {
+                                parseScaleData(buffer, len);
+                            }
+                        }
                     }
-                    Thread.sleep(100);
+                    Thread.sleep(100);  // 100ms 读取间隔，实时响应
                 } catch (Exception e) {
                     if (running) Log.e(TAG, "秤读取异常", e);
                 }
@@ -1431,7 +1448,8 @@ public class HailinHardwarePlugin extends Plugin {
         Socket socket = socketPool.get("scale_tcp");
         if (socket == null) return;
         
-        ReaderThread reader = new ReaderThread(new SerialConnection(), protocol);
+        // 使用socket构造函数
+        ReaderThread reader = new ReaderThread(socket, protocol);
         readerThreads.put("scale_tcp", reader);
         reader.start();
     }

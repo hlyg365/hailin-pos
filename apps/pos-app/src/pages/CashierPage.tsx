@@ -300,9 +300,16 @@ export default function CashierPage() {
       }
     });
     
+    // 保存事件引用用于cleanup
+    const handleScan = (data: any) => handleBarcodeScan(data.barcode);
+    const handleWeight = (data: any) => {
+      setScaleWeight({ weight: data.weight, unit: data.unit, stable: data.stable });
+    };
+    
     return () => {
       clearInterval(statusInterval);
-      deviceEvents.off('scan', () => {});
+      deviceEvents.off('scan', handleScan);
+      deviceEvents.off('weightChanged', handleWeight);
     };
   }, [connectDevices, deviceConfig.autoConnect]);
 
