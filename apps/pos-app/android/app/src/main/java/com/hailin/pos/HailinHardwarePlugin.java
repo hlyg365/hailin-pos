@@ -160,7 +160,7 @@ public class HailinHardwarePlugin extends Plugin {
                 
                 // 使用 SerialConnection 的正确方式
                 SerialConnection serial = new SerialConnection();
-                boolean connected = serial.connect(port, baudRate, 8, 1, 0);
+                boolean connected = serial.connect(port, baudRate, 8, 1, "NONE");
                 
                 if (connected) {
                     serialPool.put("scale", serial);
