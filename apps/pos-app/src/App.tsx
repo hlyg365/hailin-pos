@@ -15,21 +15,37 @@ import AuthPage from './pages/AuthPage';
 import CustomerDisplay from './pages/CustomerDisplay';
 import DeviceDebugPage from './pages/DeviceDebugPage';
 import { useEmployeeStore } from './store';
+import { Capacitor } from '@capacitor/core';
 
-// 认证守卫组件
-function AuthGuard({ children }: { children: React.ReactNode }) {
+// 收银台认证守卫 - 未登录显示收银台登录页
+function CashierAuthGuard({ children }: { children: React.ReactNode }) {
   const { currentEmployee } = useEmployeeStore();
   
   if (!currentEmployee) {
-    return <Navigate to="/login" replace />;
+    // 未登录，显示收银台登录页
+    return <Navigate to="/pos/login" replace />;
   }
   
   return <>{children}</>;
 }
 
-// 默认显示首页（四端入口）
+// 检测是否为原生APP
+const isNativeApp = Capacitor.isNativePlatform();
+
+// 默认路由 - 根据平台决定行为
 function DefaultRoute() {
-  return <HomePage />;
+  const { currentEmployee } = useEmployeeStore();
+  
+  if (isNativeApp) {
+    // 原生APP端：已登录直接进入收银台，未登录进入收银台登录页
+    if (currentEmployee) {
+      return <Navigate to="/pos/cashier" replace />;
+    }
+    return <Navigate to="/pos/cashier" replace />;
+  } else {
+    // Web端：显示首页
+    return <HomePage />;
+  }
 }
 
 function App() {
@@ -38,9 +54,10 @@ function App() {
       <Routes>
         <Route path="/" element={<DefaultRoute />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/pos/cashier" element={<AuthGuard><CashierPage /></AuthGuard>} />
-        <Route path="/pos/member" element={<AuthGuard><MemberPage /></AuthGuard>} />
-        <Route path="/pos/suspended" element={<AuthGuard><SuspendedOrdersPage /></AuthGuard>} />
+        <Route path="/pos/login" element={<LoginPage isCashier={true} />} />
+        <Route path="/pos/cashier" element={<CashierAuthGuard><CashierPage /></CashierAuthGuard>} />
+        <Route path="/pos/member" element={<CashierAuthGuard><MemberPage /></CashierAuthGuard>} />
+        <Route path="/pos/suspended" element={<CashierAuthGuard><SuspendedOrdersPage /></CashierAuthGuard>} />
         <Route path="/dashboard" element={<AuthGuard><DashboardPage /></AuthGuard>} />
         <Route path="/dashboard/bi" element={<AuthGuard><BIPage /></AuthGuard>} />
         <Route path="/dashboard/store-ops" element={<AuthGuard><StoreOpsPage /></AuthGuard>} />
