@@ -1410,11 +1410,8 @@ public class HailinHardwarePlugin extends Plugin {
             Log.i(TAG, "[秤-主板串口] 开始连接: port=" + port + ", baudRate=" + baudRate);
             
             try {
-                // 检查设备文件
                 File device = new File(port);
                 Log.i(TAG, "[秤-主板串口] 设备文件存在: " + device.exists());
-                Log.i(TAG, "[秤-主板串口] 设备文件可读: " + device.canRead());
-                Log.i(TAG, "[秤-主板串口] 设备文件可写: " + device.canWrite());
                 
                 if (!device.exists()) {
                     Log.e(TAG, "[秤-主板串口] 设备不存在: " + port);
@@ -1435,23 +1432,22 @@ public class HailinHardwarePlugin extends Plugin {
                     return new SerialConnectResult(false, "串口设备不存在: " + port, "检查路径是否正确");
                 }
                 
-                // 尝试预设置波特率
-                setBaudRateBeforeOpen(port, baudRate);
+                // 直接尝试打开设备文件（不依赖canRead/canWrite，因为它们可能返回false）
+                Log.i(TAG, "[秤-主板串口] 尝试直接打开设备文件...");
                 
-                // 直接打开设备文件
-                Log.i(TAG, "[秤-主板串口] 尝试打开设备文件...");
                 FileInputStream tempInput = new FileInputStream(device);
-                FileOutputStream tempOutput = new FileOutputStream(device);
-                Log.i(TAG, "[秤-主板串口] 设备文件已打开");
+                Log.i(TAG, "[秤-主板串口] FileInputStream 打开成功");
                 
-                // 尝试设置波特率（通过反射或stty）
+                FileOutputStream tempOutput = new FileOutputStream(device);
+                Log.i(TAG, "[秤-主板串口] FileOutputStream 打开成功");
+                
+                // 尝试设置波特率
                 try {
                     Runtime.getRuntime().exec("stty -F " + port + " " + baudRate + " raw");
                     Log.i(TAG, "[秤-主板串口] stty设置波特率成功: " + baudRate);
                 } catch (Exception e) {
                     Log.w(TAG, "[秤-主板串口] stty设置波特率失败: " + e.getMessage());
-                    // 尝试通过反射设置波特率
-                    setBaudRateViaReflection(port, baudRate);
+                    // 波特率设置失败不影响连接，使用默认波特率
                 }
                 
                 // 保存连接
@@ -1466,34 +1462,10 @@ public class HailinHardwarePlugin extends Plugin {
                 
             } catch (SecurityException e) {
                 Log.e(TAG, "[秤-主板串口] 权限不足（SecurityException）: " + e.getMessage());
-                return new SerialConnectResult(false, "权限不足，无法访问串口", "可能需要root权限或在adb中执行: adb shell chmod 666 " + port);
+                return new SerialConnectResult(false, "权限不足，无法访问串口", "请在设置中授权USB权限或检查SELinux状态");
             } catch (Exception e) {
                 Log.e(TAG, "[秤-主板串口] 连接失败: " + e.getMessage());
-                e.printStackTrace();
                 return new SerialConnectResult(false, "连接失败: " + e.getMessage(), e.toString());
-            }
-        }
-        
-        // 通过反射设置波特率（备用方案）
-        private void setBaudRateViaReflection(String port, int baudRate) {
-            try {
-                Log.w(TAG, "[秤-主板串口] 尝试反射设置波特率（" + baudRate + "）...");
-                
-                // Android提供了android.os.ParcelFileDescriptor来处理串口
-                File device = new File(port);
-                FileInputStream fis = new FileInputStream(device);
-                FileDescriptor fd = fis.getFD();
-                
-                // 使用反射获取文件描述符的int值
-                java.lang.reflect.Field field = FileDescriptor.class.getDeclaredField("descriptor");
-                field.setAccessible(true);
-                int fdInt = field.getInt(fd);
-                
-                android.os.ParcelFileDescriptor pfd = android.os.ParcelFileDescriptor.fromFd(fdInt);
-                Log.i(TAG, "[秤-主板串口] ParcelFileDescriptor创建成功, fd=" + fdInt);
-                
-            } catch (Exception e) {
-                Log.w(TAG, "[秤-主板串口] 反射设置波特率失败: " + e.getMessage());
             }
         }
         
