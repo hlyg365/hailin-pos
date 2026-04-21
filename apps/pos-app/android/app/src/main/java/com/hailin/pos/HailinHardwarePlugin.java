@@ -2346,12 +2346,20 @@ public class HailinHardwarePlugin extends Plugin {
     }
     
     void startScaleReader(String protocol) {
+        Log.i(TAG, "[秤] startScaleReader 被调用");
         SerialConnection serial = serialPool.get("scale");
-        if (serial == null) return;
+        if (serial == null) {
+            Log.e(TAG, "[秤] serialPool.get(\"scale\") 返回 null!");
+            return;
+        }
         
+        Log.i(TAG, "[秤] 创建 ReaderThread");
         ReaderThread reader = new ReaderThread(serial, protocol);
         readerThreads.put("scale", reader);
+        
+        Log.i(TAG, "[秤] 准备启动 ReaderThread...");
         reader.start();
+        Log.i(TAG, "[秤] ReaderThread.start() 已调用");
     }
     
     // ==================== 内部类：客显屏Presentation ====================
