@@ -408,8 +408,16 @@ export default function SettingsPage() {
                               );
                               
                               if (writableDevices.length > 0) {
-                                // 优先选择ttyS开头的设备
-                                const preferredDevice = writableDevices.find(d => d.name.startsWith('ttyS')) || writableDevices[0];
+                                // 优先选择ttyS开头的设备，按编号排序（小的优先，如ttyS4优先于ttyS5）
+                                const ttyDevices = writableDevices
+                                  .filter(d => d.name.startsWith('ttyS'))
+                                  .sort((a, b) => {
+                                    const numA = parseInt(a.name.replace('ttyS', '')) || 0;
+                                    const numB = parseInt(b.name.replace('ttyS', '')) || 0;
+                                    return numA - numB;
+                                  });
+                                
+                                const preferredDevice = ttyDevices.length > 0 ? ttyDevices[0] : writableDevices[0];
                                 deviceConfig.updateConfig('scale', { address: `/dev/${preferredDevice.name}` });
                                 addLog('success', `已自动选择: /dev/${preferredDevice.name}`);
                               } else {
