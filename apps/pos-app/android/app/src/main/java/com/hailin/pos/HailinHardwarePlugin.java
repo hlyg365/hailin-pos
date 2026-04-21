@@ -1214,6 +1214,15 @@ public class HailinHardwarePlugin extends Plugin {
                 
                 Log.d(TAG, "[串口] 权限检查通过");
                 
+                // ====== 关键：在打开串口之前先设置波特率 ======
+                Log.d(TAG, "[串口] ★ 在打开串口之前设置波特率: " + baudRate);
+                boolean baudSetBefore = setBaudRateBeforeOpen(port, baudRate);
+                if (baudSetBefore) {
+                    Log.i(TAG, "[串口] ★ 波特率预设置成功: " + baudRate);
+                } else {
+                    Log.w(TAG, "[串口] 波特率预设置失败，将尝试其他方法");
+                }
+                
                 // 尝试打开设备
                 try {
                     input = new FileInputStream(device);
@@ -1236,17 +1245,18 @@ public class HailinHardwarePlugin extends Plugin {
                     return new SerialConnectResult(false, error, e.getMessage());
                 }
                 
-                // 尝试通过stty命令设置串口参数
-                Log.d(TAG, "[串口] 尝试设置波特率: " + baudRate);
-                boolean baudSet = setBaudRate(port, baudRate);
-                if (baudSet) {
+                // 打开后再设置一次波特率（双重保险）
+                Log.d(TAG, "[串口] 在打开后再次设置波特率: " + baudRate);
+                boolean baudSetAfter = setBaudRate(port, baudRate);
+                if (baudSetAfter) {
                     Log.i(TAG, "[串口] 波特率设置成功: " + baudRate);
                 } else {
-                    Log.w(TAG, "[串口] 波特率设置失败，串口可能使用默认波特率");
+                    Log.w(TAG, "[串口] 波特率设置失败，电子秤可能无法正常通信");
                 }
                 
                 connected = true;
-                String msg = "串口连接成功: " + port + " (波特率设置: " + (baudSet ? "成功" : "失败，使用默认") + ")";
+                String msg = "串口连接成功: " + port + " (波特率预设置: " + (baudSetBefore ? "成功" : "失败") + 
+                             ", 波特率后设置: " + (baudSetAfter ? "成功" : "失败") + ")";
                 Log.i(TAG, "[串口] " + msg);
                 return new SerialConnectResult(true, null, msg);
                 
@@ -1258,6 +1268,55 @@ public class HailinHardwarePlugin extends Plugin {
                 String error = "串口连接异常: " + e.getMessage();
                 Log.e(TAG, "[串口] " + error, e);
                 return new SerialConnectResult(false, error, e.getMessage());
+            }
+        }
+        
+        // 在打开串口之前设置波特率（需要在root环境下）
+        private boolean setBaudRateBeforeOpen(String port, int baudRate) {
+            try {
+                Log.d(TAG, "[串口] 尝试预设置波特率: " + port + " @ " + baudRate);
+                
+                // 方法1：使用stty命令（需要root）
+                String[] sttyCommands = {
+                    "stty -F " + port + " " + baudRate + " raw -echo -echoe -echok -echoctl -echoke",
+                    "stty -F " + port + " speed " + baudRate,
+                    "stty " + baudRate + " -F " + port + " raw"
+                };
+                
+                for (String cmd : sttyCommands) {
+                    try {
+                        Log.d(TAG, "[串口] 尝试stty命令: " + cmd);
+                        Process process = Runtime.getRuntime().exec(cmd);
+                        int exitCode = process.waitFor();
+                        if (exitCode == 0) {
+                            Log.i(TAG, "[串口] stty命令成功: " + cmd);
+                            return true;
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "[串口] stty命令失败: " + cmd + " - " + e.getMessage());
+                    }
+                }
+                
+                // 方法2：使用setserial（可能需要root）
+                try {
+                    String setserialCmd = "setserial -v " + port + " baud_base " + baudRate + " spd_cust divisor " + (2400 / baudRate);
+                    Log.d(TAG, "[串口] 尝试setserial: " + setserialCmd);
+                    Process process = Runtime.getRuntime().exec(setserialCmd);
+                    int exitCode = process.waitFor();
+                    if (exitCode == 0) {
+                        Log.i(TAG, "[串口] setserial命令成功");
+                        return true;
+                    }
+                } catch (Exception e) {
+                    Log.d(TAG, "[串口] setserial失败: " + e.getMessage());
+                }
+                
+                Log.w(TAG, "[串口] 所有波特率设置方法都失败（可能需要root权限）");
+                return false;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "[串口] 波特率预设置异常: " + e.getMessage());
+                return false;
             }
         }
         
@@ -1464,14 +1523,34 @@ public class HailinHardwarePlugin extends Plugin {
         
         @Override
         public void run() {
+            Log.i(TAG, "[秤读取] ReaderThread启动");
             byte[] buffer = new byte[64];
+            long lastReadTime = 0;
+            long emptyReadCount = 0;
+            
             while (running) {
                 try {
                     if (serial != null && serial.input != null) {
                         // 串口读取
-                        int len = serial.input.read(buffer);
-                        if (len > 0) {
-                            parseScaleData(buffer, len);
+                        try {
+                            // 设置超时，避免无限阻塞
+                            if (serial.input.available() > 0) {
+                                int len = serial.input.read(buffer);
+                                if (len > 0) {
+                                    lastReadTime = System.currentTimeMillis();
+                                    emptyReadCount = 0;
+                                    Log.d(TAG, "[秤读取] 读到数据，长度: " + len);
+                                    parseScaleData(buffer, len);
+                                }
+                            } else {
+                                // 没有数据可用，增加计数
+                                emptyReadCount++;
+                                if (emptyReadCount % 20 == 0) {  // 每2秒输出一次（20*100ms）
+                                    Log.d(TAG, "[秤读取] 无数据可用... (已连续" + (emptyReadCount * 100) + "ms无数据)");
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "[秤读取] 读取异常: " + e.getMessage());
                         }
                     } else if (socket != null && socket.isConnected() && !socket.isClosed()) {
                         // 网络秤读取
@@ -1487,6 +1566,7 @@ public class HailinHardwarePlugin extends Plugin {
                     if (running) Log.e(TAG, "秤读取异常", e);
                 }
             }
+            Log.i(TAG, "[秤读取] ReaderThread结束");
         }
         
         void parseScaleData(byte[] data, int len) {
