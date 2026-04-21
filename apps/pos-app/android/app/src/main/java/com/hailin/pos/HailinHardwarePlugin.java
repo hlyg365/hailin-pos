@@ -1527,6 +1527,7 @@ public class HailinHardwarePlugin extends Plugin {
             byte[] buffer = new byte[64];
             long lastReadTime = 0;
             long emptyReadCount = 0;
+            long lastCommandTime = 0;
             
             while (running) {
                 try {
@@ -1545,6 +1546,15 @@ public class HailinHardwarePlugin extends Plugin {
                             } else {
                                 // 没有数据可用，增加计数
                                 emptyReadCount++;
+                                
+                                // ====== 关键：定期发送读取命令 ======
+                                // 对于被动式电子秤，需要发送读取命令才会返回数据
+                                // 每500ms发送一次读取命令
+                                if (emptyReadCount >= 5 && System.currentTimeMillis() - lastCommandTime > 500) {
+                                    sendScaleReadCommand();
+                                    lastCommandTime = System.currentTimeMillis();
+                                }
+                                
                                 if (emptyReadCount % 20 == 0) {  // 每2秒输出一次（20*100ms）
                                     Log.d(TAG, "[秤读取] 无数据可用... (已连续" + (emptyReadCount * 100) + "ms无数据)");
                                 }
@@ -1567,6 +1577,36 @@ public class HailinHardwarePlugin extends Plugin {
                 }
             }
             Log.i(TAG, "[秤读取] ReaderThread结束");
+        }
+        
+        // 发送电子秤读取命令
+        private void sendScaleReadCommand() {
+            try {
+                if (serial != null && serial.output != null) {
+                    // 常见的电子秤读取命令（ASCII格式）
+                    // 不同品牌的电子秤有不同的命令，这里尝试几种常见的
+                    
+                    // 命令1: CR/LF结尾的读取命令（适用于许多国产秤）
+                    byte[] cmd1 = new byte[]{0x01, 0x30, 0x34, 0x52, 0x0D, 0x0A};  // "014R\r\n"
+                    // 命令2: 读取稳定重量
+                    byte[] cmd2 = new byte[]{'S', 'I', ' ', '0', '1', 0x0D};  // "SI 01\r"
+                    // 命令3: 读取即时重量
+                    byte[] cmd3 = new byte[]{'S', 'D', 0x0D};  // "SD\r"
+                    // 命令4: 读取状态
+                    byte[] cmd4 = new byte[]{0x05};  // ENQ (询问)
+                    
+                    // 尝试发送命令1
+                    try {
+                        serial.output.write(cmd1);
+                        serial.output.flush();
+                        Log.d(TAG, "[秤命令] 发送: 014R\\r\\n");
+                    } catch (Exception e) {
+                        Log.d(TAG, "[秤命令] 发送失败: " + e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "[秤命令] 发送命令异常: " + e.getMessage());
+            }
         }
         
         void parseScaleData(byte[] data, int len) {
