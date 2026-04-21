@@ -3,7 +3,7 @@ include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../../../node_modules/.pnpm/@capacitor+android@5.7.8_@capacitor+core@5.7.8/node_modules/@capacitor/android/capacitor')
 
 include ':capacitor-preferences'
-project(':capacitor-preferences').projectDir = new File('../../../node_modules/.pnpm/@capacitor+preferences@8.0.1_@capacitor+core@5.7.8/node_modules/@capacitor/preferences/android')
+project(':capacitor-preferences').projectDir = new File('../../../node_modules/.pnpm/@capacitor+preferences@5.0.8_@capacitor+core@5.7.8/node_modules/@capacitor/preferences/android')
 
 include ':capacitor-status-bar'
 project(':capacitor-status-bar').projectDir = new File('../../../node_modules/.pnpm/@capacitor+status-bar@5.0.8_@capacitor+core@5.7.8/node_modules/@capacitor/status-bar/android')
