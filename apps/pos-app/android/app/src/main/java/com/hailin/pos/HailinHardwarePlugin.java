@@ -1293,11 +1293,21 @@ public class HailinHardwarePlugin extends Plugin {
             try {
                 Log.d(TAG, "[串口] 尝试预设置波特率: " + port + " @ " + baudRate);
                 
-                // 方法1：使用stty命令（需要root）
+                // 首先尝试chmod确保设备可访问
+                try {
+                    Process chmod = Runtime.getRuntime().exec("chmod 666 " + port);
+                    int chmodResult = chmod.waitFor();
+                    Log.d(TAG, "[串口] chmod 666 " + port + " 结果: " + chmodResult);
+                } catch (Exception e) {
+                    Log.d(TAG, "[串口] chmod失败: " + e.getMessage());
+                }
+                
+                // 方法1：使用stty命令（可能需要root）
                 String[] sttyCommands = {
                     "stty -F " + port + " " + baudRate + " raw -echo -echoe -echok -echoctl -echoke",
-                    "stty -F " + port + " speed " + baudRate,
-                    "stty " + baudRate + " -F " + port + " raw"
+                    "stty -F " + port + " " + baudRate,
+                    "stty " + baudRate + " -F " + port,
+                    "stty -F " + port + " speed " + baudRate + " raw"
                 };
                 
                 for (String cmd : sttyCommands) {
@@ -1305,12 +1315,25 @@ public class HailinHardwarePlugin extends Plugin {
                         Log.d(TAG, "[串口] 尝试stty命令: " + cmd);
                         Process process = Runtime.getRuntime().exec(cmd);
                         int exitCode = process.waitFor();
+                        
+                        // 读取输出
+                        StringBuilder output = new StringBuilder();
+                        try {
+                            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                output.append(line).append("\n");
+                            }
+                        } catch (Exception ex) {}
+                        
                         if (exitCode == 0) {
                             Log.i(TAG, "[串口] stty命令成功: " + cmd);
                             return true;
+                        } else {
+                            Log.d(TAG, "[串口] stty命令失败(退出码:" + exitCode + "): " + cmd);
                         }
                     } catch (Exception e) {
-                        Log.d(TAG, "[串口] stty命令失败: " + cmd + " - " + e.getMessage());
+                        Log.d(TAG, "[串口] stty命令异常: " + cmd + " - " + e.getMessage());
                     }
                 }
                 
@@ -1541,39 +1564,57 @@ public class HailinHardwarePlugin extends Plugin {
         @Override
         public void run() {
             Log.i(TAG, "[秤读取] ReaderThread启动");
-            byte[] buffer = new byte[64];
+            byte[] buffer = new byte[128];
             long lastReadTime = 0;
-            long emptyReadCount = 0;
             long lastCommandTime = 0;
+            int readAttempt = 0;
             
             while (running) {
                 try {
                     if (serial != null && serial.input != null) {
                         // 串口读取
                         try {
-                            // 设置超时，避免无限阻塞
-                            if (serial.input.available() > 0) {
-                                int len = serial.input.read(buffer);
-                                if (len > 0) {
-                                    lastReadTime = System.currentTimeMillis();
-                                    emptyReadCount = 0;
-                                    Log.d(TAG, "[秤读取] 读到数据，长度: " + len);
-                                    parseScaleData(buffer, len);
+                            // 尝试读取数据（不依赖available，直接尝试读取）
+                            int len = 0;
+                            try {
+                                // 使用available和Thread.sleep实现超时
+                                int timeout = 3000;  // 3秒超时
+                                long startTime = System.currentTimeMillis();
+                                while (serial.input.available() == 0) {
+                                    if (System.currentTimeMillis() - startTime > timeout) {
+                                        break;  // 超时
+                                    }
+                                    Thread.sleep(50);
                                 }
+                                if (serial.input.available() > 0) {
+                                    len = serial.input.read(buffer);
+                                }
+                            } catch (Exception e) {
+                                // 超时或其他异常
+                                len = 0;
+                            }
+                            
+                            if (len > 0) {
+                                lastReadTime = System.currentTimeMillis();
+                                readAttempt = 0;
+                                Log.d(TAG, "[秤读取] 读到数据，长度: " + len);
+                                // 显示原始HEX数据
+                                StringBuilder hex = new StringBuilder();
+                                for (int i = 0; i < len; i++) {
+                                    hex.append(String.format("%02X ", buffer[i]));
+                                }
+                                Log.d(TAG, "[秤原始HEX] " + hex.toString());
+                                parseScaleData(buffer, len);
                             } else {
-                                // 没有数据可用，增加计数
-                                emptyReadCount++;
-                                
-                                // ====== 关键：定期发送读取命令 ======
-                                // 对于被动式电子秤，需要发送读取命令才会返回数据
-                                // 每500ms发送一次读取命令
-                                if (emptyReadCount >= 5 && System.currentTimeMillis() - lastCommandTime > 500) {
+                                readAttempt++;
+                                // 每2秒发送一次读取命令
+                                if (System.currentTimeMillis() - lastCommandTime > 2000) {
                                     sendScaleReadCommand();
                                     lastCommandTime = System.currentTimeMillis();
                                 }
                                 
-                                if (emptyReadCount % 20 == 0) {  // 每2秒输出一次（20*100ms）
-                                    Log.d(TAG, "[秤读取] 无数据可用... (已连续" + (emptyReadCount * 100) + "ms无数据)");
+                                if (readAttempt % 4 == 0) {  // 每4秒输出一次
+                                    Log.d(TAG, "[秤读取] 无数据 (已尝试" + readAttempt + "次)");
                                 }
                             }
                         } catch (Exception e) {
