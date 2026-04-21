@@ -1215,7 +1215,14 @@ public class HailinHardwarePlugin extends Plugin {
         SerialConnectResult connectWithDetail(String port, int baudRate, int dataBits, int stopBits, String parity) {
             Log.i(TAG, "[USB串口] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
             
-            // 首先尝试USB Host API连接（支持设置波特率）
+            // 首先尝试使用stty命令预设置波特率（可能需要root）
+            Log.d(TAG, "[USB串口] 尝试预设置波特率...");
+            boolean preBaudSet = setBaudRateBeforeOpen(port, baudRate);
+            if (preBaudSet) {
+                Log.i(TAG, "[USB串口] 预设置波特率成功!");
+            }
+            
+            // 尝试USB Host API连接（支持设置波特率）
             SerialConnectResult usbResult = tryUsbConnection(port, baudRate, dataBits, stopBits, parity);
             if (usbResult.success) {
                 Log.i(TAG, "[USB串口] USB Host API连接成功");
@@ -1492,6 +1499,15 @@ public class HailinHardwarePlugin extends Plugin {
                     return new SerialConnectResult(false, error, e.getMessage());
                 }
                 
+                // 尝试设置波特率
+                Log.d(TAG, "[串口-传统] 尝试设置波特率: " + baudRate);
+                boolean baudSet = setBaudRateAfterOpen(port, baudRate);
+                if (baudSet) {
+                    Log.i(TAG, "[串口-传统] 波特率设置成功!");
+                } else {
+                    Log.w(TAG, "[串口-传统] 波特率设置失败（可能需要root权限），使用默认波特率");
+                }
+                
                 connected = true;
                 String msg = "传统串口连接成功: " + port;
                 Log.i(TAG, "[串口-传统] " + msg);
@@ -1509,7 +1525,7 @@ public class HailinHardwarePlugin extends Plugin {
         }
         
         // 在打开串口之前设置波特率（需要在root环境下）
-        private boolean setBaudRateBeforeOpen(String port, int baudRate) {
+        private static boolean setBaudRateBeforeOpen(String port, int baudRate) {
             try {
                 Log.d(TAG, "[串口] 尝试预设置波特率: " + port + " @ " + baudRate);
                 
@@ -1576,6 +1592,66 @@ public class HailinHardwarePlugin extends Plugin {
                 
             } catch (Exception e) {
                 Log.e(TAG, "[串口] 波特率预设置异常: " + e.getMessage());
+                return false;
+            }
+        }
+        
+        // 在打开串口之后设置波特率（通过su获取root权限）
+        private static boolean setBaudRateAfterOpen(String port, int baudRate) {
+            try {
+                Log.d(TAG, "[串口] 尝试在打开后设置波特率: " + port + " @ " + baudRate);
+                
+                // 方法1：通过su执行stty命令
+                String[] sttyCommands = {
+                    "stty -F " + port + " " + baudRate + " raw -echo -echoe -echok -echoctl -echoke",
+                    "stty -F " + port + " " + baudRate,
+                    "stty " + baudRate + " -F " + port
+                };
+                
+                for (String cmd : sttyCommands) {
+                    try {
+                        Log.d(TAG, "[串口] 通过su执行stty: " + cmd);
+                        Process su = Runtime.getRuntime().exec("su");
+                        DataOutputStream os = new DataOutputStream(su.getOutputStream());
+                        os.writeBytes(cmd + "\n");
+                        os.writeBytes("exit\n");
+                        os.flush();
+                        int exitCode = su.waitFor();
+                        
+                        if (exitCode == 0) {
+                            Log.i(TAG, "[串口] su+stty成功!");
+                            return true;
+                        } else {
+                            Log.d(TAG, "[串口] su+stty失败(退出码:" + exitCode + ")");
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "[串口] su+stty异常: " + e.getMessage());
+                    }
+                }
+                
+                // 方法2：直接执行stty（可能因权限失败）
+                for (String cmd : sttyCommands) {
+                    try {
+                        Log.d(TAG, "[串口] 直接执行stty: " + cmd);
+                        Process process = Runtime.getRuntime().exec(cmd);
+                        int exitCode = process.waitFor();
+                        
+                        if (exitCode == 0) {
+                            Log.i(TAG, "[串口] stty直接成功!");
+                            return true;
+                        } else {
+                            Log.d(TAG, "[串口] stty直接失败(退出码:" + exitCode + ")");
+                        }
+                    } catch (Exception e) {
+                        Log.d(TAG, "[串口] stty直接异常: " + e.getMessage());
+                    }
+                }
+                
+                Log.w(TAG, "[串口] 所有波特率设置方法失败");
+                return false;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "[串口] 波特率设置异常: " + e.getMessage());
                 return false;
             }
         }
