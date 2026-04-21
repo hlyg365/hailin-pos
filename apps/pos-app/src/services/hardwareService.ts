@@ -133,15 +133,29 @@ const MAX_PLUGIN_RETRIES = 10;
 function getHardwarePlugin(): HailinHardwarePlugin | null {
   if (Capacitor.isNativePlatform()) {
     try {
+      console.log('[硬件服务] 尝试获取 HailinHardware 插件...');
+      console.log('[硬件服务] Capacitor.Plugins:', Object.keys((Capacitor as any).Plugins || {}));
+      
       // 使用 Capacitor.getPlugin 获取已注册的插件
       const plugin = (Capacitor as any).Plugins?.HailinHardware;
       if (plugin) {
         console.log('[硬件服务] HailinHardware 原生插件已加载');
         return plugin as HailinHardwarePlugin;
       }
+      
+      // 尝试其他访问方式
+      const plugin2 = (Capacitor as any).getPlugin?.('HailinHardware');
+      if (plugin2) {
+        console.log('[硬件服务] 通过getPlugin获取到HailinHardware');
+        return plugin2 as HailinHardwarePlugin;
+      }
+      
+      console.error('[硬件服务] HailinHardware 插件未找到!');
     } catch (e) {
-      console.warn('[硬件服务] 获取 HailinHardware 插件失败:', e);
+      console.error('[硬件服务] 获取 HailinHardware 插件异常:', e);
     }
+  } else {
+    console.warn('[硬件服务] 非原生平台，跳过插件获取');
   }
   return null;
 }
