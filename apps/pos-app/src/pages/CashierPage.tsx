@@ -320,13 +320,14 @@ export default function CashierPage() {
   
   useEffect(() => {
     // 监听秤连接状态
-    const unsubscribe = hardwareService.on('scaleData', (data: any) => {
+    const handleScaleData = (data: any) => {
       if (data && typeof data.weight === 'number') {
         setScaleWeight(data.weight);
         setScaleStable(data.stable ?? true);
         setScaleUnit(data.unit || 'kg');
       }
-    });
+    };
+    hardwareService.on('scaleData', handleScaleData);
     
     // 启动主动轮询（原生事件可能不稳定，用轮询作为备份）
     const startWeightPolling = () => {
@@ -354,7 +355,7 @@ export default function CashierPage() {
     setTimeout(startWeightPolling, 1000);
     
     return () => {
-      unsubscribe();
+      hardwareService.off('scaleData', handleScaleData);
       if (scaleWeightIntervalRef.current) {
         clearInterval(scaleWeightIntervalRef.current);
         scaleWeightIntervalRef.current = null;
