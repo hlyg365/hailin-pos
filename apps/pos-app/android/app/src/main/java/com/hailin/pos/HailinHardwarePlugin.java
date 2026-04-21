@@ -2054,7 +2054,7 @@ public class HailinHardwarePlugin extends Plugin {
                                 Log.e(TAG, "[秤读取-USB] 读取异常: " + e.getMessage());
                             }
                         } else if (serial.input != null) {
-                            // 传统串口读取 - 非阻塞方式
+                            // 传统串口读取 - 快速非阻塞方式
                             int len = 0;
                             try {
                                 // 检查是否有数据可用
@@ -2064,51 +2064,35 @@ public class HailinHardwarePlugin extends Plugin {
                                     len = Math.min(available, buffer.length);
                                     len = serial.input.read(buffer, 0, len);
                                     if (len < 0) len = 0;
+                                } else {
+                                    // 没有数据，短暂等待后重试
+                                    Thread.sleep(20);  // 20ms延迟，提高响应速度
                                 }
-                                // 如果没有数据，len保持为0
                             } catch (IOException e) {
-                                // 读取异常，忽略
-                                len = 0;
+                                // 读取异常，短暂等待
+                                try { Thread.sleep(50); } catch (Exception ex) {}
                             } catch (Exception e) {
-                                len = 0;
+                                try { Thread.sleep(20); } catch (Exception ex) {}
                             }
                             
                             if (len > 0) {
                                 lastReadTime = System.currentTimeMillis();
                                 readAttempt = 0;
-                                Log.i(TAG, "[秤读取] >>> 读到数据，长度: " + len);
-                                showToast(">>> 读到数据! 长度:" + len);
-                                // 显示原始HEX数据
-                                StringBuilder hex = new StringBuilder();
-                                for (int i = 0; i < len; i++) {
-                                    hex.append(String.format("%02X ", buffer[i]));
-                                }
-                                Log.i(TAG, "[秤原始HEX] " + hex.toString());
+                                Log.i(TAG, "[秤读取] 读到数据，长度: " + len);
                                 parseScaleData(buffer, len);
                             } else {
                                 readAttempt++;
-                                // 持续发送读取命令
-                                if (System.currentTimeMillis() - lastCommandTime > 1000) {
-                                    sendScaleReadCommand();
-                                    lastCommandTime = System.currentTimeMillis();
-                                }
                                 
-                                // 首次进入显示等待信息
-                                if (readAttempt == 1) {
-                                    showToast("等待秤数据... 波特率:" + serial.currentBaudRate);
-                                }
-                                
-                                // 无数据超过10秒，自动切换波特率
-                                else if (readAttempt >= 100) {  // 100 * 100ms = 10秒
-                                    Log.w(TAG, "[波特率扫描] >>> 10秒无数据，切换波特率...");
-                                    showToast("10秒无数据，切换波特率...");
+                                // 无数据超过30秒，尝试切换波特率（仅在非9600时）
+                                if (readAttempt >= 1500 && serial.currentBaudRate != 9600) {  // 30秒
+                                    Log.w(TAG, "[波特率扫描] 30秒无数据，切换波特率...");
                                     serial.tryNextBaudRate();
-                                    showToast("新波特率: " + serial.currentBaudRate);
                                     readAttempt = 0;
                                 }
                                 
-                                if (readAttempt % 20 == 0) {  // 每2秒输出一次
-                                    Log.w(TAG, "[秤读取] 等待中... 尝试" + readAttempt + "次, 波特率:" + serial.currentBaudRate);
+                                // 只在日志中输出，避免Toast影响性能
+                                if (readAttempt % 50 == 0) {  // 每秒输出一次
+                                    Log.d(TAG, "[秤读取] 等待中... " + readAttempt);
                                 }
                             }
                         }
