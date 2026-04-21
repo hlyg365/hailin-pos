@@ -1213,24 +1213,26 @@ public class HailinHardwarePlugin extends Plugin {
          * 带详细信息的串口连接方法 - 使用USB Host API
          */
         SerialConnectResult connectWithDetail(String port, int baudRate, int dataBits, int stopBits, String parity) {
-            Log.i(TAG, "[USB串口] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
+            Log.i(TAG, "[秤] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
             
             // 首先尝试使用stty命令预设置波特率（可能需要root）
-            Log.d(TAG, "[USB串口] 尝试预设置波特率...");
+            Log.i(TAG, "[秤] 尝试预设置波特率: " + baudRate);
             boolean preBaudSet = setBaudRateBeforeOpen(port, baudRate);
             if (preBaudSet) {
-                Log.i(TAG, "[USB串口] 预设置波特率成功!");
+                Log.i(TAG, "[秤] 预设置波特率成功!");
+            } else {
+                Log.w(TAG, "[秤] 预设置波特率失败，将继续尝试连接");
             }
             
             // 尝试USB Host API连接（支持设置波特率）
             SerialConnectResult usbResult = tryUsbConnection(port, baudRate, dataBits, stopBits, parity);
             if (usbResult.success) {
-                Log.i(TAG, "[USB串口] USB Host API连接成功");
+                Log.i(TAG, "[秤] USB Host API连接成功");
                 return usbResult;
             }
             
             // USB Host API失败，尝试传统方式
-            Log.w(TAG, "[USB串口] USB Host API失败: " + usbResult.error + "，尝试传统方式...");
+            Log.w(TAG, "[秤] USB Host API失败: " + usbResult.error + "，尝试传统方式...");
             return connectWithDetailLegacy(port, baudRate, dataBits, stopBits, parity);
         }
         
@@ -1548,7 +1550,7 @@ public class HailinHardwarePlugin extends Plugin {
                 
                 for (String cmd : sttyCommands) {
                     try {
-                        Log.d(TAG, "[串口] 尝试stty命令: " + cmd);
+                        Log.i(TAG, "[串口] 尝试stty: " + cmd);
                         Process process = Runtime.getRuntime().exec(cmd);
                         int exitCode = process.waitFor();
                         
@@ -1563,31 +1565,31 @@ public class HailinHardwarePlugin extends Plugin {
                         } catch (Exception ex) {}
                         
                         if (exitCode == 0) {
-                            Log.i(TAG, "[串口] stty命令成功: " + cmd);
+                            Log.i(TAG, "[串口] stty成功: " + cmd);
                             return true;
                         } else {
-                            Log.d(TAG, "[串口] stty命令失败(退出码:" + exitCode + "): " + cmd);
+                            Log.w(TAG, "[串口] stty失败(退出码:" + exitCode + "): " + cmd);
                         }
                     } catch (Exception e) {
-                        Log.d(TAG, "[串口] stty命令异常: " + cmd + " - " + e.getMessage());
+                        Log.w(TAG, "[串口] stty异常: " + cmd + " - " + e.getMessage());
                     }
                 }
                 
                 // 方法2：使用setserial（可能需要root）
                 try {
                     String setserialCmd = "setserial -v " + port + " baud_base " + baudRate + " spd_cust divisor " + (2400 / baudRate);
-                    Log.d(TAG, "[串口] 尝试setserial: " + setserialCmd);
+                    Log.i(TAG, "[串口] 尝试setserial: " + setserialCmd);
                     Process process = Runtime.getRuntime().exec(setserialCmd);
                     int exitCode = process.waitFor();
                     if (exitCode == 0) {
-                        Log.i(TAG, "[串口] setserial命令成功");
+                        Log.i(TAG, "[串口] setserial成功");
                         return true;
                     }
                 } catch (Exception e) {
-                    Log.d(TAG, "[串口] setserial失败: " + e.getMessage());
+                    Log.w(TAG, "[串口] setserial失败: " + e.getMessage());
                 }
                 
-                Log.w(TAG, "[串口] 所有波特率设置方法都失败（可能需要root权限）");
+                Log.w(TAG, "[串口] 所有波特率设置失败（可能需要root）");
                 return false;
                 
             } catch (Exception e) {
@@ -2001,32 +2003,47 @@ public class HailinHardwarePlugin extends Plugin {
         private void sendScaleReadCommand() {
             try {
                 if (serial != null && serial.output != null) {
-                    // 顶尖OS2系列 SOKI协议常用命令
-                    // 尝试不同的SOKI协议命令
+                    // 顶尖OS2系列 SOKI协议命令 - 依次尝试
                     
                     // 命令1: DC1 (0x11) - SOKI协议常用读取命令
                     byte[] cmd1 = new byte[]{0x11};  // DC1
                     
-                    // 命令2: ENQ (0x05) - 询问命令
-                    byte[] cmd2 = new byte[]{0x05};  // ENQ
+                    // 命令2: 读取重量
+                    byte[] cmd2 = new byte[]{'W', 0x0D};  // 'W' + CR
                     
-                    // 命令3: 0x02 + 'W' - 读取重量
-                    byte[] cmd3 = new byte[]{0x02, 'W', 0x0D};  // STX + 'W' + CR
+                    // 命令3: 读取数据
+                    byte[] cmd3 = new byte[]{'D', 0x0D};  // 'D' + CR
                     
-                    // 命令4: 0x02 + 'D' - 读取即时数据
-                    byte[] cmd4 = new byte[]{0x02, 'D', 0x0D};  // STX + 'D' + CR
-                    
-                    // 命令5: 读取状态
-                    byte[] cmd5 = new byte[]{'S', 'T', 0x0D};  // "ST\r"
+                    // 命令4: STX + W
+                    byte[] cmd4 = new byte[]{0x02, 'W', 0x0D};  // STX + 'W' + CR
                     
                     // 依次尝试发送命令
                     try {
                         serial.output.write(cmd1);
                         serial.output.flush();
-                        Log.d(TAG, "[秤命令] 发送SOKI: DC1(0x11)");
+                        Log.i(TAG, "[秤命令] 发送: DC1(0x11)");
                     } catch (Exception e) {
-                        Log.d(TAG, "[秤命令] DC1发送失败");
+                        Log.e(TAG, "[秤命令] DC1发送失败: " + e.getMessage());
                     }
+                    
+                    try {
+                        serial.output.write(cmd2);
+                        serial.output.flush();
+                        Log.i(TAG, "[秤命令] 发送: W+CR");
+                    } catch (Exception e) {
+                        Log.e(TAG, "[秤命令] W+CR发送失败: " + e.getMessage());
+                    }
+                    
+                    try {
+                        serial.output.write(cmd3);
+                        serial.output.flush();
+                        Log.i(TAG, "[秤命令] 发送: D+CR");
+                    } catch (Exception e) {
+                        Log.e(TAG, "[秤命令] D+CR发送失败: " + e.getMessage());
+                    }
+                    
+                } else {
+                    Log.w(TAG, "[秤命令] 串口output为null，无法发送");
                 }
             } catch (Exception e) {
                 Log.e(TAG, "[秤命令] 发送命令异常: " + e.getMessage());
