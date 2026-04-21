@@ -322,9 +322,7 @@ export default function CashierPage() {
     // 监听秤连接状态
     const handleScaleData = (data: any) => {
       if (data && typeof data.weight === 'number') {
-        setScaleWeight(data.weight);
-        setScaleStable(data.stable ?? true);
-        setScaleUnit(data.unit || 'kg');
+        setScaleWeight({ weight: data.weight, unit: data.unit || 'kg', stable: data.stable ?? true });
       }
     };
     hardwareService.on('scaleData', handleScaleData);
@@ -340,9 +338,7 @@ export default function CashierPage() {
           if (plugin && plugin.scaleReadWeight) {
             const result = await plugin.scaleReadWeight({});
             if (result && typeof result.weight === 'number') {
-              setScaleWeight(result.weight);
-              setScaleStable(result.stable ?? true);
-              setScaleUnit(result.unit || 'kg');
+              setScaleWeight({ weight: result.weight, unit: result.unit || 'kg', stable: result.stable ?? true });
             }
           }
         } catch (e) {

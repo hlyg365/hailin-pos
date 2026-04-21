@@ -3,15 +3,8 @@
  * 完整支持：电子秤、打印机、钱箱、扫码枪、客显屏、AI识别
  */
 import { Capacitor } from '@capacitor/core';
-import { registerPlugin } from '@capacitor/core';
-import { registerHailinHardwarePlugin } from '../plugins/hailin-plugin-register';
 
-// 立即尝试手动注册插件
-if (Capacitor.isNativePlatform()) {
-  setTimeout(() => {
-    registerHailinHardwarePlugin();
-  }, 50);
-}
+// 不在这里导入插件注册，避免在Capacitor未初始化时出错
 
 // ==================== 插件类型定义 ====================
 
