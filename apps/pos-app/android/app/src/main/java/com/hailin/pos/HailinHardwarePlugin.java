@@ -2185,8 +2185,6 @@ public class HailinHardwarePlugin extends Plugin {
             for (int i = 0; i < len; i++) {
                 hexBuilder.append(String.format("%02X ", data[i]));
             }
-            String hexDump = hexBuilder.toString();
-            Log.d(TAG, "秤原始数据[HEX]: " + hexDump);
             
             // 尝试解析顶尖OS2二进制协议
             ScaleWeight rawWeight = parseSokiProtocol(data, len);
@@ -2280,7 +2278,30 @@ public class HailinHardwarePlugin extends Plugin {
          *       -> "00000.00" = 0.00 kg
          */
         ScaleWeight parseSokiProtocol(byte[] data, int len) {
-            if (len < 5) return null;
+            // 显示原始HEX数据
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < len; i++) {
+                hex.append(String.format("%02X ", data[i]));
+            }
+            Log.i(TAG, "秤原始数据[HEX]: " + hex.toString());
+            showToast("读到数据: " + hex.toString());
+            
+            // 2字节数据可能是简单的状态或确认响应
+            if (len == 2) {
+                Log.i(TAG, "[秤] 收到2字节响应: " + hex.toString());
+                // 返回一个空的稳定重量，继续监听
+                ScaleWeight w = new ScaleWeight();
+                w.weight = 0;
+                w.unit = "kg";
+                w.stable = true;
+                w.timestamp = System.currentTimeMillis();
+                return w;
+            }
+            
+            if (len < 5) {
+                Log.w(TAG, "[秤] 数据太短(" + len + "字节)，需要至少5字节");
+                return null;
+            }
             
             // 查找STX(0x02)和ETX(0x03)位置
             int stxIndex = -1;

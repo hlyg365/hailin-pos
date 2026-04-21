@@ -7,7 +7,7 @@ const storage = new S3Storage({
 });
 
 async function main() {
-  const apkPath = path.join(process.cwd(), "public", "hailin-pos-v1.0.184.apk");
+  const apkPath = path.join(process.cwd(), "public", "hailin-pos-v1.0.185.apk");
   
   console.log("读取APK文件:", apkPath);
   const fileContent = fs.readFileSync(apkPath);
@@ -15,7 +15,7 @@ async function main() {
   console.log("上传到对象存储...");
   const key = await storage.uploadFile({
     fileContent: fileContent,
-    fileName: "apk/hailin-pos-v1.0.184.apk",
+    fileName: "apk/hailin-pos-v1.0.185.apk",
     contentType: "application/vnd.android.package-archive",
   });
   
