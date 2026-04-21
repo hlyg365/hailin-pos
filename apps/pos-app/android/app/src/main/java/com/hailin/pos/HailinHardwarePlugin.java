@@ -2,6 +2,7 @@ package com.hailin.pos;
 
 import android.app.Presentation;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.display.DisplayManager;
@@ -13,7 +14,9 @@ import android.util.Log;
 import android.view.Display;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Gravity;
 import android.webkit.WebView;
+import android.widget.Toast;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -1995,10 +1998,31 @@ public class HailinHardwarePlugin extends Plugin {
             }
             Log.i(TAG, "========================================");
             
+            // 在屏幕上显示Toast
+            try {
+                Handler handler = new Handler(Looper.getMainLooper());
+                handler.post(() -> {
+                    try {
+                        Toast.makeText(appContext, "秤读取线程已启动!", Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {}
+                });
+            } catch (Exception e) {}
+            
             byte[] buffer = new byte[128];
             long lastReadTime = 0;
             long lastCommandTime = 0;
             int readAttempt = 0;
+            
+            // 首次进入时显示当前波特率
+            try {
+                Handler handler = new Handler(Looper.getMainLooper());
+                handler.post(() -> {
+                    try {
+                        int br = serial != null ? serial.currentBaudRate : 0;
+                        Toast.makeText(appContext, "当前波特率: " + br, Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {}
+                });
+            } catch (Exception e) {}
             
             while (running) {
                 try {
@@ -2347,19 +2371,45 @@ public class HailinHardwarePlugin extends Plugin {
     
     void startScaleReader(String protocol) {
         Log.i(TAG, "[秤] startScaleReader 被调用");
+        showToast("开始启动秤读取线程...");
+        
         SerialConnection serial = serialPool.get("scale");
         if (serial == null) {
             Log.e(TAG, "[秤] serialPool.get(\"scale\") 返回 null!");
+            showToast("错误：无法获取秤连接！");
             return;
         }
         
         Log.i(TAG, "[秤] 创建 ReaderThread");
+        showToast("创建读取线程...");
+        
         ReaderThread reader = new ReaderThread(serial, protocol);
         readerThreads.put("scale", reader);
         
         Log.i(TAG, "[秤] 准备启动 ReaderThread...");
+        showToast("启动读取线程...");
+        
         reader.start();
         Log.i(TAG, "[秤] ReaderThread.start() 已调用");
+        showToast("读取线程已启动，等待数据...");
+    }
+    
+    // 显示Toast通知
+    private void showToast(String message) {
+        try {
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.post(() -> {
+                try {
+                    Toast toast = Toast.makeText(appContext, message, Toast.LENGTH_SHORT);
+                    toast.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 200);
+                    toast.show();
+                } catch (Exception e) {
+                    Log.e(TAG, "Toast显示失败: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "showToast异常: " + e.getMessage());
+        }
     }
     
     // ==================== 内部类：客显屏Presentation ====================
