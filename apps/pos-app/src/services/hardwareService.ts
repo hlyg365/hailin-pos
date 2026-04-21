@@ -228,48 +228,38 @@ async function nativeCall(options: NativeCallOptions): Promise<any> {
   }
 }
 
-// 获取插件，带重试机制
+// 获取插件
 function getHardwarePlugin(): HailinHardwarePlugin | null {
   if (Capacitor.isNativePlatform()) {
     try {
       console.log('[硬件服务] 尝试获取 HailinHardware 插件...');
       
-      // 方式1: 通过 Cordova 接口获取
-      const cordovaPlugin = (window as any).HailinHardware;
-      if (cordovaPlugin) {
-        console.log('[硬件服务] 通过 Cordova 获取到 HailinHardware');
-        return convertCordovaToPromise(cordovaPlugin);
-      }
-      
-      // 方式2: 通过 Capacitor.Plugins 获取
+      // 方式1: 通过 Capacitor.Plugins 获取（推荐）
       const plugin = (Capacitor as any).Plugins?.HailinHardware;
       if (plugin) {
-        console.log('[硬件服务] HailinHardware 原生插件已加载');
+        console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（Capacitor.Plugins）');
         return plugin as HailinHardwarePlugin;
+      }
+      
+      // 方式2: 通过 window.HailinHardware 获取（Cordova兼容）
+      const cordovaPlugin = (window as any).HailinHardware;
+      if (cordovaPlugin) {
+        console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（window.HailinHardware）');
+        return cordovaPlugin as HailinHardwarePlugin;
       }
       
       // 方式3: 通过 Capacitor.getPlugin 获取
       const plugin2 = (Capacitor as any).getPlugin?.('HailinHardware');
       if (plugin2) {
-        console.log('[硬件服务] 通过getPlugin获取到HailinHardware');
+        console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（getPlugin）');
         return plugin2 as HailinHardwarePlugin;
       }
       
-      // 方式4: 通过全局Capacitor对象获取
-      const plugin3 = (Capacitor as any).pluginManager?.plugins?.HailinHardware;
-      if (plugin3) {
-        console.log('[硬件服务] 通过pluginManager获取到HailinHardware');
-        return plugin3 as HailinHardwarePlugin;
-      }
-      
-      console.error('[硬件服务] HailinHardware 插件未找到!');
-      console.log('[硬件服务] 可用插件:', Object.keys((Capacitor as any).Plugins || {}));
-      console.log('[硬件服务] 可用插件列表:', JSON.stringify((Capacitor as any).Plugins || {}));
+      console.warn('[硬件服务] HailinHardware 插件未找到');
+      console.log('[硬件服务] Capacitor.Plugins:', JSON.stringify((Capacitor as any).Plugins || {}));
     } catch (e) {
       console.error('[硬件服务] 获取 HailinHardware 插件异常:', e);
     }
-  } else {
-    console.warn('[硬件服务] 非原生平台，跳过插件获取');
   }
   return null;
 }
