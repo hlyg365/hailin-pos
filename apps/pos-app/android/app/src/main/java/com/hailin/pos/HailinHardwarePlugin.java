@@ -21,6 +21,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 // USB Host API for USB Serial Communication
+import android.hardware.usb.UsbConstants;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.hardware.usb.UsbEndpoint;
@@ -103,7 +104,7 @@ public class HailinHardwarePlugin extends Plugin {
                 }
                 
                 // 尝试USB转串口连接
-                SerialConnection serial = new SerialConnection();
+                SerialConnection serial = new SerialConnection(appContext);
                 SerialConnection.SerialConnectResult result = serial.connectWithDetail(port, baudRate, dataBits, stopBits, parity);
                 
                 Log.i(TAG, "[秤] connectWithDetail 结果: success=" + result.success + ", error=" + result.error);
@@ -206,7 +207,7 @@ public class HailinHardwarePlugin extends Plugin {
                 Log.i(TAG, "[秤] 检测电子秤: " + port + " @ " + baudRate);
                 
                 // 使用 SerialConnection 的详细连接方法
-                serial = new SerialConnection();
+                serial = new SerialConnection(appContext);
                 SerialConnection.SerialConnectResult connResult = serial.connectWithDetail(port, baudRate, 8, 1, "NONE");
                 
                 if (connResult.success) {
@@ -1137,6 +1138,11 @@ public class HailinHardwarePlugin extends Plugin {
         OutputStream output;
         boolean connected = false;
         ScaleWeight lastWeight;
+        Context context;  // 用于USB Host API
+        
+        SerialConnection(Context ctx) {
+            this.context = ctx;
+        }
         
         // 串口连接详细结果
         static class SerialConnectResult {
@@ -1196,11 +1202,244 @@ public class HailinHardwarePlugin extends Plugin {
             return sb.toString();
         }
         
+        // USB相关变量
+        UsbDevice usbDevice = null;
+        UsbDeviceConnection usbConnection = null;
+        UsbInterface usbInterface = null;
+        UsbEndpoint endpointIn = null;
+        UsbEndpoint endpointOut = null;
+        
         /**
-         * 带详细信息的串口连接方法
+         * 带详细信息的串口连接方法 - 使用USB Host API
          */
         SerialConnectResult connectWithDetail(String port, int baudRate, int dataBits, int stopBits, String parity) {
-            Log.i(TAG, "[串口] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
+            Log.i(TAG, "[USB串口] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
+            
+            // 首先尝试USB Host API连接（支持设置波特率）
+            SerialConnectResult usbResult = tryUsbConnection(port, baudRate, dataBits, stopBits, parity);
+            if (usbResult.success) {
+                Log.i(TAG, "[USB串口] USB Host API连接成功");
+                return usbResult;
+            }
+            
+            // USB Host API失败，尝试传统方式
+            Log.w(TAG, "[USB串口] USB Host API失败: " + usbResult.error + "，尝试传统方式...");
+            return connectWithDetailLegacy(port, baudRate, dataBits, stopBits, parity);
+        }
+        
+        /**
+         * 使用USB Host API连接USB CDC设备
+         */
+        private SerialConnectResult tryUsbConnection(String port, int baudRate, int dataBits, int stopBits, String parity) {
+            Log.d(TAG, "[USB] 尝试USB Host API连接...");
+            
+            try {
+                // 获取USB Manager
+                UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
+                if (usbManager == null) {
+                    return new SerialConnectResult(false, "USB服务不可用", "请检查USB权限");
+                }
+                
+                // 从端口路径获取USB设备信息
+                // 端口格式可能是 /dev/ttyUSB0 或 /dev/ttyACM0，需要解析
+                String deviceName = port;
+                if (port.startsWith("/dev/")) {
+                    deviceName = port.substring(5);  // 去掉 /dev/ 前缀
+                }
+                
+                // 获取USB设备列表
+                HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
+                Log.d(TAG, "[USB] 找到 " + deviceList.size() + " 个USB设备");
+                
+                UsbDevice targetDevice = null;
+                for (UsbDevice device : deviceList.values()) {
+                    String devName = device.getDeviceName();
+                    Log.d(TAG, "[USB] 检查设备: " + devName);
+                    
+                    // 尝试匹配设备名或接口
+                    if (devName.contains(deviceName) || deviceName.contains(devName.replace("/dev/", ""))) {
+                        targetDevice = device;
+                        Log.i(TAG, "[USB] 找到目标设备: " + device.getDeviceName());
+                        break;
+                    }
+                    
+                    // 检查USB转串口芯片
+                    int vid = device.getVendorId();
+                    int pid = device.getProductId();
+                    if (vid == 0x0403 || vid == 0x067B || vid == 0x1A86 || vid == 0x10C4) {
+                        // FTDI, PL2303, CH340, CP2102等常见USB转串口芯片
+                        targetDevice = device;
+                        Log.i(TAG, "[USB] 找到USB转串口芯片: VID=" + String.format("%04X", vid) + " PID=" + String.format("%04X", pid));
+                        break;
+                    }
+                }
+                
+                if (targetDevice == null) {
+                    return new SerialConnectResult(false, "未找到USB设备", "请检查USB连接");
+                }
+                
+                // 请求USB权限
+                if (!usbManager.hasPermission(targetDevice)) {
+                    Log.d(TAG, "[USB] 请求USB权限...");
+                    // 注意：这里需要用户授权，可以通过PendingIntent实现
+                    // 暂时跳过权限检查，尝试直接连接
+                }
+                
+                // 打开USB设备
+                usbConnection = usbManager.openDevice(targetDevice);
+                if (usbConnection == null) {
+                    return new SerialConnectResult(false, "无法打开USB设备", "可能没有USB权限");
+                }
+                Log.d(TAG, "[USB] USB设备打开成功");
+                
+                // 查找CDC ACM接口（通常是接口0）
+                int interfaceCount = targetDevice.getInterfaceCount();
+                usbInterface = null;
+                for (int i = 0; i < interfaceCount; i++) {
+                    UsbInterface intf = targetDevice.getInterface(i);
+                    int intfClass = intf.getInterfaceClass();
+                    int intfSubClass = intf.getInterfaceSubclass();
+                    Log.d(TAG, "[USB] 接口" + i + ": class=" + intfClass + ", subclass=" + intfSubClass);
+                    
+                    // CDC ACM class = 10 (0x0A), subclass = 2 (ACM)
+                    if (intfClass == 10 && intfSubClass == 2) {
+                        usbInterface = intf;
+                        Log.i(TAG, "[USB] 找到CDC ACM接口: " + i);
+                        break;
+                    }
+                    
+                    // 也尝试查找Communication接口
+                    if (intfClass == 2) {
+                        usbInterface = intf;
+                        Log.i(TAG, "[USB] 找到Communication接口: " + i);
+                    }
+                }
+                
+                // 如果没找到CDC ACM，使用接口0
+                if (usbInterface == null && interfaceCount > 0) {
+                    usbInterface = targetDevice.getInterface(0);
+                    Log.i(TAG, "[USB] 使用接口0");
+                }
+                
+                if (usbInterface == null) {
+                    usbConnection.close();
+                    return new SerialConnectResult(false, "未找到可用接口", "USB设备可能不兼容");
+                }
+                
+                // 声明接口
+                if (!usbConnection.claimInterface(usbInterface, true)) {
+                    usbConnection.close();
+                    return new SerialConnectResult(false, "无法声明USB接口", "接口被占用");
+                }
+                Log.d(TAG, "[USB] 接口声明成功");
+                
+                // 查找IN/OUT端点
+                int endpointCount = usbInterface.getEndpointCount();
+                endpointIn = null;
+                endpointOut = null;
+                for (int i = 0; i < endpointCount; i++) {
+                    UsbEndpoint ep = usbInterface.getEndpoint(i);
+                    if (ep.getType() == UsbConstants.USB_ENDPOINT_XFER_BULK) {
+                        if (ep.getDirection() == UsbConstants.USB_DIR_IN) {
+                            endpointIn = ep;
+                            Log.d(TAG, "[USB] 找到IN端点");
+                        } else {
+                            endpointOut = ep;
+                            Log.d(TAG, "[USB] 找到OUT端点");
+                        }
+                    }
+                }
+                
+                if (endpointIn == null || endpointOut == null) {
+                    usbConnection.close();
+                    return new SerialConnectResult(false, "未找到BULK端点", "USB设备可能不兼容");
+                }
+                
+                // 设置波特率（通过CDC控制请求）
+                boolean baudSet = setUsbBaudRate(baudRate);
+                if (baudSet) {
+                    Log.i(TAG, "[USB] 波特率设置成功: " + baudRate);
+                } else {
+                    Log.w(TAG, "[USB] 波特率设置失败，使用默认");
+                }
+                
+                // 连接成功，设置标志
+                connected = true;
+                input = null;  // 使用USB，不再使用FileInputStream
+                output = null;
+                usbDevice = targetDevice;
+                
+                String msg = "USB CDC连接成功: " + port + " @ " + baudRate + " (波特率设置: " + (baudSet ? "成功" : "失败") + ")";
+                Log.i(TAG, "[USB] " + msg);
+                return new SerialConnectResult(true, null, msg);
+                
+            } catch (SecurityException e) {
+                Log.e(TAG, "[USB] 安全异常(无权限)", e);
+                return new SerialConnectResult(false, "USB权限被拒绝", "请在设置中允许USB调试");
+            } catch (Exception e) {
+                Log.e(TAG, "[USB] 连接异常", e);
+                return new SerialConnectResult(false, e.getMessage(), e.toString());
+            }
+        }
+        
+        /**
+         * 设置USB CDC设备的波特率
+         * CDC SET_LINE_CODING 请求
+         */
+        private boolean setUsbBaudRate(int baudRate) {
+            try {
+                if (usbConnection == null || usbInterface == null) {
+                    return false;
+                }
+                
+                Log.d(TAG, "[USB] 设置波特率: " + baudRate);
+                
+                // CDC Line Coding 结构 (7字节):
+                // dwDTERate (4字节, little-endian): 波特率
+                // bCharFormat (1字节): 停止位 (0=1位, 1=1.5位, 2=2位)
+                // bParityType (1字节): 校验 (0=无, 1=奇, 2=偶, 3=标记, 4=空格)
+                // bDataBits (1字节): 数据位 (5,6,7,8,16)
+                byte[] lineCoding = new byte[7];
+                
+                // 波特率 (little-endian)
+                lineCoding[0] = (byte) (baudRate & 0xFF);
+                lineCoding[1] = (byte) ((baudRate >> 8) & 0xFF);
+                lineCoding[2] = (byte) ((baudRate >> 16) & 0xFF);
+                lineCoding[3] = (byte) ((baudRate >> 24) & 0xFF);
+                
+                // 停止位: 0 = 1位
+                lineCoding[4] = 0;
+                // 校验: 0 = 无
+                lineCoding[5] = 0;
+                // 数据位: 8
+                lineCoding[6] = 8;
+                
+                // CDC请求: SET_LINE_CODING (0x20)
+                // requestType: 0x21 (HOST_TO_DEVICE | CLASS | INTERFACE)
+                // request: 0x20 (SET_LINE_CODING)
+                // value: 0
+                // index: 0 (接口号)
+                int requestType = 0x21;  // HOST_TO_DEVICE | CLASS | INTERFACE
+                int request = 0x20;      // SET_LINE_CODING
+                int value = 0;
+                int index = usbInterface.getId();  // 接口ID
+                
+                int result = usbConnection.controlTransfer(requestType, request, value, index, lineCoding, lineCoding.length, 1000);
+                
+                Log.d(TAG, "[USB] controlTransfer结果: " + result);
+                return result >= 0;
+                
+            } catch (Exception e) {
+                Log.e(TAG, "[USB] 设置波特率异常", e);
+                return false;
+            }
+        }
+        
+        /**
+         * 传统串口连接方式（备用）
+         */
+        SerialConnectResult connectWithDetailLegacy(String port, int baudRate, int dataBits, int stopBits, String parity) {
+            Log.i(TAG, "[串口-传统] connectWithDetailLegacy: port=" + port + ", baudRate=" + baudRate);
             
             try {
                 File device = new File(port);
@@ -1208,82 +1447,63 @@ public class HailinHardwarePlugin extends Plugin {
                 // 检查设备是否存在
                 if (!device.exists()) {
                     String error = "串口设备不存在: " + port;
-                    Log.e(TAG, "[串口] " + error);
+                    Log.e(TAG, "[串口-传统] " + error);
                     return new SerialConnectResult(false, error, getAvailableTtyDevices());
                 }
-                Log.d(TAG, "[串口] 设备存在: " + port);
+                Log.d(TAG, "[串口-传统] 设备存在: " + port);
                 
                 // 检查读写权限
                 boolean canRead = device.canRead();
                 boolean canWrite = device.canWrite();
-                Log.d(TAG, "[串口] 权限检查: canRead=" + canRead + ", canWrite=" + canWrite);
+                Log.d(TAG, "[串口-传统] 权限检查: canRead=" + canRead + ", canWrite=" + canWrite);
                 
                 if (!canRead) {
                     String error = "串口设备无读权限: " + port;
-                    Log.e(TAG, "[串口] " + error);
+                    Log.e(TAG, "[串口-传统] " + error);
                     return new SerialConnectResult(false, error, "请检查设备权限");
                 }
                 if (!canWrite) {
                     String error = "串口设备无写权限: " + port;
-                    Log.e(TAG, "[串口] " + error);
+                    Log.e(TAG, "[串口-传统] " + error);
                     return new SerialConnectResult(false, error, "请检查设备权限");
                 }
                 
-                Log.d(TAG, "[串口] 权限检查通过");
-                
-                // ====== 关键：在打开串口之前先设置波特率 ======
-                Log.d(TAG, "[串口] ★ 在打开串口之前设置波特率: " + baudRate);
-                boolean baudSetBefore = setBaudRateBeforeOpen(port, baudRate);
-                if (baudSetBefore) {
-                    Log.i(TAG, "[串口] ★ 波特率预设置成功: " + baudRate);
-                } else {
-                    Log.w(TAG, "[串口] 波特率预设置失败，将尝试其他方法");
-                }
+                Log.d(TAG, "[串口-传统] 权限检查通过");
                 
                 // 尝试打开设备
                 try {
                     input = new FileInputStream(device);
-                    Log.d(TAG, "[串口] FileInputStream 打开成功");
+                    Log.d(TAG, "[串口-传统] FileInputStream 打开成功");
                 } catch (Exception e) {
                     String error = "FileInputStream 打开失败: " + e.getMessage();
-                    Log.e(TAG, "[串口] " + error);
+                    Log.e(TAG, "[串口-传统] " + error);
                     return new SerialConnectResult(false, error, e.getMessage());
                 }
                 
                 try {
                     output = new FileOutputStream(device);
-                    Log.d(TAG, "[串口] FileOutputStream 打开成功");
+                    Log.d(TAG, "[串口-传统] FileOutputStream 打开成功");
                 } catch (Exception e) {
                     String error = "FileOutputStream 打开失败: " + e.getMessage();
-                    Log.e(TAG, "[串口] " + error);
+                    Log.e(TAG, "[串口-传统] " + error);
                     if (input != null) {
                         try { input.close(); } catch (Exception ex) {}
                     }
                     return new SerialConnectResult(false, error, e.getMessage());
                 }
                 
-                // 打开后再设置一次波特率（双重保险）
-                Log.d(TAG, "[串口] 在打开后再次设置波特率: " + baudRate);
-                boolean baudSetAfter = setBaudRate(port, baudRate);
-                if (baudSetAfter) {
-                    Log.i(TAG, "[串口] 波特率设置成功: " + baudRate);
-                } else {
-                    Log.w(TAG, "[串口] 波特率设置失败，电子秤可能无法正常通信");
-                }
-                
                 connected = true;
-                String msg = "串口连接成功: " + port + " (波特率预设置: " + (baudSetBefore ? "成功" : "失败") + 
-                             ", 波特率后设置: " + (baudSetAfter ? "成功" : "失败") + ")";
-                Log.i(TAG, "[串口] " + msg);
+                String msg = "传统串口连接成功: " + port;
+                Log.i(TAG, "[串口-传统] " + msg);
                 return new SerialConnectResult(true, null, msg);
                 
             } catch (SecurityException e) {
                 String error = "安全异常(无权限): " + e.getMessage();
-                Log.e(TAG, "[串口] " + error);
-                return new SerialConnectResult(false, error, "应用缺少访问串口的权限，可能需要root或特殊权限");
+                Log.e(TAG, "[串口-传统] " + error);
+                return new SerialConnectResult(false, error, "应用缺少访问串口的权限");
             } catch (Exception e) {
                 String error = "串口连接异常: " + e.getMessage();
-                Log.e(TAG, "[串口] " + error, e);
+                Log.e(TAG, "[串口-传统] " + error, e);
                 return new SerialConnectResult(false, error, e.getMessage());
             }
         }
@@ -1367,6 +1587,17 @@ public class HailinHardwarePlugin extends Plugin {
         
         void close() {
             try {
+                // 关闭USB连接
+                if (usbConnection != null) {
+                    if (usbInterface != null) {
+                        usbConnection.releaseInterface(usbInterface);
+                    }
+                    usbConnection.close();
+                    usbConnection = null;
+                    Log.d(TAG, "[USB] USB连接已关闭");
+                }
+                
+                // 关闭传统串口
                 if (input != null) {
                     input.close();
                     input = null;
@@ -1376,7 +1607,7 @@ public class HailinHardwarePlugin extends Plugin {
                     output = null;
                 }
                 connected = false;
-                Log.d(TAG, "串口连接已关闭");
+                Log.d(TAG, "[串口] 串口连接已关闭");
             } catch (Exception e) {
                 Log.e(TAG, "关闭串口失败", e);
             }
@@ -1530,6 +1761,37 @@ public class HailinHardwarePlugin extends Plugin {
                 }
             }
         }
+        
+        /**
+         * USB读取数据
+         */
+        int readUsb(byte[] buffer) {
+            try {
+                if (usbConnection != null && endpointIn != null) {
+                    int len = usbConnection.bulkTransfer(endpointIn, buffer, buffer.length, 100);
+                    return len;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "[USB] 读取异常: " + e.getMessage());
+            }
+            return -1;
+        }
+        
+        /**
+         * USB发送读取命令
+         */
+        void sendUsbCommand() {
+            try {
+                if (usbConnection != null && endpointOut != null) {
+                    // SOKI协议命令: DC1 (0x11)
+                    byte[] cmd = new byte[]{0x11};
+                    int len = usbConnection.bulkTransfer(endpointOut, cmd, cmd.length, 100);
+                    Log.d(TAG, "[USB命令] 发送: DC1(0x11), 结果: " + len);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "[USB命令] 发送异常: " + e.getMessage());
+            }
+        }
     }
     
     // ==================== 内部类：秤数据 ====================
@@ -1571,10 +1833,34 @@ public class HailinHardwarePlugin extends Plugin {
             
             while (running) {
                 try {
-                    if (serial != null && serial.input != null) {
-                        // 串口读取
-                        try {
-                            // 尝试读取数据（不依赖available，直接尝试读取）
+                    if (serial != null) {
+                        // 检查是USB还是传统串口
+                        if (serial.usbConnection != null) {
+                            // USB读取
+                            try {
+                                int len = serial.readUsb(buffer);
+                                if (len > 0) {
+                                    lastReadTime = System.currentTimeMillis();
+                                    readAttempt = 0;
+                                    Log.d(TAG, "[秤读取-USB] 读到数据，长度: " + len);
+                                    StringBuilder hex = new StringBuilder();
+                                    for (int i = 0; i < len; i++) {
+                                        hex.append(String.format("%02X ", buffer[i]));
+                                    }
+                                    Log.d(TAG, "[秤原始HEX] " + hex.toString());
+                                    parseScaleData(buffer, len);
+                                } else {
+                                    readAttempt++;
+                                    if (System.currentTimeMillis() - lastCommandTime > 2000) {
+                                        serial.sendUsbCommand();
+                                        lastCommandTime = System.currentTimeMillis();
+                                    }
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "[秤读取-USB] 读取异常: " + e.getMessage());
+                            }
+                        } else if (serial.input != null) {
+                            // 传统串口读取
                             int len = 0;
                             try {
                                 // 使用available和Thread.sleep实现超时
@@ -1617,8 +1903,6 @@ public class HailinHardwarePlugin extends Plugin {
                                     Log.d(TAG, "[秤读取] 无数据 (已尝试" + readAttempt + "次)");
                                 }
                             }
-                        } catch (Exception e) {
-                            Log.e(TAG, "[秤读取] 读取异常: " + e.getMessage());
                         }
                     } else if (socket != null && socket.isConnected() && !socket.isClosed()) {
                         // 网络秤读取
