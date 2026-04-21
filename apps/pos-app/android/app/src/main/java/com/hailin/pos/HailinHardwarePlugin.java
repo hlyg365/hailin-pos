@@ -1149,8 +1149,8 @@ public class HailinHardwarePlugin extends Plugin {
         int baudRateIndex = 0;
         long lastBaudRateSwitchTime = 0;
         
-        // 支持的波特率列表（顶尖OS2常用）
-        static final int[] BAUD_RATES = {2400, 4800, 9600, 19200, 38400, 57600, 115200};
+        // 支持的波特率列表（顶尖OS2常用，9600优先）
+        static final int[] BAUD_RATES = {9600, 2400, 4800, 19200, 38400, 57600, 115200};
         
         SerialConnection(Context ctx) {
             this.context = ctx;
@@ -2289,6 +2289,7 @@ public class HailinHardwarePlugin extends Plugin {
             // 2字节数据可能是简单的状态或确认响应
             if (len == 2) {
                 Log.i(TAG, "[秤] 收到2字节响应: " + hex.toString());
+                showToast("秤响应: " + hex.toString());
                 // 返回一个空的稳定重量，继续监听
                 ScaleWeight w = new ScaleWeight();
                 w.weight = 0;
@@ -2296,6 +2297,65 @@ public class HailinHardwarePlugin extends Plugin {
                 w.stable = true;
                 w.timestamp = System.currentTimeMillis();
                 return w;
+            }
+            
+            // 16字节数据 - 可能是顶尖OS2的重量数据格式
+            if (len == 16) {
+                Log.i(TAG, "[秤] 收到16字节数据，尝试解析OS2协议");
+                showToast("解析16字节重量数据...");
+                
+                // OS2协议16字节格式（可能的布局）:
+                // 字节0: 状态标志
+                // 字节1-2: 整数部分重量 (BCD或ASCII)
+                // 字节3-4: 小数部分重量
+                // 字节5: 单位 (kg/g)
+                // ...
+                // 或者可能是连续的ASCII数字字符串
+                
+                // 尝试作为ASCII字符串解析
+                String str = new String(data, 0, len);
+                Log.i(TAG, "[秤] 原始字符串: '" + str + "'");
+                showToast("原始数据: " + str);
+                
+                // 尝试提取数字
+                String numStr = str.replaceAll("[^0-9]", "");
+                if (numStr.length() >= 4) {
+                    try {
+                        // 假设最后2位是小数
+                        double weight = Double.parseDouble(numStr) / 100.0;
+                        ScaleWeight w = new ScaleWeight();
+                        w.weight = weight;
+                        w.unit = "kg";
+                        w.stable = true;
+                        w.timestamp = System.currentTimeMillis();
+                        Log.i(TAG, "[秤] >>> 解析成功! 重量: " + weight + " kg");
+                        showToast(">>> 重量: " + weight + " kg");
+                        return w;
+                    } catch (NumberFormatException e) {
+                        Log.e(TAG, "[秤] 数字解析失败");
+                    }
+                }
+                
+                // 如果ASCII解析失败，尝试二进制解析
+                // 假设重量在字节2-5
+                try {
+                    int weightInt = ((data[2] & 0xFF) << 24) | ((data[3] & 0xFF) << 16) | 
+                                    ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
+                    double weight = weightInt / 1000.0;
+                    
+                    ScaleWeight w = new ScaleWeight();
+                    w.weight = weight;
+                    w.unit = "kg";
+                    w.stable = true;
+                    w.timestamp = System.currentTimeMillis();
+                    Log.i(TAG, "[秤] >>> 二进制解析! 重量: " + weight + " kg");
+                    showToast(">>> 重量: " + weight + " kg");
+                    return w;
+                } catch (Exception e) {
+                    Log.e(TAG, "[秤] 二进制解析失败: " + e.getMessage());
+                }
+                
+                return null;
             }
             
             if (len < 5) {
