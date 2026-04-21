@@ -2305,89 +2305,67 @@ public class HailinHardwarePlugin extends Plugin {
                 Log.i(TAG, "[秤] 收到16字节数据");
                 
                 // 尝试作为ASCII字符串解析
-                String str = new String(data, 0, len);
+                String str = new String(data, 0, len).trim();
                 Log.i(TAG, "[秤] 原始字符串: '" + str + "'");
                 showToast("原始数据: " + str);
                 
-                // 格式: "S 00.498kgd" - S开头，数字，空格，单位kg
-                // 解析：00.498 可能表示 0.498kg，或者需要特殊处理
+                // 格式: "S 00.498kgd" 或 "S00.498kgd"
+                // 解析：00.498 应该直接得到 0.498kg
                 
-                // 查找数字和小数点
-                String numStr = "";
-                boolean foundDot = false;
-                int digitCount = 0;
+                // 查找S后面的数字部分
+                int startIndex = -1;
                 for (int i = 0; i < len; i++) {
-                    char c = str.charAt(i);
-                    if (c == '.' || (c >= '0' && c <= '9')) {
-                        numStr += c;
-                        if (c >= '0' && c <= '9') digitCount++;
-                    } else if (numStr.length() > 0 && foundDot) {
-                        // 遇到非数字且已有小数点，停止
+                    if (data[i] == 'S' || data[i] == 's') {
+                        startIndex = i + 1;
                         break;
                     }
-                    if (c == '.') foundDot = true;
                 }
                 
-                Log.i(TAG, "[秤] 提取数字: '" + numStr + "', 位数:" + digitCount);
+                if (startIndex < 0) {
+                    Log.w(TAG, "[秤] 未找到S开头");
+                    return null;
+                }
+                
+                // 从S后面开始提取数字和小数点
+                String numStr = "";
+                for (int i = startIndex; i < len; i++) {
+                    char c = (char) data[i];
+                    // 收集数字和小数点
+                    if ((c >= '0' && c <= '9') || c == '.') {
+                        numStr += c;
+                    } else if (numStr.length() > 0 && c != ' ') {
+                        // 已有数字，遇到非数字字符（非空格）停止
+                        break;
+                    }
+                }
+                
+                Log.i(TAG, "[秤] 提取数字字符串: '" + numStr + "'");
                 
                 if (numStr.length() > 0) {
                     try {
-                        double rawWeight = Double.parseDouble(numStr);
+                        double weight = Double.parseDouble(numStr);
                         
                         // 判断是否稳定（S开头通常表示稳定）
                         boolean isStable = str.startsWith("S") || str.startsWith("s");
                         
-                        // 判断重量是否接近0（不稳）
-                        if (rawWeight < 0.01) {
+                        // 如果重量接近0，可能不稳定
+                        if (weight < 0.01) {
                             isStable = false;
                         }
                         
-                        // 重量值处理：00.498 格式可能是 0.498kg (克为单位)
-                        // 或者可能是 4.98kg 格式（去掉前导零）
-                        // 根据实际测试: 00.498kgd 显示为 4.98kg
-                        // 说明原始数据需要除以100或者特殊处理
-                        
-                        double weight = rawWeight;
-                        
-                        // 如果是小数格式如 0.498 或 00.498，保持原值
-                        // 如果是整数格式如 498，保持原值（单位为g）
-                        // 根据顶尖OS2协议，数据可能是克为单位
-                        
                         ScaleWeight w = new ScaleWeight();
-                        
-                        // 判断单位
-                        boolean hasKg = str.toLowerCase().contains("kg");
-                        if (hasKg) {
-                            w.unit = "kg";
-                            // 如果数字格式为 00.498，可能是 0.498kg
-                            // 如果数字格式为 0498，可能是 4.98kg
-                            if (digitCount >= 3 && numStr.length() <= 6) {
-                                // 可能是连续数字如 00498，需要除以100得到 4.98
-                                if (numStr.startsWith("0") && numStr.contains(".")) {
-                                    // 00.498 格式 - 已经是kg
-                                    weight = rawWeight;
-                                } else {
-                                    // 00498 格式 - 需要除以100得到 4.98kg
-                                    weight = rawWeight / 100.0;
-                                }
-                            }
-                        } else {
-                            w.unit = "g";
-                            // 如果是克，需要转换为kg
-                            weight = rawWeight / 1000.0;
-                        }
-                        
                         w.weight = weight;
+                        w.unit = "kg";
                         w.stable = isStable;
                         w.timestamp = System.currentTimeMillis();
                         w.raw = str;
                         
-                        Log.i(TAG, "[秤] >>> 重量: " + weight + " " + w.unit + ", 稳定:" + isStable);
-                        showToast(">>> 重量: " + weight + " " + w.unit);
+                        Log.i(TAG, "[秤] >>> 重量: " + weight + " kg, 稳定:" + isStable);
+                        showToast(">>> 重量: " + weight + " kg");
                         return w;
                         
                     } catch (NumberFormatException e) {
-                        Log.e(TAG, "[秤] 数字解析失败: " + e.getMessage());
+                        Log.e(TAG, "[秤] 数字解析失败: " + numStr);
                     }
                 }
                 
