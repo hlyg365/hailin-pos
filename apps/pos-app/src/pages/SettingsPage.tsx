@@ -402,9 +402,10 @@ export default function SettingsPage() {
                                 addLog('info', `  /dev/${name} - ${perm}`);
                               });
                               
-                              // 过滤出可读写的设备
+                              // 过滤出可读写的设备，排除ttyS0（通常是系统串口）
                               const writableDevices = deviceList.filter(d => 
-                                d.permission.includes('可读写') || d.permission.includes('读写')
+                                (d.permission.includes('可读写') || d.permission.includes('读写'))
+                                && d.name !== 'ttyS0'  // 排除ttyS0，通常是系统串口
                               );
                               
                               if (writableDevices.length > 0) {
