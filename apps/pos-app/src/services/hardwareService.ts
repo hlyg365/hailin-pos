@@ -337,7 +337,47 @@ function bindPluginListeners() {
   console.log('[硬件服务] 原生事件监听器绑定完成');
 }
 
-// 延迟绑定事件（初始）
+// 监听WebView桥接事件（备用方案）
+function bindWebViewBridgeListeners() {
+  if (typeof window !== 'undefined' && (window as any).__hardwareEventBus) {
+    console.log('[硬件服务] 绑定WebView桥接事件');
+    
+    (window as any).__hardwareEventBus.on('scaleData', (data: any) => {
+      console.log('[硬件服务-WebView] 收到秤数据:', data);
+      emit('scaleData', data);
+      emit('weightChanged', data);
+    });
+    
+    (window as any).__hardwareEventBus.on('barcodeScanned', (data: any) => {
+      console.log('[硬件服务-WebView] 收到扫码数据:', data);
+      emit('barcodeScanned', data);
+      emit('scan', data);
+    });
+    
+    console.log('[硬件服务] WebView桥接事件绑定完成');
+  } else {
+    console.log('[硬件服务] WebView桥接未就绪，稍后重试');
+  }
+}
+
+// 立即尝试绑定WebView桥接
+if (typeof window !== 'undefined') {
+  setTimeout(bindWebViewBridgeListeners, 100);
+  // 持续尝试绑定，最多10秒
+  let webViewRetry = 0;
+  const webViewRetryTimer = setInterval(() => {
+    webViewRetry++;
+    if ((window as any).__hardwareEventBus) {
+      bindWebViewBridgeListeners();
+      clearInterval(webViewRetryTimer);
+    } else if (webViewRetry >= 100) {
+      console.warn('[硬件服务] WebView桥接绑定超时（10秒）');
+      clearInterval(webViewRetryTimer);
+    }
+  }, 100);
+}
+
+// 延迟绑定原生插件事件（初始）
 setTimeout(bindPluginListeners, 500);
 
 // 持续监听：每秒检查一次插件和重新绑定

@@ -2190,6 +2190,8 @@ public class HailinHardwarePlugin extends Plugin {
                     event.put("stable", processedWeight.stable);
                     event.put("timestamp", processedWeight.timestamp);
                     notifyListeners("scaleData", event);
+                    // 通过WebView直接发送（备用方案）
+                    sendToWebView("scaleData", event);
                     Log.d(TAG, "发送稳定重量: " + processedWeight.weight + " kg");
                 } else {
                     // 数据不稳定，但仍然发送数据让前端实时显示
@@ -2208,6 +2210,8 @@ public class HailinHardwarePlugin extends Plugin {
                         event.put("stable", true);
                         event.put("timestamp", zeroWeight.timestamp);
                         notifyListeners("scaleData", event);
+                        // 通过WebView直接发送（备用方案）
+                        sendToWebView("scaleData", event);
                         Log.d(TAG, "秤归零（原始重量太小）: 0.000 kg");
                     } else {
                         // 数据不稳定且重量较大，发送不稳定数据让前端实时响应
@@ -2225,6 +2229,8 @@ public class HailinHardwarePlugin extends Plugin {
                         event.put("stable", roughWeight.stable);
                         event.put("timestamp", roughWeight.timestamp);
                         notifyListeners("scaleData", event);
+                        // 通过WebView直接发送（备用方案）
+                        sendToWebView("scaleData", event);
                         Log.d(TAG, "发送不稳定数据: " + roughWeight.weight + " kg");
                     }
                 }
@@ -2480,6 +2486,53 @@ public class HailinHardwarePlugin extends Plugin {
         reader.start();
         Log.i(TAG, "[秤] ReaderThread.start() 已调用");
         showToast("读取线程已启动，等待数据...");
+    }
+    
+    // 通过WebView直接调用JS函数（备用方案，确保数据能到达前端）
+    private void sendToWebView(String eventName, JSObject data) {
+        try {
+            // 通过bridge获取WebView
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.post(() -> {
+                try {
+                    // 获取WebView
+                    WebView webView = null;
+                    try {
+                        java.lang.reflect.Method method = this.getClass().getSuperclass().getDeclaredMethod("getWebView");
+                        method.setAccessible(true);
+                        webView = (WebView) method.invoke(this);
+                    } catch (Exception e) {
+                        // 尝试通过bridge获取
+                        try {
+                            Object bridge = this.getClass().getSuperclass().getDeclaredField("bridge").get(this);
+                            if (bridge != null) {
+                                java.lang.reflect.Field webViewField = bridge.getClass().getDeclaredField("webView");
+                                webViewField.setAccessible(true);
+                                webView = (WebView) webViewField.get(bridge);
+                            }
+                        } catch (Exception e2) {
+                            Log.w(TAG, "无法获取WebView: " + e2.getMessage());
+                        }
+                    }
+                    
+                    if (webView != null) {
+                        String jsonData = data.toString();
+                        String jsCode = String.format(
+                            "javascript:window.HailinHardwareBridge && window.HailinHardwareBridge('%s', %s)",
+                            eventName, jsonData
+                        );
+                        Log.d(TAG, "[WebView发送] " + eventName + ": " + jsonData);
+                        webView.evaluateJavascript(jsCode, null);
+                    } else {
+                        Log.w(TAG, "[WebView] WebView为null，无法直接发送");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "[WebView] 发送失败: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "[WebView] sendToWebView异常: " + e.getMessage());
+        }
     }
     
     // 显示Toast通知

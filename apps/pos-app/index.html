@@ -24,6 +24,46 @@
             .catch((err) => console.log('[App] SW registration failed:', err));
         });
       }
+      
+      // WebView桥接：接收原生通过evaluateJavascript发送的数据
+      // 这是备用方案，确保秤数据能到达前端
+      window.HailinHardwareBridge = function(eventName, data) {
+        console.log('[WebView桥接] 收到事件:', eventName, data);
+        
+        if (eventName === 'scaleData') {
+          // 转发到硬件服务的事件系统
+          if (window.__hardwareEventBus) {
+            window.__hardwareEventBus.emit('scaleData', data);
+            window.__hardwareEventBus.emit('weightChanged', data);
+          }
+        } else if (eventName === 'barcodeScanned') {
+          if (window.__hardwareEventBus) {
+            window.__hardwareEventBus.emit('barcodeScanned', data);
+            window.__hardwareEventBus.emit('scan', data);
+          }
+        }
+      };
+      
+      // 事件总线（供WebView桥接使用）
+      window.__hardwareEventBus = {
+        listeners: {},
+        on: function(event, callback) {
+          if (!this.listeners[event]) this.listeners[event] = [];
+          this.listeners[event].push(callback);
+        },
+        off: function(event, callback) {
+          if (!this.listeners[event]) return;
+          this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+        },
+        emit: function(event, data) {
+          if (!this.listeners[event]) return;
+          this.listeners[event].forEach(cb => {
+            try { cb(data); } catch(e) { console.error('[事件总线] 回调异常:', e); }
+          });
+        }
+      };
+      
+      console.log('[App] WebView桥接已初始化');
     </script>
   </body>
 </html>
