@@ -1140,8 +1140,80 @@ public class HailinHardwarePlugin extends Plugin {
         ScaleWeight lastWeight;
         Context context;  // 用于USB Host API
         
+        // 波特率扫描相关
+        String currentPort;
+        int currentBaudRate;
+        int baudRateIndex = 0;
+        long lastBaudRateSwitchTime = 0;
+        
+        // 支持的波特率列表（顶尖OS2常用）
+        static final int[] BAUD_RATES = {2400, 4800, 9600, 19200, 38400, 57600, 115200};
+        
         SerialConnection(Context ctx) {
             this.context = ctx;
+        }
+        
+        // 尝试切换到下一个波特率
+        boolean tryNextBaudRate() {
+            if (currentPort == null) {
+                Log.w(TAG, "[波特率扫描] currentPort为null，无法切换");
+                return false;
+            }
+            
+            Log.i(TAG, "[波特率扫描] 开始切换波特率...");
+            
+            // 关闭当前连接
+            try {
+                if (input != null) {
+                    input.close();
+                    input = null;
+                }
+                if (output != null) {
+                    output.close();
+                    output = null;
+                }
+                connected = false;
+            } catch (Exception e) {
+                Log.e(TAG, "[波特率扫描] 关闭连接失败: " + e.getMessage());
+            }
+            
+            // 切换到下一个波特率
+            baudRateIndex = (baudRateIndex + 1) % BAUD_RATES.length;
+            currentBaudRate = BAUD_RATES[baudRateIndex];
+            lastBaudRateSwitchTime = System.currentTimeMillis();
+            
+            Log.i(TAG, "[波特率扫描] >>> 切换到波特率: " + currentBaudRate);
+            
+            // 尝试设置波特率并重新连接
+            boolean baudSet = setBaudRateAfterOpen(currentPort, currentBaudRate);
+            if (baudSet) {
+                Log.i(TAG, "[波特率扫描] stty设置波特率成功: " + currentBaudRate);
+            } else {
+                Log.w(TAG, "[波特率扫描] stty设置波特率失败，继续尝试");
+            }
+            
+            // 重新打开设备
+            try {
+                File device = new File(currentPort);
+                if (!device.exists()) {
+                    Log.e(TAG, "[波特率扫描] 设备不存在: " + currentPort);
+                    return false;
+                }
+                if (!device.canRead() || !device.canWrite()) {
+                    Log.e(TAG, "[波特率扫描] 设备无权限");
+                    return false;
+                }
+                
+                input = new FileInputStream(device);
+                output = new FileOutputStream(device);
+                connected = true;
+                
+                Log.i(TAG, "[波特率扫描] 设备重新打开成功!");
+                return true;
+            } catch (Exception e) {
+                Log.e(TAG, "[波特率扫描] 设备重新打开失败: " + e.getMessage());
+                return false;
+            }
         }
         
         // 串口连接详细结果
@@ -1510,8 +1582,14 @@ public class HailinHardwarePlugin extends Plugin {
                     Log.w(TAG, "[串口-传统] 波特率设置失败（可能需要root权限），使用默认波特率");
                 }
                 
+                // 保存端口和波特率信息（用于波特率扫描）
+                currentPort = port;
+                currentBaudRate = baudRate;
+                baudRateIndex = 0;
+                lastBaudRateSwitchTime = System.currentTimeMillis();
+                
                 connected = true;
-                String msg = "传统串口连接成功: " + port;
+                String msg = "传统串口连接成功: " + port + " @ " + baudRate + "bps";
                 Log.i(TAG, "[串口-传统] " + msg);
                 return new SerialConnectResult(true, null, msg);
                 
@@ -1961,13 +2039,13 @@ public class HailinHardwarePlugin extends Plugin {
                             if (len > 0) {
                                 lastReadTime = System.currentTimeMillis();
                                 readAttempt = 0;
-                                Log.d(TAG, "[秤读取] 读到数据，长度: " + len);
+                                Log.i(TAG, "[秤读取] 读到数据，长度: " + len);
                                 // 显示原始HEX数据
                                 StringBuilder hex = new StringBuilder();
                                 for (int i = 0; i < len; i++) {
                                     hex.append(String.format("%02X ", buffer[i]));
                                 }
-                                Log.d(TAG, "[秤原始HEX] " + hex.toString());
+                                Log.i(TAG, "[秤原始HEX] " + hex.toString());
                                 parseScaleData(buffer, len);
                             } else {
                                 readAttempt++;
@@ -1977,8 +2055,15 @@ public class HailinHardwarePlugin extends Plugin {
                                     lastCommandTime = System.currentTimeMillis();
                                 }
                                 
-                                if (readAttempt % 4 == 0) {  // 每4秒输出一次
-                                    Log.d(TAG, "[秤读取] 无数据 (已尝试" + readAttempt + "次)");
+                                // 无数据超过10秒，自动切换波特率
+                                if (readAttempt >= 100) {  // 100 * 100ms = 10秒
+                                    Log.w(TAG, "[波特率扫描] >>> 10秒无数据，尝试切换波特率...");
+                                    serial.tryNextBaudRate();
+                                    readAttempt = 0;
+                                }
+                                
+                                if (readAttempt % 10 == 0) {  // 每1秒输出一次
+                                    Log.w(TAG, "[秤读取] 无数据 (尝试" + readAttempt + "次, 波特率:" + serial.currentBaudRate + ")");
                                 }
                             }
                         }
