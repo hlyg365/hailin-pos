@@ -113,6 +113,23 @@ public class HailinHardwarePlugin extends Plugin {
                 if (result.success) {
                     serialPool.put("scale", serial);
                     
+                    // ====== 连接成功后发送初始化命令 ======
+                    try {
+                        Thread.sleep(100);
+                        // 发送初始化命令到电子秤
+                        if (serial.output != null) {
+                            serial.output.write(new byte[]{0x05});  // ENQ唤醒
+                            serial.output.flush();
+                            Log.d(TAG, "[秤] 发送ENQ唤醒命令");
+                            Thread.sleep(100);
+                            serial.output.write(new byte[]{0x11});  // DC1初始化
+                            serial.output.flush();
+                            Log.d(TAG, "[秤] 发送DC1初始化命令");
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "[秤] 初始化命令发送失败: " + e.getMessage());
+                    }
+                    
                     // 启动数据读取
                     startScaleReader(protocol);
                     
@@ -1579,29 +1596,35 @@ public class HailinHardwarePlugin extends Plugin {
             Log.i(TAG, "[秤读取] ReaderThread结束");
         }
         
-        // 发送电子秤读取命令
+        // 发送电子秤读取命令 - 顶尖OS2系列 SOKI协议
         private void sendScaleReadCommand() {
             try {
                 if (serial != null && serial.output != null) {
-                    // 常见的电子秤读取命令（ASCII格式）
-                    // 不同品牌的电子秤有不同的命令，这里尝试几种常见的
+                    // 顶尖OS2系列 SOKI协议常用命令
+                    // 尝试不同的SOKI协议命令
                     
-                    // 命令1: CR/LF结尾的读取命令（适用于许多国产秤）
-                    byte[] cmd1 = new byte[]{0x01, 0x30, 0x34, 0x52, 0x0D, 0x0A};  // "014R\r\n"
-                    // 命令2: 读取稳定重量
-                    byte[] cmd2 = new byte[]{'S', 'I', ' ', '0', '1', 0x0D};  // "SI 01\r"
-                    // 命令3: 读取即时重量
-                    byte[] cmd3 = new byte[]{'S', 'D', 0x0D};  // "SD\r"
-                    // 命令4: 读取状态
-                    byte[] cmd4 = new byte[]{0x05};  // ENQ (询问)
+                    // 命令1: DC1 (0x11) - SOKI协议常用读取命令
+                    byte[] cmd1 = new byte[]{0x11};  // DC1
                     
-                    // 尝试发送命令1
+                    // 命令2: ENQ (0x05) - 询问命令
+                    byte[] cmd2 = new byte[]{0x05};  // ENQ
+                    
+                    // 命令3: 0x02 + 'W' - 读取重量
+                    byte[] cmd3 = new byte[]{0x02, 'W', 0x0D};  // STX + 'W' + CR
+                    
+                    // 命令4: 0x02 + 'D' - 读取即时数据
+                    byte[] cmd4 = new byte[]{0x02, 'D', 0x0D};  // STX + 'D' + CR
+                    
+                    // 命令5: 读取状态
+                    byte[] cmd5 = new byte[]{'S', 'T', 0x0D};  // "ST\r"
+                    
+                    // 依次尝试发送命令
                     try {
                         serial.output.write(cmd1);
                         serial.output.flush();
-                        Log.d(TAG, "[秤命令] 发送: 014R\\r\\n");
+                        Log.d(TAG, "[秤命令] 发送SOKI: DC1(0x11)");
                     } catch (Exception e) {
-                        Log.d(TAG, "[秤命令] 发送失败: " + e.getMessage());
+                        Log.d(TAG, "[秤命令] DC1发送失败");
                     }
                 }
             } catch (Exception e) {
