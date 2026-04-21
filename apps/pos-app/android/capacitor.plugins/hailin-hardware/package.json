@@ -1,0 +1,23 @@
+{
+  "name": "hailin-hardware",
+  "version": "1.0.0",
+  "description": "HailinHardware Plugin for Capacitor",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "keywords": [
+    "capacitor",
+    "plugin"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@capacitor/core": "^5.0.0"
+  }
+}

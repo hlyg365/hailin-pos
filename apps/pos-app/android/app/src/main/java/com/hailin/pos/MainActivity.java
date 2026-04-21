@@ -89,9 +89,33 @@ public class MainActivity extends BridgeActivity {
                 // 检查HailinHardware是否已注册
                 if (pluginMap.containsKey("HailinHardware")) {
                     Log.i(TAG, "✓ HailinHardware 插件已就绪!");
+                    
+                    // 打印Capacitor.Plugins到WebView
+                    try {
+                        String pluginList = new org.json.JSONArray(pluginMap.keySet()).toString();
+                        Log.i(TAG, "插件列表JSON: " + pluginList);
+                    } catch (Exception e) {
+                        Log.w(TAG, "无法序列化插件列表: " + e.getMessage());
+                    }
                 } else {
                     Log.e(TAG, "✗ HailinHardware 插件未注册!");
+                    Log.e(TAG, "尝试手动从Bridge获取...");
+                    
+                    // 尝试直接获取插件实例
+                    try {
+                        java.lang.reflect.Method getPluginMethod = Bridge.class.getMethod("getPlugin", String.class);
+                        Object hwPlugin = getPluginMethod.invoke(bridge, "HailinHardware");
+                        if (hwPlugin != null) {
+                            Log.i(TAG, "✓ 通过反射获取到 HailinHardware!");
+                        } else {
+                            Log.e(TAG, "✗ 反射也无法获取 HailinHardware");
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "反射获取失败: " + e.getMessage());
+                    }
                 }
+            } else {
+                Log.e(TAG, "Bridge 未初始化!");
             }
         } catch (Exception e) {
             Log.e(TAG, "检查插件失败: " + e.getMessage(), e);

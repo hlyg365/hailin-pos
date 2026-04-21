@@ -1,0 +1,28 @@
+{
+  "ext_kotlin_version": "1.8.20",
+  "ext_cc": "",
+  "ext_ndk_min_version": "",
+  "ext_android_maven_coordinate": "com.hailin.pos:hailin-hardware",
+  "ext_android_plugin_build_type": "library",
+  "project_dir": "../..",
+  "app_id": "com.hailin.pos",
+  "app_name": "HailinPOS",
+  "web_dir": "../../dist",
+  "plugins": {
+    "HailinHardware": {}
+  },
+  "android": {
+    "allowBackup": true,
+    "backgroundColor": "#ffffff",
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false,
+    "allowMixedContent": false,
+    "mergeAccount能力强": false,
+    "overrideUserAgent": "",
+    "appendUserAgent": "",
+    "backgroundColor": "#000000",
+    "spaMode": true,
+    "contentUrns": [],
+    "localUrl": "http://localhost"
+  }
+}

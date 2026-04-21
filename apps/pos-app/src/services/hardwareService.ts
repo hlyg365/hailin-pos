@@ -4,6 +4,14 @@
  */
 import { Capacitor } from '@capacitor/core';
 import { registerPlugin } from '@capacitor/core';
+import { registerHailinHardwarePlugin } from '../plugins/hailin-plugin-register';
+
+// 立即尝试手动注册插件
+if (Capacitor.isNativePlatform()) {
+  setTimeout(() => {
+    registerHailinHardwarePlugin();
+  }, 50);
+}
 
 // ==================== 插件类型定义 ====================
 
@@ -124,33 +132,139 @@ interface HailinHardwarePlugin {
   removeAllListeners(): Promise<any>;
 }
 
+// Cordova 插件转换为 Promise 格式
+function convertCordovaToPromise(cordovaPlugin: any): HailinHardwarePlugin {
+  const toPromise = (method: string, args?: any[]) => {
+    return new Promise((resolve, reject) => {
+      const callback = (result: any) => {
+        if (result && result.success === false) {
+          reject(result);
+        } else {
+          resolve(result);
+        }
+      };
+      const error = (err: any) => reject(err);
+      
+      if (cordovaPlugin[method]) {
+        cordovaPlugin[method](...(args || []), callback, error);
+      } else {
+        // 使用通用 exec 方法
+        const name = method.charAt(0).toUpperCase() + method.slice(1);
+        (window as any).cordova?.exec(callback, error, 'HailinHardware', name, args || []);
+      }
+    });
+  };
+  
+  return {
+    scaleConnect: (options) => toPromise('scaleConnect', [options]),
+    scaleConnectTcp: (options) => toPromise('scaleConnectTcp', [options]),
+    scaleDisconnect: (options) => toPromise('scaleDisconnect', options ? [options] : []),
+    scaleReadWeight: (options) => toPromise('scaleReadWeight', options ? [options] : []),
+    scaleTare: (options) => toPromise('scaleTare', options ? [options] : []),
+    scaleZero: (options) => toPromise('scaleZero', options ? [options] : []),
+    scaleClearTare: (options) => toPromise('scaleClearTare', options ? [options] : []),
+    printerConnect: (options) => toPromise('printerConnect', [options]),
+    printerInit: () => toPromise('printerInit'),
+    printerPrintText: (options) => toPromise('printerPrintText', [options]),
+    printerNewLine: (options) => toPromise('printerNewLine', options ? [options] : []),
+    printerPrintQRCode: (options) => toPromise('printerPrintQRCode', [options]),
+    printerPrintBarcode: (options) => toPromise('printerPrintBarcode', [options]),
+    printerBeep: (options) => toPromise('printerBeep', options ? [options] : []),
+    printerCut: (options) => toPromise('printerCut', options ? [options] : []),
+    printerPrintReceipt: (options) => toPromise('printerPrintReceipt', [options]),
+    printerDisconnect: () => toPromise('printerDisconnect'),
+    openCashDrawer: (options) => toPromise('openCashDrawer', options ? [options] : []),
+    showOnCustomerDisplay: (options) => toPromise('showOnCustomerDisplay', [options]),
+    dismissCustomerDisplay: () => toPromise('dismissCustomerDisplay'),
+    enableBarcodeScanner: () => toPromise('enableBarcodeScanner'),
+    disableBarcodeScanner: () => toPromise('disableBarcodeScanner'),
+    getLastScan: () => toPromise('getLastScan'),
+    captureAndRecognize: (options) => toPromise('captureAndRecognize', [options]),
+    getDeviceStatus: () => toPromise('getDeviceStatus'),
+    disconnectAll: () => toPromise('disconnectAll'),
+    addListener: (event, callback) => Promise.resolve({ remove: () => {} }),
+    removeAllListeners: () => toPromise('removeAllListeners'),
+  } as HailinHardwarePlugin;
+}
+
 // 尝试获取原生插件
 let hardwarePlugin: HailinHardwarePlugin | null = null;
 let pluginRetryCount = 0;
 const MAX_PLUGIN_RETRIES = 10;
+
+// ==================== 备用原生调用接口 ====================
+
+// 通过 Capacitor Bridge 直接调用原生插件
+interface NativeCallOptions {
+  plugin: string;
+  method: string;
+  args?: Record<string, any>;
+}
+
+// 直接调用原生方法的辅助函数
+async function nativeCall(options: NativeCallOptions): Promise<any> {
+  if (!(Capacitor as any).isNativePlatform()) {
+    return null;
+  }
+  
+  try {
+    // 尝试通过 Capacitor bridge 调用
+    const bridge = (window as any).Capacitor?.bridge;
+    if (bridge) {
+      const callbackId = await bridge.call(options.plugin, options.method, options.args || {});
+      return callbackId;
+    }
+    
+    // 尝试通过插件接口调用
+    const plugin = (Capacitor as any).Plugins?.[options.plugin];
+    if (plugin && typeof plugin[options.method] === 'function') {
+      return await plugin[options.method](options.args || {});
+    }
+    
+    return null;
+  } catch (e) {
+    console.error('[原生调用] 失败:', options.plugin, options.method, e);
+    return null;
+  }
+}
 
 // 获取插件，带重试机制
 function getHardwarePlugin(): HailinHardwarePlugin | null {
   if (Capacitor.isNativePlatform()) {
     try {
       console.log('[硬件服务] 尝试获取 HailinHardware 插件...');
-      console.log('[硬件服务] Capacitor.Plugins:', Object.keys((Capacitor as any).Plugins || {}));
       
-      // 使用 Capacitor.getPlugin 获取已注册的插件
+      // 方式1: 通过 Cordova 接口获取
+      const cordovaPlugin = (window as any).HailinHardware;
+      if (cordovaPlugin) {
+        console.log('[硬件服务] 通过 Cordova 获取到 HailinHardware');
+        return convertCordovaToPromise(cordovaPlugin);
+      }
+      
+      // 方式2: 通过 Capacitor.Plugins 获取
       const plugin = (Capacitor as any).Plugins?.HailinHardware;
       if (plugin) {
         console.log('[硬件服务] HailinHardware 原生插件已加载');
         return plugin as HailinHardwarePlugin;
       }
       
-      // 尝试其他访问方式
+      // 方式3: 通过 Capacitor.getPlugin 获取
       const plugin2 = (Capacitor as any).getPlugin?.('HailinHardware');
       if (plugin2) {
         console.log('[硬件服务] 通过getPlugin获取到HailinHardware');
         return plugin2 as HailinHardwarePlugin;
       }
       
+      // 方式4: 通过全局Capacitor对象获取
+      const plugin3 = (Capacitor as any).pluginManager?.plugins?.HailinHardware;
+      if (plugin3) {
+        console.log('[硬件服务] 通过pluginManager获取到HailinHardware');
+        return plugin3 as HailinHardwarePlugin;
+      }
+      
       console.error('[硬件服务] HailinHardware 插件未找到!');
+      console.log('[硬件服务] 可用插件:', Object.keys((Capacitor as any).Plugins || {}));
+      console.log('[硬件服务] 可用插件列表:', JSON.stringify((Capacitor as any).Plugins || {}));
     } catch (e) {
       console.error('[硬件服务] 获取 HailinHardware 插件异常:', e);
     }
