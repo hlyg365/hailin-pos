@@ -1290,7 +1290,20 @@ public class HailinHardwarePlugin extends Plugin {
         SerialConnectResult connectWithDetail(String port, int baudRate, int dataBits, int stopBits, String parity) {
             Log.i(TAG, "[秤] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
             
-            // 首先尝试使用stty命令预设置波特率（可能需要root）
+            // 关键判断：如果是主板串口(ttyS*)直接使用传统方式
+            // 如果是USB转串口(ttyUSB*, ttyACM*)使用USB Host API
+            boolean isUsbSerial = port.startsWith("/dev/ttyUSB") || port.startsWith("/dev/ttyACM");
+            boolean isBoardSerial = port.startsWith("/dev/ttyS");
+            
+            Log.i(TAG, "[秤] 设备类型判断: isUsbSerial=" + isUsbSerial + ", isBoardSerial=" + isBoardSerial);
+            
+            if (isBoardSerial) {
+                // 主板串口 - 使用传统方式（直接打开设备文件）
+                Log.i(TAG, "[秤] 使用主板串口方式: " + port);
+                return connectBoardSerial(port, baudRate, dataBits, stopBits, parity);
+            }
+            
+            // USB转串口设备 - 先尝试预设置波特率
             Log.i(TAG, "[秤] 尝试预设置波特率: " + baudRate);
             boolean preBaudSet = setBaudRateBeforeOpen(port, baudRate);
             if (preBaudSet) {
@@ -1299,7 +1312,7 @@ public class HailinHardwarePlugin extends Plugin {
                 Log.w(TAG, "[秤] 预设置波特率失败，将继续尝试连接");
             }
             
-            // 尝试USB Host API连接（支持设置波特率）
+            // 尝试USB Host API连接
             SerialConnectResult usbResult = tryUsbConnection(port, baudRate, dataBits, stopBits, parity);
             if (usbResult.success) {
                 Log.i(TAG, "[秤] USB Host API连接成功");
@@ -1309,6 +1322,50 @@ public class HailinHardwarePlugin extends Plugin {
             // USB Host API失败，尝试传统方式
             Log.w(TAG, "[秤] USB Host API失败: " + usbResult.error + "，尝试传统方式...");
             return connectWithDetailLegacy(port, baudRate, dataBits, stopBits, parity);
+        }
+        
+        // 主板串口连接（传统方式）
+        private SerialConnectResult connectBoardSerial(String port, int baudRate, int dataBits, int stopBits, String parity) {
+            Log.i(TAG, "[秤-主板串口] 开始连接: port=" + port + ", baudRate=" + baudRate);
+            
+            try {
+                // 尝试预设置波特率
+                setBaudRateBeforeOpen(port, baudRate);
+                
+                // 直接打开设备文件
+                File device = new File(port);
+                if (!device.exists()) {
+                    return new SerialConnectResult(false, "串口设备不存在", "检查路径: " + port);
+                }
+                if (!device.canRead() || !device.canWrite()) {
+                    Log.w(TAG, "[秤-主板串口] 权限不足，尝试打开: " + port);
+                }
+                
+                FileInputStream tempInput = new FileInputStream(device);
+                FileOutputStream tempOutput = new FileOutputStream(device);
+                
+                // 尝试设置波特率
+                try {
+                    Runtime.getRuntime().exec("stty -F " + port + " " + baudRate + " raw");
+                    Log.i(TAG, "[秤-主板串口] stty设置波特率成功: " + baudRate);
+                } catch (Exception e) {
+                    Log.w(TAG, "[秤-主板串口] stty设置波特率失败: " + e.getMessage());
+                }
+                
+                // 保存连接
+                this.input = tempInput;
+                this.output = tempOutput;
+                this.connected = true;
+                this.currentPort = port;
+                this.currentBaudRate = baudRate;
+                
+                Log.i(TAG, "[秤-主板串口] 连接成功！");
+                return new SerialConnectResult(true, "连接成功", "主板串口 " + port);
+                
+            } catch (Exception e) {
+                Log.e(TAG, "[秤-主板串口] 连接失败: " + e.getMessage());
+                return new SerialConnectResult(false, "连接失败: " + e.getMessage(), e.toString());
+            }
         }
         
         /**
