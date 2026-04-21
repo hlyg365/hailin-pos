@@ -34,6 +34,7 @@ import android.hardware.usb.UsbRequest;
 import android.os.Build;
 import android.os.SystemClock;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.*;
@@ -328,6 +329,56 @@ public class HailinHardwarePlugin extends Plugin {
         if (reader != null) reader.stopReading();
         
         call.resolve(new JSObject().put("success", true).put("message", "秤已断开"));
+    }
+
+    // ==================== 枚举可用串口设备 ====================
+    @PluginMethod
+    public void listSerialPorts(PluginCall call) {
+        Log.i(TAG, "[枚举串口] 开始枚举可用串口设备...");
+        JSObject result = new JSObject();
+        JSONArray ports = new JSONArray();
+        
+        try {
+            // 串口设备目录
+            File devDir = new File("/dev");
+            if (devDir.exists() && devDir.isDirectory()) {
+                File[] files = devDir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        String name = file.getName();
+                        // 匹配常见的串口设备名称
+                        if (name.startsWith("ttyS") || name.startsWith("ttyUSB") || 
+                            name.startsWith("ttyACM") || name.startsWith("ttyAMA")) {
+                            try {
+                                JSONObject portInfo = new JSONObject();
+                                portInfo.put("path", file.getAbsolutePath());
+                                portInfo.put("name", name);
+                                portInfo.put("readable", file.canRead());
+                                portInfo.put("writable", file.canWrite());
+                                ports.put(portInfo);
+                                Log.i(TAG, "[枚举串口] 发现设备: " + file.getAbsolutePath() + 
+                                      " (r=" + file.canRead() + ", w=" + file.canWrite() + ")");
+                            } catch (Exception e) {
+                                Log.w(TAG, "[枚举串口] 读取设备信息失败: " + name);
+                            }
+                        }
+                    }
+                }
+            } else {
+                Log.w(TAG, "[枚举串口] /dev 目录不存在或不可访问");
+            }
+            
+            result.put("success", true);
+            result.put("ports", ports);
+            result.put("count", ports.length());
+            call.resolve(result);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "[枚举串口] 失败: " + e.getMessage());
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            call.resolve(result);
+        }
     }
 
     // ==================== 2. ESC/POS 打印模块 ====================

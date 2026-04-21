@@ -85,6 +85,9 @@ interface HailinHardwarePlugin {
   scaleReadWeight(options?: { connectionId?: string }): Promise<ScaleWeight>;
   scaleDisconnect(options?: { connectionId?: string }): Promise<any>;
   
+  // 枚举串口设备
+  listSerialPorts(): Promise<{ success: boolean; ports: Array<{ path: string; name: string; readable: boolean; writable: boolean }>; count: number; error?: string }>;
+  
   // ESC/POS 打印机
   printerConnect(options: { host: string; port: number }): Promise<any>;
   printerInit(): Promise<any>;
@@ -199,6 +202,8 @@ function convertCordovaToPromise(cordovaPlugin: any): HailinHardwarePlugin {
       return Promise.resolve({ remove: () => {} });
     },
     removeAllListeners: () => toPromise('removeAllListeners'),
+    // 枚举可用串口设备
+    listSerialPorts: () => toPromise('listSerialPorts'),
   } as HailinHardwarePlugin;
 }
 

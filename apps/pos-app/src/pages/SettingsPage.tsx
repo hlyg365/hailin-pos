@@ -390,48 +390,38 @@ export default function SettingsPage() {
                         
                         const hailin = await getPlugin();
                         
-                        if (hailin && hailin.listTtyDevices) {
+                        if (hailin && hailin.listSerialPorts) {
                           try {
-                            addLog('info', '正在列出可用串口设备...');
-                            const result = await hailin.listTtyDevices();
-                            if (result.count > 0) {
+                            addLog('info', '正在枚举串口设备...');
+                            const result = await hailin.listSerialPorts();
+                            if (result.success && result.ports && result.ports.length > 0) {
                               addLog('success', `发现 ${result.count} 个串口设备:`);
-                              // 解析设备列表 { "ttyS4": "可读写", "ttyS5": "可读写", ... }
-                              const devs = JSON.parse(JSON.stringify(result.devices));
-                              const deviceList: { name: string; permission: string }[] = [];
-                              
-                              Object.entries(devs).forEach(([name, perm]: [string, any]) => {
-                                deviceList.push({ name, permission: perm });
-                                addLog('info', `  /dev/${name} - ${perm}`);
+                              result.ports.forEach((port: any) => {
+                                addLog('info', `  ${port.path} (r=${port.readable}, w=${port.writable})`);
                               });
                               
-                              // 过滤出可读写的设备，排除ttyS0（通常是系统串口）
-                              const writableDevices = deviceList.filter(d => 
-                                (d.permission.includes('可读写') || d.permission.includes('读写'))
-                                && d.name !== 'ttyS0'  // 排除ttyS0，通常是系统串口
+                              // 优先选择可读写的ttyS*设备
+                              const writable = result.ports.filter((p: any) => 
+                                p.readable && p.writable && p.path.startsWith('/dev/ttyS')
                               );
-                              
-                              if (writableDevices.length > 0) {
-                                // 优先选择ttyS开头的设备，按编号排序（小的优先，如ttyS4优先于ttyS5）
-                                const ttyDevices = writableDevices
-                                  .filter(d => d.name.startsWith('ttyS'))
-                                  .sort((a, b) => {
-                                    const numA = parseInt(a.name.replace('ttyS', '')) || 0;
-                                    const numB = parseInt(b.name.replace('ttyS', '')) || 0;
-                                    return numA - numB;
-                                  });
-                                
-                                const preferredDevice = ttyDevices.length > 0 ? ttyDevices[0] : writableDevices[0];
-                                deviceConfig.updateConfig('scale', { address: `/dev/${preferredDevice.name}` });
-                                addLog('success', `已自动选择: /dev/${preferredDevice.name}`);
+                              if (writable.length > 0) {
+                                // 按编号排序，小的优先
+                                writable.sort((a: any, b: any) => {
+                                  const numA = parseInt(a.path.replace('/dev/ttyS', '')) || 0;
+                                  const numB = parseInt(b.path.replace('/dev/ttyS', '')) || 0;
+                                  return numA - numB;
+                                });
+                                deviceConfig.updateConfig('scale', { address: writable[0].path });
+                                addLog('success', `已自动选择: ${writable[0].path}`);
                               } else {
-                                addLog('warn', '未发现可读写的串口设备');
+                                addLog('warn', '建议手动选择可读写的串口设备');
                               }
                             } else {
-                              addLog('warn', '未发现串口设备，请检查电子秤连接');
+                              addLog('warn', '未发现串口设备，请检查电子秤连接和USB线');
+                              addLog('info', '提示: 确认电子秤已连接并开启');
                             }
                           } catch (e: any) {
-                            addLog('error', `检测失败: ${e.message}`);
+                            addLog('error', `枚举失败: ${e.message}`);
                           }
                         } else {
                           addLog('error', '插件未就绪，请等待几秒后重试');
