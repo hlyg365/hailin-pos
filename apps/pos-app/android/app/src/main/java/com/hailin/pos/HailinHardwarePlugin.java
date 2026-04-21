@@ -91,6 +91,8 @@ public class HailinHardwarePlugin extends Plugin {
         String parity = call.getString("parity", "none");
         String protocol = call.getString("protocol", "soki");
         
+        Log.i(TAG, "[秤] scaleConnect 开始: port=" + port + ", baudRate=" + baudRate);
+        
         executor.execute(() -> {
             try {
                 // 首先断开已有连接，避免端口占用
@@ -102,26 +104,36 @@ public class HailinHardwarePlugin extends Plugin {
                 
                 // 尝试USB转串口连接
                 SerialConnection serial = new SerialConnection();
-                boolean connected = serial.connect(port, baudRate, dataBits, stopBits, parity);
+                SerialConnection.SerialConnectResult result = serial.connectWithDetail(port, baudRate, dataBits, stopBits, parity);
                 
-                if (connected) {
+                Log.i(TAG, "[秤] connectWithDetail 结果: success=" + result.success + ", error=" + result.error);
+                
+                JSObject jsResult = new JSObject();
+                
+                if (result.success) {
                     serialPool.put("scale", serial);
                     
                     // 启动数据读取
                     startScaleReader(protocol);
                     
-                    JSObject result = new JSObject();
-                    result.put("success", true);
-                    result.put("port", port);
-                    result.put("baudRate", baudRate);
-                    result.put("message", "电子秤连接成功");
-                    call.resolve(result);
+                    jsResult.put("success", true);
+                    jsResult.put("port", port);
+                    jsResult.put("baudRate", baudRate);
+                    jsResult.put("message", "电子秤连接成功");
+                    jsResult.put("info", result.message);
+                    call.resolve(jsResult);
                 } else {
-                    call.reject("电子秤连接失败");
+                    jsResult.put("success", false);
+                    jsResult.put("error", result.error);
+                    jsResult.put("detail", result.message);
+                    call.resolve(jsResult);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "电子秤连接异常", e);
-                call.reject("电子秤连接异常: " + e.getMessage());
+                JSObject jsResult = new JSObject();
+                jsResult.put("success", false);
+                jsResult.put("error", "电子秤连接异常: " + e.getMessage());
+                call.resolve(jsResult);
             }
         });
     }
@@ -176,11 +188,13 @@ public class HailinHardwarePlugin extends Plugin {
             try {
                 Log.i(TAG, "[秤] 检测电子秤: " + port + " @ " + baudRate);
                 
-                // 使用 SerialConnection 的正确方式
+                // 使用 SerialConnection 的详细连接方法
                 serial = new SerialConnection();
-                boolean connected = serial.connect(port, baudRate, 8, 1, "NONE");
+                SerialConnection.SerialConnectResult connResult = serial.connectWithDetail(port, baudRate, 8, 1, "NONE");
                 
-                if (connected) {
+                if (connResult.success) {
+                    Log.i(TAG, "[秤] 检测成功，设备可访问");
+                    
                     // 检测成功，但不要在这里持有连接，让scaleConnect来管理
                     serial.close();
                     serial = null;
@@ -192,17 +206,19 @@ public class HailinHardwarePlugin extends Plugin {
                     result.put("baudRate", baudRate);
                     result.put("protocol", "soki");
                     result.put("deviceInfo", "顶尖OS2电子秤");
+                    result.put("message", connResult.message);
                     call.resolve(result);
                     
                     Log.i(TAG, "[秤] 检测成功！");
                 } else {
+                    Log.w(TAG, "[秤] 检测失败: " + connResult.error);
+                    
                     JSObject result = new JSObject();
                     result.put("success", false);
                     result.put("detected", false);
-                    result.put("error", "无法打开串口");
+                    result.put("error", connResult.error);
+                    result.put("detail", connResult.message);
                     call.resolve(result);
-                    
-                    Log.w(TAG, "[秤] 检测失败：无法打开串口");
                 }
             } catch (Exception e) {
                 JSObject result = new JSObject();
@@ -1105,6 +1121,18 @@ public class HailinHardwarePlugin extends Plugin {
         boolean connected = false;
         ScaleWeight lastWeight;
         
+        // 串口连接详细结果
+        static class SerialConnectResult {
+            boolean success;
+            String error;
+            String message;
+            SerialConnectResult(boolean success, String error, String message) {
+                this.success = success;
+                this.error = error;
+                this.message = message;
+            }
+        }
+        
         // 数据平滑和稳定检测
         static final int STABLE_COUNT = 3;  // 连续3次稳定才认为稳定
         static final double STABLE_THRESHOLD = 0.005;  // 5g 稳定阈值
@@ -1129,6 +1157,129 @@ public class HailinHardwarePlugin extends Plugin {
             lastNonZeroTime = 0;
             for (int i = 0; i < weightHistory.length; i++) {
                 weightHistory[i] = 0;
+            }
+        }
+        
+        // 获取可用的tty设备列表
+        private String getAvailableTtyDevices() {
+            StringBuilder sb = new StringBuilder("可用设备: ");
+            File devDir = new File("/dev");
+            if (devDir.exists() && devDir.isDirectory()) {
+                String[] devices = devDir.list();
+                if (devices != null) {
+                    for (String d : devices) {
+                        if (d.startsWith("tty")) {
+                            File f = new File("/dev/" + d);
+                            String perm = (f.canRead() && f.canWrite()) ? "读写" : (f.canRead() ? "只读" : "无权限");
+                            sb.append(d).append("(").append(perm).append("), ");
+                        }
+                    }
+                }
+            }
+            return sb.toString();
+        }
+        
+        /**
+         * 带详细信息的串口连接方法
+         */
+        SerialConnectResult connectWithDetail(String port, int baudRate, int dataBits, int stopBits, String parity) {
+            Log.i(TAG, "[串口] connectWithDetail: port=" + port + ", baudRate=" + baudRate);
+            
+            try {
+                File device = new File(port);
+                
+                // 检查设备是否存在
+                if (!device.exists()) {
+                    String error = "串口设备不存在: " + port;
+                    Log.e(TAG, "[串口] " + error);
+                    return new SerialConnectResult(false, error, getAvailableTtyDevices());
+                }
+                Log.d(TAG, "[串口] 设备存在: " + port);
+                
+                // 检查读写权限
+                boolean canRead = device.canRead();
+                boolean canWrite = device.canWrite();
+                Log.d(TAG, "[串口] 权限检查: canRead=" + canRead + ", canWrite=" + canWrite);
+                
+                if (!canRead) {
+                    String error = "串口设备无读权限: " + port;
+                    Log.e(TAG, "[串口] " + error);
+                    return new SerialConnectResult(false, error, "请检查设备权限");
+                }
+                if (!canWrite) {
+                    String error = "串口设备无写权限: " + port;
+                    Log.e(TAG, "[串口] " + error);
+                    return new SerialConnectResult(false, error, "请检查设备权限");
+                }
+                
+                Log.d(TAG, "[串口] 权限检查通过");
+                
+                // 尝试打开设备
+                try {
+                    input = new FileInputStream(device);
+                    Log.d(TAG, "[串口] FileInputStream 打开成功");
+                } catch (Exception e) {
+                    String error = "FileInputStream 打开失败: " + e.getMessage();
+                    Log.e(TAG, "[串口] " + error);
+                    return new SerialConnectResult(false, error, e.getMessage());
+                }
+                
+                try {
+                    output = new FileOutputStream(device);
+                    Log.d(TAG, "[串口] FileOutputStream 打开成功");
+                } catch (Exception e) {
+                    String error = "FileOutputStream 打开失败: " + e.getMessage();
+                    Log.e(TAG, "[串口] " + error);
+                    if (input != null) {
+                        try { input.close(); } catch (Exception ex) {}
+                    }
+                    return new SerialConnectResult(false, error, e.getMessage());
+                }
+                
+                // 尝试通过stty命令设置串口参数
+                Log.d(TAG, "[串口] 尝试设置波特率: " + baudRate);
+                boolean baudSet = setBaudRate(port, baudRate);
+                if (baudSet) {
+                    Log.i(TAG, "[串口] 波特率设置成功: " + baudRate);
+                } else {
+                    Log.w(TAG, "[串口] 波特率设置失败，串口可能使用默认波特率");
+                }
+                
+                connected = true;
+                String msg = "串口连接成功: " + port + " (波特率设置: " + (baudSet ? "成功" : "失败，使用默认") + ")";
+                Log.i(TAG, "[串口] " + msg);
+                return new SerialConnectResult(true, null, msg);
+                
+            } catch (SecurityException e) {
+                String error = "安全异常(无权限): " + e.getMessage();
+                Log.e(TAG, "[串口] " + error);
+                return new SerialConnectResult(false, error, "应用缺少访问串口的权限，可能需要root或特殊权限");
+            } catch (Exception e) {
+                String error = "串口连接异常: " + e.getMessage();
+                Log.e(TAG, "[串口] " + error, e);
+                return new SerialConnectResult(false, error, e.getMessage());
+            }
+        }
+        
+        boolean connect(String port, int baudRate, int dataBits, int stopBits, String parity) {
+            SerialConnectResult result = connectWithDetail(port, baudRate, dataBits, stopBits, parity);
+            return result.success;
+        }
+        
+        void close() {
+            try {
+                if (input != null) {
+                    input.close();
+                    input = null;
+                }
+                if (output != null) {
+                    output.close();
+                    output = null;
+                }
+                connected = false;
+                Log.d(TAG, "串口连接已关闭");
+            } catch (Exception e) {
+                Log.e(TAG, "关闭串口失败", e);
             }
         }
         
@@ -1201,73 +1352,6 @@ public class HailinHardwarePlugin extends Plugin {
             
             // 不稳定时返回粗略平均值（不精确但可用）
             return null;
-        }
-        
-        boolean connect(String port, int baudRate, int dataBits, int stopBits, String parity) {
-            try {
-                Log.d(TAG, "正在连接串口: " + port + " @ " + baudRate + " bps");
-                
-                File device = new File(port);
-                
-                // 检查设备是否存在
-                if (!device.exists()) {
-                    Log.e(TAG, "串口设备不存在: " + port);
-                    
-                    // 列出可用的tty设备
-                    File devDir = new File("/dev");
-                    if (devDir.exists() && devDir.isDirectory()) {
-                        String[] devices = devDir.list();
-                        if (devices != null) {
-                            Log.d(TAG, "可用设备数量: " + devices.length);
-                            for (String d : devices) {
-                                if (d.startsWith("tty")) {
-                                    Log.d(TAG, "  找到tty设备: " + d);
-                                }
-                            }
-                        }
-                    }
-                    
-                    return false;
-                }
-                
-                // 检查读写权限
-                if (!device.canRead()) {
-                    Log.e(TAG, "串口设备无读权限: " + port);
-                    return false;
-                }
-                if (!device.canWrite()) {
-                    Log.e(TAG, "串口设备无写权限: " + port);
-                    return false;
-                }
-                
-                Log.d(TAG, "串口设备权限检查通过: " + port);
-                
-                // 使用反射设置波特率（Android不直接支持但可以尝试）
-                try {
-                    // 尝试打开设备并配置
-                    input = new FileInputStream(device);
-                    output = new FileOutputStream(device);
-                    
-                    // 尝试通过stty命令设置串口参数
-                    boolean baudSet = setBaudRate(port, baudRate);
-                    if (!baudSet) {
-                        Log.w(TAG, "波特率设置失败，串口可能使用默认波特率，这可能导致电子秤无法正常通信");
-                    }
-                    
-                    connected = true;
-                    Log.d(TAG, "串口连接成功: " + port);
-                    return true;
-                } catch (Exception e) {
-                    Log.e(TAG, "打开串口失败: " + port, e);
-                    connected = false;
-                    return false;
-                }
-                
-            } catch (Exception e) {
-                Log.e(TAG, "串口连接异常: " + port, e);
-                connected = false;
-                return false;
-            }
         }
         
         // 通过stty命令设置波特率
@@ -1346,14 +1430,6 @@ public class HailinHardwarePlugin extends Plugin {
                     Log.e(TAG, "串口发送失败", e);
                 }
             }
-        }
-        
-        void close() {
-            connected = false;
-            try {
-                if (input != null) input.close();
-                if (output != null) output.close();
-            } catch (IOException e) {}
         }
     }
     
