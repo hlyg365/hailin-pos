@@ -278,17 +278,32 @@ function getHardwarePlugin(): HailinHardwarePlugin | null {
 hardwarePlugin = getHardwarePlugin();
 
 // 如果插件未立即可用，设置定时器重试
-if (!hardwarePlugin && Capacitor.isNativePlatform()) {
-  const retryInterval = setInterval(() => {
+let retryInterval: ReturnType<typeof setInterval> | null = null;
+function startPluginRetry() {
+  if (retryInterval) return;
+  retryInterval = setInterval(() => {
     pluginRetryCount++;
     hardwarePlugin = getHardwarePlugin();
-    if (hardwarePlugin || pluginRetryCount >= MAX_PLUGIN_RETRIES) {
-      clearInterval(retryInterval);
-      if (!hardwarePlugin) {
-        console.warn('[硬件服务] HailinHardware 原生插件未安装，将使用模拟实现');
+    if (hardwarePlugin) {
+      console.log('[硬件服务] 插件重试成功!');
+      if (retryInterval) {
+        clearInterval(retryInterval);
+        retryInterval = null;
+      }
+      // 插件就绪后绑定事件
+      bindPluginListeners();
+    } else if (pluginRetryCount >= MAX_PLUGIN_RETRIES) {
+      console.warn('[硬件服务] HailinHardware 原生插件未安装，将使用模拟实现');
+      if (retryInterval) {
+        clearInterval(retryInterval);
+        retryInterval = null;
       }
     }
-  }, 500);
+  }, 200); // 缩短到200ms重试，更快发现插件
+}
+
+if (!hardwarePlugin && Capacitor.isNativePlatform()) {
+  startPluginRetry();
 }
 
 // ==================== 事件总线 ====================
@@ -298,20 +313,38 @@ const eventListeners: Map<string, Set<EventCallback>> = new Map();
 
 // 转发原生事件到前端（延迟绑定，等待插件初始化）
 function bindPluginListeners() {
-  if (hardwarePlugin) {
-    hardwarePlugin.addListener('scaleData', (data) => {
-      emit('scaleData', data);
-      // 同时转发为 weightChanged 事件，确保收银台能收到
-      emit('weightChanged', data);
-    });
-    hardwarePlugin.addListener('barcodeScanned', (data) => {
-      emit('barcodeScanned', data);
-    });
-  }
+  if (!hardwarePlugin) return;
+  
+  console.log('[硬件服务] 开始绑定原生事件监听器');
+  
+  // 监听秤数据
+  hardwarePlugin.addListener('scaleData', (data: any) => {
+    console.log('[硬件服务] 收到秤数据:', data);
+    emit('scaleData', data);
+    emit('weightChanged', data);
+  });
+  
+  // 监听扫码事件
+  hardwarePlugin.addListener('barcodeScanned', (data: any) => {
+    emit('barcodeScanned', data);
+  });
+  
+  console.log('[硬件服务] 原生事件监听器绑定完成');
 }
 
-// 延迟绑定事件
-setTimeout(bindPluginListeners, 1000);
+// 延迟绑定事件（初始）
+setTimeout(bindPluginListeners, 500);
+
+// 持续监听：每秒检查一次插件和重新绑定
+setInterval(() => {
+  if (!hardwarePlugin) {
+    hardwarePlugin = getHardwarePlugin();
+    if (hardwarePlugin) {
+      console.log('[硬件服务] 插件延迟就绪，绑定事件');
+      bindPluginListeners();
+    }
+  }
+}, 1000);
 
 function on(event: string, callback: EventCallback): void {
   if (!eventListeners.has(event)) {

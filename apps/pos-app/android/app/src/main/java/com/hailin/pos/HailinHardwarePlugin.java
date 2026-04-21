@@ -2192,7 +2192,7 @@ public class HailinHardwarePlugin extends Plugin {
                     notifyListeners("scaleData", event);
                     Log.d(TAG, "发送稳定重量: " + processedWeight.weight + " kg");
                 } else {
-                    // 数据不稳定
+                    // 数据不稳定，但仍然发送数据让前端实时显示
                     // 如果原始重量接近零（小于50g），强制归零
                     if (rawWeight.weight < 0.05) {
                         ScaleWeight zeroWeight = new ScaleWeight();
@@ -2210,15 +2210,22 @@ public class HailinHardwarePlugin extends Plugin {
                         notifyListeners("scaleData", event);
                         Log.d(TAG, "秤归零（原始重量太小）: 0.000 kg");
                     } else {
-                        // 数据不稳定且重量较大，只记录不发送
+                        // 数据不稳定且重量较大，发送不稳定数据让前端实时响应
                         ScaleWeight roughWeight = new ScaleWeight();
                         roughWeight.weight = rawWeight.weight;
                         roughWeight.unit = "kg";
                         roughWeight.stable = false;
                         roughWeight.timestamp = System.currentTimeMillis();
                         serial.lastWeight = roughWeight;
-                        // 不发送不稳定数据，让前端显示等待稳定
-                        Log.d(TAG, "数据不稳定，等待: " + rawWeight.weight + " kg");
+                        
+                        // 始终发送数据，包括不稳定数据，确保前端实时响应
+                        JSObject event = new JSObject();
+                        event.put("weight", roughWeight.weight);
+                        event.put("unit", roughWeight.unit);
+                        event.put("stable", roughWeight.stable);
+                        event.put("timestamp", roughWeight.timestamp);
+                        notifyListeners("scaleData", event);
+                        Log.d(TAG, "发送不稳定数据: " + roughWeight.weight + " kg");
                     }
                 }
                 return;
