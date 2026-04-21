@@ -44,7 +44,7 @@ export default function SettingsPage() {
   ];
   
   // 波特率选项
-  const baudRates = [1200, 2400, 4800, 9600, 19200, 38400];
+  const baudRates = [9600, 2400, 4800, 1200, 19200, 38400];
   
   // 添加日志
   const addLog = (type: 'info' | 'success' | 'error' | 'warn', message: string) => {

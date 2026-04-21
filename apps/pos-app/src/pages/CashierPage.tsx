@@ -309,55 +309,10 @@ export default function CashierPage() {
     
     return () => {
       clearInterval(statusInterval);
-      clearInterval(scaleWeightIntervalRef.current);
       deviceEvents.off('scan', handleScan);
       deviceEvents.off('weightChanged', handleWeight);
     };
   }, [connectDevices, deviceConfig.autoConnect]);
-
-  // 主动轮询秤重量（50ms间隔，极速响应）
-  const scaleWeightIntervalRef = useRef<number | null>(null);
-  
-  useEffect(() => {
-    // 监听秤连接状态
-    const handleScaleData = (data: any) => {
-      if (data && typeof data.weight === 'number') {
-        setScaleWeight({ weight: data.weight, unit: data.unit || 'kg', stable: data.stable ?? true });
-      }
-    };
-    hardwareService.on('scaleData', handleScaleData);
-    
-    // 启动主动轮询（原生事件可能不稳定，用轮询作为备份）
-    const startWeightPolling = () => {
-      if (scaleWeightIntervalRef.current) return;
-      
-      scaleWeightIntervalRef.current = window.setInterval(async () => {
-        try {
-          // 直接调用原生插件读取重量
-          const plugin = (window as any).Capacitor?.Plugins?.HailinHardware || (window as any).HailinHardware;
-          if (plugin && plugin.scaleReadWeight) {
-            const result = await plugin.scaleReadWeight({});
-            if (result && typeof result.weight === 'number') {
-              setScaleWeight({ weight: result.weight, unit: result.unit || 'kg', stable: result.stable ?? true });
-            }
-          }
-        } catch (e) {
-          // 忽略错误，静默重试
-        }
-      }, 50); // 50ms = 20次/秒，极速响应
-    };
-    
-    // 延迟启动，等待插件就绪
-    setTimeout(startWeightPolling, 1000);
-    
-    return () => {
-      hardwareService.off('scaleData', handleScaleData);
-      if (scaleWeightIntervalRef.current) {
-        clearInterval(scaleWeightIntervalRef.current);
-        scaleWeightIntervalRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => { barcodeInputRef.current?.focus(); }, []);
 

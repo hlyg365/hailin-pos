@@ -119,13 +119,13 @@ public class HailinHardwarePlugin extends Plugin {
                     
                     // ====== 连接成功后发送初始化命令 ======
                     try {
-                        Thread.sleep(100);
+                        Thread.sleep(20);
                         // 发送初始化命令到电子秤
                         if (serial.output != null) {
                             serial.output.write(new byte[]{0x05});  // ENQ唤醒
                             serial.output.flush();
                             Log.d(TAG, "[秤] 发送ENQ唤醒命令");
-                            Thread.sleep(100);
+                            Thread.sleep(20);
                             serial.output.write(new byte[]{0x11});  // DC1初始化
                             serial.output.flush();
                             Log.d(TAG, "[秤] 发送DC1初始化命令");
