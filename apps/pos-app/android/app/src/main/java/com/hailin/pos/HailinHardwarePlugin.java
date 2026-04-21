@@ -88,7 +88,7 @@ public class HailinHardwarePlugin extends Plugin {
      */
     @PluginMethod
     public void scaleConnect(PluginCall call) {
-        String port = call.getString("port", "/dev/ttyS0");
+        String port = call.getString("port", "/dev/ttyS4");
         int baudRate = call.getInt("baudRate", 9600);  // 9600为顶尖OS2默认波特率
         int dataBits = call.getInt("dataBits", 8);
         int stopBits = call.getInt("stopBits", 1);
@@ -201,8 +201,8 @@ public class HailinHardwarePlugin extends Plugin {
      */
     @PluginMethod
     public void detectScale(PluginCall call) {
-        String port = call.getString("port", "/dev/ttyS1");
-        int baudRate = call.getInt("baudRate", 2400);
+        String port = call.getString("port", "/dev/ttyS4");
+        int baudRate = call.getInt("baudRate", 9600);
         
         executor.execute(() -> {
             SerialConnection serial = null;
@@ -2105,7 +2105,7 @@ public class HailinHardwarePlugin extends Plugin {
                             }
                         }
                     }
-                    Thread.sleep(100);  // 100ms 读取间隔，实时响应
+                    Thread.sleep(20);  // 20ms间隔，50次/秒采样，极速响应
                 } catch (Exception e) {
                     if (running) Log.e(TAG, "秤读取异常", e);
                 }

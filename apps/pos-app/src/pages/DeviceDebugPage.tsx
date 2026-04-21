@@ -19,13 +19,13 @@ export default function DeviceDebugPage() {
   });
   
   // 秤连接类型：serial, network, usb
-  const [scaleType, setScaleType] = useState<'serial' | 'network' | 'usb'>('network');
+  const [scaleType, setScaleType] = useState<'serial' | 'network' | 'usb'>('serial');
   
-  // 串口配置
+  // 串口配置 - 顶尖OS2X-15 电子秤默认参数
   const [serialConfig, setSerialConfig] = useState({
-    port: '/dev/ttyS1',  // 默认使用主板串口2
-    baudRate: 2400,
-    protocol: 'soki',
+    port: '/dev/ttyS4',  // 默认使用串口4（用户实测正确的端口）
+    baudRate: 9600,      // 9600波特率（用户实测稳定）
+    protocol: 'soki',     // 顶尖OS2专用协议
   });
   
   // 网络秤配置
@@ -407,9 +407,9 @@ export default function DeviceDebugPage() {
                     onChange={(e) => setSerialConfig({...serialConfig, baudRate: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border rounded"
                   >
-                    <option value="2400">2400 (顶尖OS2 推荐)</option>
+                    <option value="9600">9600 (顶尖OS2 推荐)</option>
+                    <option value="2400">2400</option>
                     <option value="4800">4800</option>
-                    <option value="9600">9600</option>
                     <option value="1200">1200</option>
                     <option value="600">600</option>
                     <option value="19200">19200</option>
