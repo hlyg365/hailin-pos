@@ -1710,19 +1710,20 @@ public class HailinHardwarePlugin extends Plugin {
                         for (String f : files) {
                             if (f.startsWith("tty")) {
                                 File device = new File("/dev/" + f);
-                                String info = f;
+                                String permission;
                                 if (device.canRead() && device.canWrite()) {
-                                    info += " (可读写)";
+                                    permission = "可读写";
                                 } else if (device.canRead()) {
-                                    info += " (仅可读)";
+                                    permission = "仅可读";
                                 } else if (device.canWrite()) {
-                                    info += " (仅可写)";
+                                    permission = "仅可写";
                                 } else {
-                                    info += " (无权限)";
+                                    permission = "无权限";
                                 }
-                                devices.put("tty_" + index, info);
+                                // 返回格式: { "ttyS0": "可读写", "ttyS4": "可读写" }
+                                devices.put(f, permission);
                                 index++;
-                                Log.d(TAG, "Tty设备: " + info);
+                                Log.d(TAG, "Tty设备: /dev/" + f + " - " + permission);
                             }
                         }
                     }
