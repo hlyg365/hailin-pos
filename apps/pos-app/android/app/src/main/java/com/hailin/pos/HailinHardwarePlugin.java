@@ -341,31 +341,59 @@ public class HailinHardwarePlugin extends Plugin {
         try {
             // 串口设备目录
             File devDir = new File("/dev");
-            if (devDir.exists() && devDir.isDirectory()) {
-                File[] files = devDir.listFiles();
-                if (files != null) {
-                    for (File file : files) {
-                        String name = file.getName();
-                        // 匹配常见的串口设备名称
-                        if (name.startsWith("ttyS") || name.startsWith("ttyUSB") || 
-                            name.startsWith("ttyACM") || name.startsWith("ttyAMA")) {
-                            try {
-                                JSONObject portInfo = new JSONObject();
-                                portInfo.put("path", file.getAbsolutePath());
-                                portInfo.put("name", name);
-                                portInfo.put("readable", file.canRead());
-                                portInfo.put("writable", file.canWrite());
-                                ports.put(portInfo);
-                                Log.i(TAG, "[枚举串口] 发现设备: " + file.getAbsolutePath() + 
-                                      " (r=" + file.canRead() + ", w=" + file.canWrite() + ")");
-                            } catch (Exception e) {
-                                Log.w(TAG, "[枚举串口] 读取设备信息失败: " + name);
-                            }
-                        }
+            
+            // 首先检查目录是否存在
+            Log.i(TAG, "[枚举串口] /dev 目录存在: " + devDir.exists());
+            Log.i(TAG, "[枚举串口] /dev 是目录: " + devDir.isDirectory());
+            Log.i(TAG, "[枚举串口] /dev 可读: " + devDir.canRead());
+            
+            if (!devDir.exists()) {
+                result.put("success", false);
+                result.put("error", "/dev 目录不存在");
+                result.put("ports", ports);
+                call.resolve(result);
+                return;
+            }
+            
+            File[] files = devDir.listFiles();
+            if (files == null) {
+                Log.w(TAG, "[枚举串口] listFiles() 返回 null，可能权限不足");
+                result.put("success", false);
+                result.put("error", "无法列出设备，可能是权限问题");
+                result.put("ports", ports);
+                result.put("hint", "请在设备设置中授权USB权限");
+                call.resolve(result);
+                return;
+            }
+            
+            Log.i(TAG, "[枚举串口] 共发现 " + files.length + " 个文件/目录");
+            
+            for (File file : files) {
+                String name = file.getName();
+                // 匹配常见的串口设备名称
+                if (name.startsWith("ttyS") || name.startsWith("ttyUSB") || 
+                    name.startsWith("ttyACM") || name.startsWith("ttyAMA")) {
+                    try {
+                        JSONObject portInfo = new JSONObject();
+                        portInfo.put("path", file.getAbsolutePath());
+                        portInfo.put("name", name);
+                        portInfo.put("readable", file.canRead());
+                        portInfo.put("writable", file.canWrite());
+                        ports.put(portInfo);
+                        Log.i(TAG, "[枚举串口] 发现设备: " + file.getAbsolutePath() + 
+                              " (r=" + file.canRead() + ", w=" + file.canWrite() + ")");
+                    } catch (Exception e) {
+                        Log.w(TAG, "[枚举串口] 读取设备信息失败: " + name);
                     }
                 }
-            } else {
-                Log.w(TAG, "[枚举串口] /dev 目录不存在或不可访问");
+            }
+            
+            // 列出所有tty*设备（调试用）
+            Log.i(TAG, "[枚举串口] 所有tty设备:");
+            for (File file : files) {
+                if (file.getName().startsWith("tty")) {
+                    Log.i(TAG, "  " + file.getName() + " (r=" + file.canRead() + ", w=" + file.canWrite() + ")");
+                }
             }
             
             result.put("success", true);
@@ -375,8 +403,10 @@ public class HailinHardwarePlugin extends Plugin {
             
         } catch (Exception e) {
             Log.e(TAG, "[枚举串口] 失败: " + e.getMessage());
+            e.printStackTrace();
             result.put("success", false);
             result.put("error", e.getMessage());
+            result.put("ports", ports);
             call.resolve(result);
         }
     }
@@ -1380,27 +1410,48 @@ public class HailinHardwarePlugin extends Plugin {
             Log.i(TAG, "[秤-主板串口] 开始连接: port=" + port + ", baudRate=" + baudRate);
             
             try {
+                // 检查设备文件
+                File device = new File(port);
+                Log.i(TAG, "[秤-主板串口] 设备文件存在: " + device.exists());
+                Log.i(TAG, "[秤-主板串口] 设备文件可读: " + device.canRead());
+                Log.i(TAG, "[秤-主板串口] 设备文件可写: " + device.canWrite());
+                
+                if (!device.exists()) {
+                    Log.e(TAG, "[秤-主板串口] 设备不存在: " + port);
+                    // 列出所有tty*设备帮助调试
+                    File devDir = new File("/dev");
+                    if (devDir.exists()) {
+                        File[] files = devDir.listFiles();
+                        if (files != null) {
+                            StringBuilder allTty = new StringBuilder("[秤-主板串口] /dev下所有tty设备:");
+                            for (File f : files) {
+                                if (f.getName().startsWith("tty")) {
+                                    allTty.append(" ").append(f.getName());
+                                }
+                            }
+                            Log.i(TAG, allTty.toString());
+                        }
+                    }
+                    return new SerialConnectResult(false, "串口设备不存在: " + port, "检查路径是否正确");
+                }
+                
                 // 尝试预设置波特率
                 setBaudRateBeforeOpen(port, baudRate);
                 
                 // 直接打开设备文件
-                File device = new File(port);
-                if (!device.exists()) {
-                    return new SerialConnectResult(false, "串口设备不存在", "检查路径: " + port);
-                }
-                if (!device.canRead() || !device.canWrite()) {
-                    Log.w(TAG, "[秤-主板串口] 权限不足，尝试打开: " + port);
-                }
-                
+                Log.i(TAG, "[秤-主板串口] 尝试打开设备文件...");
                 FileInputStream tempInput = new FileInputStream(device);
                 FileOutputStream tempOutput = new FileOutputStream(device);
+                Log.i(TAG, "[秤-主板串口] 设备文件已打开");
                 
-                // 尝试设置波特率
+                // 尝试设置波特率（通过反射或stty）
                 try {
                     Runtime.getRuntime().exec("stty -F " + port + " " + baudRate + " raw");
                     Log.i(TAG, "[秤-主板串口] stty设置波特率成功: " + baudRate);
                 } catch (Exception e) {
                     Log.w(TAG, "[秤-主板串口] stty设置波特率失败: " + e.getMessage());
+                    // 尝试通过反射设置波特率
+                    setBaudRateViaReflection(port, baudRate);
                 }
                 
                 // 保存连接
@@ -1413,9 +1464,36 @@ public class HailinHardwarePlugin extends Plugin {
                 Log.i(TAG, "[秤-主板串口] 连接成功！");
                 return new SerialConnectResult(true, "连接成功", "主板串口 " + port);
                 
+            } catch (SecurityException e) {
+                Log.e(TAG, "[秤-主板串口] 权限不足（SecurityException）: " + e.getMessage());
+                return new SerialConnectResult(false, "权限不足，无法访问串口", "可能需要root权限或在adb中执行: adb shell chmod 666 " + port);
             } catch (Exception e) {
                 Log.e(TAG, "[秤-主板串口] 连接失败: " + e.getMessage());
+                e.printStackTrace();
                 return new SerialConnectResult(false, "连接失败: " + e.getMessage(), e.toString());
+            }
+        }
+        
+        // 通过反射设置波特率（备用方案）
+        private void setBaudRateViaReflection(String port, int baudRate) {
+            try {
+                Log.w(TAG, "[秤-主板串口] 尝试反射设置波特率（" + baudRate + "）...");
+                
+                // Android提供了android.os.ParcelFileDescriptor来处理串口
+                File device = new File(port);
+                FileInputStream fis = new FileInputStream(device);
+                FileDescriptor fd = fis.getFD();
+                
+                // 使用反射获取文件描述符的int值
+                java.lang.reflect.Field field = FileDescriptor.class.getDeclaredField("descriptor");
+                field.setAccessible(true);
+                int fdInt = field.getInt(fd);
+                
+                android.os.ParcelFileDescriptor pfd = android.os.ParcelFileDescriptor.fromFd(fdInt);
+                Log.i(TAG, "[秤-主板串口] ParcelFileDescriptor创建成功, fd=" + fdInt);
+                
+            } catch (Exception e) {
+                Log.w(TAG, "[秤-主板串口] 反射设置波特率失败: " + e.getMessage());
             }
         }
         

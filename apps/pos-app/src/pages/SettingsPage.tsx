@@ -397,7 +397,8 @@ export default function SettingsPage() {
                             if (result.success && result.ports && result.ports.length > 0) {
                               addLog('success', `发现 ${result.count} 个串口设备:`);
                               result.ports.forEach((port: any) => {
-                                addLog('info', `  ${port.path} (r=${port.readable}, w=${port.writable})`);
+                                const status = port.readable && port.writable ? '可读写' : '只读或无权限';
+                                addLog('info', `  ${port.path} (${status})`);
                               });
                               
                               // 优先选择可读写的ttyS*设备
@@ -405,7 +406,6 @@ export default function SettingsPage() {
                                 p.readable && p.writable && p.path.startsWith('/dev/ttyS')
                               );
                               if (writable.length > 0) {
-                                // 按编号排序，小的优先
                                 writable.sort((a: any, b: any) => {
                                   const numA = parseInt(a.path.replace('/dev/ttyS', '')) || 0;
                                   const numB = parseInt(b.path.replace('/dev/ttyS', '')) || 0;
@@ -414,11 +414,27 @@ export default function SettingsPage() {
                                 deviceConfig.updateConfig('scale', { address: writable[0].path });
                                 addLog('success', `已自动选择: ${writable[0].path}`);
                               } else {
-                                addLog('warn', '建议手动选择可读写的串口设备');
+                                // 尝试选择可读的设备
+                                const readable = result.ports.filter((p: any) => p.readable);
+                                if (readable.length > 0) {
+                                  addLog('warn', '未发现可读写设备，选择第一个可读设备: ' + readable[0].path);
+                                  deviceConfig.updateConfig('scale', { address: readable[0].path });
+                                } else {
+                                  addLog('warn', '所有设备均无权限');
+                                }
                               }
                             } else {
-                              addLog('warn', '未发现串口设备，请检查电子秤连接和USB线');
-                              addLog('info', '提示: 确认电子秤已连接并开启');
+                              addLog('warn', '未发现串口设备');
+                              if (result.error) {
+                                addLog('error', `错误: ${result.error}`);
+                              }
+                              if (result.hint) {
+                                addLog('info', `提示: ${result.hint}`);
+                              }
+                              addLog('info', '请检查:');
+                              addLog('info', '1. 电子秤电源已开启');
+                              addLog('info', '2. USB线连接正常');
+                              addLog('info', '3. 尝试重新插拔USB线');
                             }
                           } catch (e: any) {
                             addLog('error', `枚举失败: ${e.message}`);
