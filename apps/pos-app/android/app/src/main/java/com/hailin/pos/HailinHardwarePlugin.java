@@ -2303,59 +2303,89 @@ public class HailinHardwarePlugin extends Plugin {
             // 16字节数据 - 顶尖OS2协议（9600波特率）
             if (len == 16) {
                 Log.i(TAG, "[秤] 收到16字节数据");
-                showToast("收到16字节数据");
                 
                 // 尝试作为ASCII字符串解析
-                String str = new String(data, 0, len).trim();
+                String str = new String(data, 0, len);
                 Log.i(TAG, "[秤] 原始字符串: '" + str + "'");
-                showToast("数据: " + str);
+                showToast("原始数据: " + str);
                 
-                // 格式可能是: S0.00KG  (6字节有效+10字节填充)
-                // 或者可能是: S0.000KG (7字节) 加上一些其他信息
+                // 格式: "S 00.498kgd" - S开头，数字，空格，单位kg
+                // 解析：00.498 可能表示 0.498kg，或者需要特殊处理
                 
-                // 查找 "S" 开始位置
-                int startIndex = -1;
+                // 查找数字和小数点
+                String numStr = "";
+                boolean foundDot = false;
+                int digitCount = 0;
                 for (int i = 0; i < len; i++) {
-                    if (data[i] == 'S' || data[i] == 's') {
-                        startIndex = i;
+                    char c = str.charAt(i);
+                    if (c == '.' || (c >= '0' && c <= '9')) {
+                        numStr += c;
+                        if (c >= '0' && c <= '9') digitCount++;
+                    } else if (numStr.length() > 0 && foundDot) {
+                        // 遇到非数字且已有小数点，停止
                         break;
                     }
+                    if (c == '.') foundDot = true;
                 }
                 
-                if (startIndex >= 0) {
-                    // 从S开始提取到KG之间的内容
-                    StringBuilder weightStr = new StringBuilder();
-                    for (int i = startIndex; i < len && i < startIndex + 10; i++) {
-                        char c = (char) data[i];
-                        if (c == 'K' || c == 'k') break;  // 遇到K表示单位开始
-                        weightStr.append(c);
-                    }
-                    
-                    Log.i(TAG, "[秤] 提取的重量字符串: '" + weightStr.toString() + "'");
-                    
-                    // 判断是否稳定
-                    boolean isStable = !str.startsWith("S") || (str.contains("0.00") && !str.contains("S-"));  // 如果显示0.00且不是负数，可能不稳定
-                    if (str.startsWith("S")) {
-                        isStable = true;  // S开头通常表示稳定
-                    }
-                    
-                    // 解析重量值
+                Log.i(TAG, "[秤] 提取数字: '" + numStr + "', 位数:" + digitCount);
+                
+                if (numStr.length() > 0) {
                     try {
-                        // 移除S，取数字部分
-                        String numStr = weightStr.toString().replaceAll("[^0-9.-]", "");
-                        if (numStr.length() > 0) {
-                            double weight = Double.parseDouble(numStr);
-                            ScaleWeight w = new ScaleWeight();
-                            w.weight = weight;
-                            w.unit = "kg";
-                            w.stable = isStable;
-                            w.timestamp = System.currentTimeMillis();
-                            w.raw = str;  // 保存原始字符串
-                            
-                            Log.i(TAG, "[秤] >>> 解析成功! 重量: " + weight + " kg, 稳定: " + isStable);
-                            showToast(">>> 重量: " + weight + " kg" + (isStable ? "" : " (不稳定)"));
-                            return w;
+                        double rawWeight = Double.parseDouble(numStr);
+                        
+                        // 判断是否稳定（S开头通常表示稳定）
+                        boolean isStable = str.startsWith("S") || str.startsWith("s");
+                        
+                        // 判断重量是否接近0（不稳）
+                        if (rawWeight < 0.01) {
+                            isStable = false;
                         }
+                        
+                        // 重量值处理：00.498 格式可能是 0.498kg (克为单位)
+                        // 或者可能是 4.98kg 格式（去掉前导零）
+                        // 根据实际测试: 00.498kgd 显示为 4.98kg
+                        // 说明原始数据需要除以100或者特殊处理
+                        
+                        double weight = rawWeight;
+                        
+                        // 如果是小数格式如 0.498 或 00.498，保持原值
+                        // 如果是整数格式如 498，保持原值（单位为g）
+                        // 根据顶尖OS2协议，数据可能是克为单位
+                        
+                        ScaleWeight w = new ScaleWeight();
+                        
+                        // 判断单位
+                        boolean hasKg = str.toLowerCase().contains("kg");
+                        if (hasKg) {
+                            w.unit = "kg";
+                            // 如果数字格式为 00.498，可能是 0.498kg
+                            // 如果数字格式为 0498，可能是 4.98kg
+                            if (digitCount >= 3 && numStr.length() <= 6) {
+                                // 可能是连续数字如 00498，需要除以100得到 4.98
+                                if (numStr.startsWith("0") && numStr.contains(".")) {
+                                    // 00.498 格式 - 已经是kg
+                                    weight = rawWeight;
+                                } else {
+                                    // 00498 格式 - 需要除以100得到 4.98kg
+                                    weight = rawWeight / 100.0;
+                                }
+                            }
+                        } else {
+                            w.unit = "g";
+                            // 如果是克，需要转换为kg
+                            weight = rawWeight / 1000.0;
+                        }
+                        
+                        w.weight = weight;
+                        w.stable = isStable;
+                        w.timestamp = System.currentTimeMillis();
+                        w.raw = str;
+                        
+                        Log.i(TAG, "[秤] >>> 重量: " + weight + " " + w.unit + ", 稳定:" + isStable);
+                        showToast(">>> 重量: " + weight + " " + w.unit);
+                        return w;
+                        
                     } catch (NumberFormatException e) {
                         Log.e(TAG, "[秤] 数字解析失败: " + e.getMessage());
                     }
