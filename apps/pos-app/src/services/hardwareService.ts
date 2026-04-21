@@ -2,28 +2,15 @@
  * 海邻到家一体机硬件服务层 V6.0
  * 完整支持：电子秤、打印机、钱箱、扫码枪、客显屏、AI识别
  */
+import { Capacitor } from '@capacitor/core';
+import { registerPlugin } from '@capacitor/core';
+import { registerHailinHardwarePlugin } from '../plugins/hailin-plugin-register';
 
-// Capacitor类型声明
-declare global {
-  interface Window {
-    HailinHardware?: {
-      scaleConnect(options: any): Promise<any>;
-      scaleDisconnect(options?: any): Promise<any>;
-      scaleTare(options?: any): Promise<any>;
-      scaleZero(options?: any): Promise<any>;
-      scaleReadWeight(options?: any): Promise<any>;
-      printerConnect(options: any): Promise<any>;
-      printerPrintText(options: any): Promise<any>;
-      openCashDrawer(options?: any): Promise<any>;
-      showOnCustomerDisplay(options: any): Promise<any>;
-      addListener(eventName: string, callback: (data: any) => void): void;
-      removeListener(eventName: string, callback: (data: any) => void): void;
-    };
-    Capacitor?: {
-      Plugins?: Record<string, any>;
-      isNativePlatform(): boolean;
-    };
-  }
+// 立即尝试手动注册插件
+if (Capacitor.isNativePlatform()) {
+  setTimeout(() => {
+    registerHailinHardwarePlugin();
+  }, 50);
 }
 
 // ==================== 插件类型定义 ====================
@@ -33,7 +20,7 @@ interface ScaleWeight {
   unit: string;         // 单位 (kg/lb/g)
   stable: boolean;      // 是否稳定
   timestamp: number;    // 时间戳
-  raw?: string;         // 原始十六进制数据
+  raw?: string;         // 原始十六进制数据（如 "02 47 53 2B 30 31 32 2E 35 30 30 03"）
 }
 
 // 电子秤协议数据解析结果
@@ -145,43 +132,149 @@ interface HailinHardwarePlugin {
   removeAllListeners(): Promise<any>;
 }
 
+// Cordova 插件转换为 Promise 格式
+function convertCordovaToPromise(cordovaPlugin: any): HailinHardwarePlugin {
+  const toPromise = (method: string, args?: any[]) => {
+    return new Promise((resolve, reject) => {
+      const callback = (result: any) => {
+        if (result && result.success === false) {
+          reject(result);
+        } else {
+          resolve(result);
+        }
+      };
+      const error = (err: any) => reject(err);
+      
+      if (cordovaPlugin[method]) {
+        cordovaPlugin[method](...(args || []), callback, error);
+      } else {
+        // 使用通用 exec 方法
+        const name = method.charAt(0).toUpperCase() + method.slice(1);
+        (window as any).cordova?.exec(callback, error, 'HailinHardware', name, args || []);
+      }
+    });
+  };
+  
+  return {
+    scaleConnect: (options) => toPromise('scaleConnect', [options]),
+    scaleConnectTcp: (options) => toPromise('scaleConnectTcp', [options]),
+    scaleDisconnect: (options) => toPromise('scaleDisconnect', options ? [options] : []),
+    scaleReadWeight: (options) => toPromise('scaleReadWeight', options ? [options] : []),
+    scaleTare: (options) => toPromise('scaleTare', options ? [options] : []),
+    scaleZero: (options) => toPromise('scaleZero', options ? [options] : []),
+    scaleClearTare: (options) => toPromise('scaleClearTare', options ? [options] : []),
+    printerConnect: (options) => toPromise('printerConnect', [options]),
+    printerInit: () => toPromise('printerInit'),
+    printerPrintText: (options) => toPromise('printerPrintText', [options]),
+    printerNewLine: (options) => toPromise('printerNewLine', options ? [options] : []),
+    printerPrintQRCode: (options) => toPromise('printerPrintQRCode', [options]),
+    printerPrintBarcode: (options) => toPromise('printerPrintBarcode', [options]),
+    printerBeep: (options) => toPromise('printerBeep', options ? [options] : []),
+    printerCut: (options) => toPromise('printerCut', options ? [options] : []),
+    printerPrintReceipt: (options) => toPromise('printerPrintReceipt', [options]),
+    printerDisconnect: () => toPromise('printerDisconnect'),
+    openCashDrawer: (options) => toPromise('openCashDrawer', options ? [options] : []),
+    showOnCustomerDisplay: (options) => toPromise('showOnCustomerDisplay', [options]),
+    dismissCustomerDisplay: () => toPromise('dismissCustomerDisplay'),
+    enableBarcodeScanner: () => toPromise('enableBarcodeScanner'),
+    disableBarcodeScanner: () => toPromise('disableBarcodeScanner'),
+    getLastScan: () => toPromise('getLastScan'),
+    captureAndRecognize: (options) => toPromise('captureAndRecognize', [options]),
+    getDeviceStatus: () => toPromise('getDeviceStatus'),
+    disconnectAll: () => toPromise('disconnectAll'),
+    // 事件监听：Cordova 和 Capacitor 插件都使用 addListener
+    addListener: (eventName: string, callback: (data: any) => void) => {
+      // 方式1: Capacitor 插件原生 addListener
+      const capPlugin = (Capacitor as any).Plugins?.HailinHardware;
+      if (capPlugin?.addListener) {
+        return capPlugin.addListener(eventName, callback);
+      }
+      // 方式2: window.HailinHardware.addListener (Cordova兼容)
+      const winPlugin = (window as any).HailinHardware;
+      if (winPlugin?.addListener) {
+        return winPlugin.addListener(eventName, callback);
+      }
+      // Fallback: 返回空实现
+      console.warn('[硬件服务] addListener: 插件未就绪，返回空实现');
+      return Promise.resolve({ remove: () => {} });
+    },
+    removeAllListeners: () => toPromise('removeAllListeners'),
+  } as HailinHardwarePlugin;
+}
+
 // 尝试获取原生插件
 let hardwarePlugin: HailinHardwarePlugin | null = null;
 let pluginRetryCount = 0;
 const MAX_PLUGIN_RETRIES = 10;
 
-// 获取插件
-function getHardwarePlugin(): HailinHardwarePlugin | null {
-  const isNative = typeof window !== 'undefined' && 
-                   window.Capacitor && 
-                   (window.Capacitor as any).isNativePlatform?.();
-  if (!isNative) {
-    console.log('[硬件服务] 非原生平台，返回null');
+// ==================== 备用原生调用接口 ====================
+
+// 通过 Capacitor Bridge 直接调用原生插件
+interface NativeCallOptions {
+  plugin: string;
+  method: string;
+  args?: Record<string, any>;
+}
+
+// 直接调用原生方法的辅助函数
+async function nativeCall(options: NativeCallOptions): Promise<any> {
+  if (!(Capacitor as any).isNativePlatform()) {
     return null;
   }
   
   try {
-    console.log('[硬件服务] 尝试获取 HailinHardware 插件...');
-    
-    // 方式1: window.HailinHardware（Cordova兼容）
-    const plugin1 = (window as any).HailinHardware;
-    if (plugin1) {
-      console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（window.HailinHardware）');
-      return plugin1 as HailinHardwarePlugin;
+    // 尝试通过 Capacitor bridge 调用
+    const bridge = (window as any).Capacitor?.bridge;
+    if (bridge) {
+      const callbackId = await bridge.call(options.plugin, options.method, options.args || {});
+      return callbackId;
     }
     
-    // 方式2: Capacitor.Plugins.HailinHardware
-    const plugin2 = (window as any).Capacitor?.Plugins?.HailinHardware;
-    if (plugin2) {
-      console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（Capacitor.Plugins）');
-      return plugin2 as HailinHardwarePlugin;
+    // 尝试通过插件接口调用
+    const plugin = (Capacitor as any).Plugins?.[options.plugin];
+    if (plugin && typeof plugin[options.method] === 'function') {
+      return await plugin[options.method](options.args || {});
     }
     
-    console.warn('[硬件服务] HailinHardware 插件未找到');
-    console.log('[硬件服务] window.HailinHardware:', !!window.HailinHardware);
-    console.log('[硬件服务] Capacitor.Plugins:', Object.keys((window as any).Capacitor?.Plugins || {}));
+    return null;
   } catch (e) {
-    console.error('[硬件服务] 获取 HailinHardware 插件异常:', e);
+    console.error('[原生调用] 失败:', options.plugin, options.method, e);
+    return null;
+  }
+}
+
+// 获取插件
+function getHardwarePlugin(): HailinHardwarePlugin | null {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      console.log('[硬件服务] 尝试获取 HailinHardware 插件...');
+      
+      // 方式1: 通过 Capacitor.Plugins 获取（推荐）
+      const plugin = (Capacitor as any).Plugins?.HailinHardware;
+      if (plugin) {
+        console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（Capacitor.Plugins）');
+        return plugin as HailinHardwarePlugin;
+      }
+      
+      // 方式2: 通过 window.HailinHardware 获取（Cordova兼容）
+      const cordovaPlugin = (window as any).HailinHardware;
+      if (cordovaPlugin) {
+        console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（window.HailinHardware）');
+        return cordovaPlugin as HailinHardwarePlugin;
+      }
+      
+      // 方式3: 通过 Capacitor.getPlugin 获取
+      const plugin2 = (Capacitor as any).getPlugin?.('HailinHardware');
+      if (plugin2) {
+        console.log('[硬件服务] ✓ HailinHardware 原生插件已加载（getPlugin）');
+        return plugin2 as HailinHardwarePlugin;
+      }
+      
+      console.warn('[硬件服务] HailinHardware 插件未找到');
+      console.log('[硬件服务] Capacitor.Plugins:', JSON.stringify((Capacitor as any).Plugins || {}));
+    } catch (e) {
+      console.error('[硬件服务] 获取 HailinHardware 插件异常:', e);
+    }
   }
   return null;
 }
@@ -214,13 +307,8 @@ function startPluginRetry() {
   }, 200); // 缩短到200ms重试，更快发现插件
 }
 
-if (!hardwarePlugin) {
-  const isNative = typeof window !== 'undefined' && 
-                   window.Capacitor && 
-                   (window.Capacitor as any).isNativePlatform?.();
-  if (isNative) {
-    startPluginRetry();
-  }
+if (!hardwarePlugin && Capacitor.isNativePlatform()) {
+  startPluginRetry();
 }
 
 // ==================== 事件总线 ====================
@@ -230,68 +318,36 @@ const eventListeners: Map<string, Set<EventCallback>> = new Map();
 
 // 转发原生事件到前端（延迟绑定，等待插件初始化）
 function bindPluginListeners() {
-  if (!hardwarePlugin) {
-    console.warn('[硬件服务] bindPluginListeners: hardwarePlugin 为 null');
-    return;
-  }
+  if (!hardwarePlugin) return;
   
   console.log('[硬件服务] 开始绑定原生事件监听器');
-  console.log('[硬件服务] hardwarePlugin 类型:', typeof hardwarePlugin);
-  console.log('[硬件服务] hardwarePlugin.addListener:', typeof (hardwarePlugin as any).addListener);
   
-  // 检查 addListener 是否可用
-  if (typeof (hardwarePlugin as any).addListener !== 'function') {
-    console.error('[硬件服务] hardwarePlugin.addListener 不是函数!');
-    console.log('[硬件服务] available methods:', Object.keys(hardwarePlugin).filter(k => typeof (hardwarePlugin as any)[k] === 'function'));
-    return;
-  }
+  // 监听秤数据
+  hardwarePlugin.addListener('scaleData', (data: any) => {
+    console.log('[硬件服务] 收到秤数据:', data);
+    emit('scaleData', data);
+    emit('weightChanged', data);
+  });
   
-  try {
-    // 监听秤数据
-    (hardwarePlugin as any).addListener('scaleData', (data: any) => {
-      console.log('[硬件服务] 收到秤数据 scaleData:', JSON.stringify(data));
-      emit('scaleData', data);
-      emit('weightChanged', data);
-    });
-    
-    // 监听扫码事件
-    (hardwarePlugin as any).addListener('barcodeScanned', (data: any) => {
-      console.log('[硬件服务] 收到扫码数据:', JSON.stringify(data));
-      emit('barcodeScanned', data);
-      emit('scan', data);
-    });
-    
-    console.log('[硬件服务] 原生事件监听器绑定完成');
-  } catch (e) {
-    console.error('[硬件服务] 绑定事件监听器失败:', e);
-  }
+  // 监听扫码事件
+  hardwarePlugin.addListener('barcodeScanned', (data: any) => {
+    emit('barcodeScanned', data);
+  });
+  
+  console.log('[硬件服务] 原生事件监听器绑定完成');
 }
 
 // 延迟绑定事件（初始）
-const initialBindTimeout = setTimeout(bindPluginListeners, 500);
+setTimeout(bindPluginListeners, 500);
 
-// 持续监听：每秒检查一次插件和重新绑定（最多60次，之后停止）
-let pluginCheckCount = 0;
-const MAX_PLUGIN_CHECKS = 60;  // 最多检查60秒
-const pluginCheckInterval = setInterval(() => {
-  if (hardwarePlugin) {
-    // 插件已获取，停止检查
-    clearInterval(pluginCheckInterval);
-    return;
-  }
-  
-  pluginCheckCount++;
-  if (pluginCheckCount <= MAX_PLUGIN_CHECKS) {
+// 持续监听：每秒检查一次插件和重新绑定
+setInterval(() => {
+  if (!hardwarePlugin) {
     hardwarePlugin = getHardwarePlugin();
     if (hardwarePlugin) {
       console.log('[硬件服务] 插件延迟就绪，绑定事件');
       bindPluginListeners();
-      clearInterval(pluginCheckInterval);
     }
-  } else {
-    // 超过60秒仍未找到插件，停止检查
-    console.warn('[硬件服务] 插件检测超时，停止检查');
-    clearInterval(pluginCheckInterval);
   }
 }, 1000);
 
