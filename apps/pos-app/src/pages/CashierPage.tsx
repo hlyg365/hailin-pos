@@ -284,28 +284,16 @@ export default function CashierPage() {
       }
     }, 5000);
     
-    // 监听扫码事件
-    deviceEvents.on('scan', (data) => {
-      console.log('[收银台] 扫码事件:', data.barcode);
-      handleBarcodeScan(data.barcode);
-    });
-    
-    // 监听秤数据事件，触发UI更新
-    deviceEvents.on('weightChanged', (data: { weight: number; unit: string; stable: boolean; raw?: string; timestamp: number }) => {
-      console.log('[收银台] 秤数据:', data);
-      // 更新秤数据状态以触发重渲染
-      setScaleWeight({ weight: data.weight, unit: data.unit, stable: data.stable });
-      // 开发模式下显示原始十六进制数据
-      if (data.raw) {
-        console.log('[秤原始数据]', data.raw);
-      }
-    });
-    
-    // 保存事件引用用于cleanup
+    // 监听扫码事件（使用引用用于清理）
     const handleScan = (data: any) => handleBarcodeScan(data.barcode);
     const handleWeight = (data: any) => {
       setScaleWeight({ weight: data.weight, unit: data.unit, stable: data.stable });
     };
+    
+    deviceEvents.on('scan', handleScan);
+    
+    // 监听秤数据事件，触发UI更新
+    deviceEvents.on('weightChanged', handleWeight);
     
     return () => {
       clearInterval(statusInterval);

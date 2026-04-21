@@ -175,7 +175,29 @@ function convertCordovaToPromise(cordovaPlugin: any): HailinHardwarePlugin {
     captureAndRecognize: (options) => toPromise('captureAndRecognize', [options]),
     getDeviceStatus: () => toPromise('getDeviceStatus'),
     disconnectAll: () => toPromise('disconnectAll'),
-    addListener: (event, callback) => Promise.resolve({ remove: () => {} }),
+    addListener: (eventName: string, callback: (data: any) => void) => {
+      // 尝试多种方式添加监听
+      // 方式1: Capacitor 插件方式
+      if ((cordovaPlugin as any).addListener) {
+        (cordovaPlugin as any).addListener(eventName, callback);
+      }
+      // 方式2: Capacitor.Plugins 方式（Capacitor 自动实现）
+      const capPlugin = (Capacitor as any).Plugins?.HailinHardware;
+      if (capPlugin?.addListener) {
+        capPlugin.addListener(eventName, callback);
+      }
+      // 返回移除函数
+      return Promise.resolve({
+        remove: () => {
+          if ((cordovaPlugin as any).removeListener) {
+            (cordovaPlugin as any).removeListener(eventName, callback);
+          }
+          if (capPlugin?.removeListener) {
+            capPlugin.removeListener(eventName, callback);
+          }
+        }
+      });
+    },
     removeAllListeners: () => toPromise('removeAllListeners'),
   } as HailinHardwarePlugin;
 }
@@ -316,16 +338,30 @@ function bindPluginListeners() {
 }
 
 // 延迟绑定事件（初始）
-setTimeout(bindPluginListeners, 500);
+const initialBindTimeout = setTimeout(bindPluginListeners, 500);
 
-// 持续监听：每秒检查一次插件和重新绑定
-setInterval(() => {
-  if (!hardwarePlugin) {
+// 持续监听：每秒检查一次插件和重新绑定（最多60次，之后停止）
+let pluginCheckCount = 0;
+const MAX_PLUGIN_CHECKS = 60;  // 最多检查60秒
+const pluginCheckInterval = setInterval(() => {
+  if (hardwarePlugin) {
+    // 插件已获取，停止检查
+    clearInterval(pluginCheckInterval);
+    return;
+  }
+  
+  pluginCheckCount++;
+  if (pluginCheckCount <= MAX_PLUGIN_CHECKS) {
     hardwarePlugin = getHardwarePlugin();
     if (hardwarePlugin) {
       console.log('[硬件服务] 插件延迟就绪，绑定事件');
       bindPluginListeners();
+      clearInterval(pluginCheckInterval);
     }
+  } else {
+    // 超过60秒仍未找到插件，停止检查
+    console.warn('[硬件服务] 插件检测超时，停止检查');
+    clearInterval(pluginCheckInterval);
   }
 }, 1000);
 
