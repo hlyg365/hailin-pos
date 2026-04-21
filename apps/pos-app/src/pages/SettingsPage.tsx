@@ -133,10 +133,12 @@ export default function SettingsPage() {
         }
       } else {
         // 串口秤
-        addLog('info', `使用串口连接，波特率: ${deviceConfig.scale.baudRate || 2400}`);
+        const port = deviceConfig.scale.address || '/dev/ttyS4';
+        addLog('info', `使用串口连接: ${port} @ ${deviceConfig.scale.baudRate || 2400} bps`);
         
         const config: ScaleConfig = {
           type: 'serial',
+          port: port,  // 关键：必须传入端口地址
           baudRate: deviceConfig.scale.baudRate || 2400,
           protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
         };
@@ -147,7 +149,8 @@ export default function SettingsPage() {
           deviceConfig.updateConfig('scale', { enabled: true });
           addLog('success', '串口秤连接成功！');
         } else {
-          addLog('error', '串口秤连接失败，请检查串口线连接');
+          const errorMsg = deviceManager.serialScale.status.error || '未知错误';
+          addLog('error', `串口秤连接失败: ${errorMsg}`);
         }
       }
       
