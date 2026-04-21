@@ -1591,6 +1591,11 @@ public class HailinHardwarePlugin extends Plugin {
                 connected = true;
                 String msg = "传统串口连接成功: " + port + " @ " + baudRate + "bps";
                 Log.i(TAG, "[串口-传统] " + msg);
+                
+                // 连接成功后立即开始波特率扫描测试
+                Log.i(TAG, "[串口-传统] === 开始波特率扫描测试 ===");
+                Log.i(TAG, "[串口-传统] 将依次测试: 2400, 4800, 9600, 19200, 38400, 57600, 115200");
+                
                 return new SerialConnectResult(true, null, msg);
                 
             } catch (SecurityException e) {
@@ -1981,7 +1986,15 @@ public class HailinHardwarePlugin extends Plugin {
         
         @Override
         public void run() {
+            Log.i(TAG, "========================================");
             Log.i(TAG, "[秤读取] ReaderThread启动");
+            Log.i(TAG, "[秤读取] serial=" + serial + ", serial.input=" + (serial != null ? serial.input : "null"));
+            Log.i(TAG, "[秤读取] serial.usbConnection=" + (serial != null ? serial.usbConnection : "null"));
+            if (serial != null) {
+                Log.i(TAG, "[秤读取] currentPort=" + serial.currentPort + ", currentBaudRate=" + serial.currentBaudRate);
+            }
+            Log.i(TAG, "========================================");
+            
             byte[] buffer = new byte[128];
             long lastReadTime = 0;
             long lastCommandTime = 0;
@@ -1998,12 +2011,12 @@ public class HailinHardwarePlugin extends Plugin {
                                 if (len > 0) {
                                     lastReadTime = System.currentTimeMillis();
                                     readAttempt = 0;
-                                    Log.d(TAG, "[秤读取-USB] 读到数据，长度: " + len);
+                                    Log.i(TAG, "[秤读取-USB] 读到数据，长度: " + len);
                                     StringBuilder hex = new StringBuilder();
                                     for (int i = 0; i < len; i++) {
                                         hex.append(String.format("%02X ", buffer[i]));
                                     }
-                                    Log.d(TAG, "[秤原始HEX] " + hex.toString());
+                                    Log.i(TAG, "[秤原始HEX] " + hex.toString());
                                     parseScaleData(buffer, len);
                                 } else {
                                     readAttempt++;
@@ -2039,7 +2052,7 @@ public class HailinHardwarePlugin extends Plugin {
                             if (len > 0) {
                                 lastReadTime = System.currentTimeMillis();
                                 readAttempt = 0;
-                                Log.i(TAG, "[秤读取] 读到数据，长度: " + len);
+                                Log.i(TAG, "[秤读取] >>> 读到数据，长度: " + len);
                                 // 显示原始HEX数据
                                 StringBuilder hex = new StringBuilder();
                                 for (int i = 0; i < len; i++) {
@@ -2055,9 +2068,14 @@ public class HailinHardwarePlugin extends Plugin {
                                     lastCommandTime = System.currentTimeMillis();
                                 }
                                 
+                                // 首次进入立即切换波特率测试
+                                if (readAttempt == 1) {
+                                    Log.w(TAG, "[波特率扫描] >>> 立即切换波特率测试...");
+                                    serial.tryNextBaudRate();
+                                }
                                 // 无数据超过10秒，自动切换波特率
-                                if (readAttempt >= 100) {  // 100 * 100ms = 10秒
-                                    Log.w(TAG, "[波特率扫描] >>> 10秒无数据，尝试切换波特率...");
+                                else if (readAttempt >= 100) {  // 100 * 100ms = 10秒
+                                    Log.w(TAG, "[波特率扫描] >>> 10秒无数据，切换波特率...");
                                     serial.tryNextBaudRate();
                                     readAttempt = 0;
                                 }
