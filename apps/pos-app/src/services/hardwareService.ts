@@ -173,6 +173,8 @@ function bindPluginListeners() {
   if (hardwarePlugin) {
     hardwarePlugin.addListener('scaleData', (data) => {
       emit('scaleData', data);
+      // 同时转发为 weightChanged 事件，确保收银台能收到
+      emit('weightChanged', data);
     });
     hardwarePlugin.addListener('barcodeScanned', (data) => {
       emit('barcodeScanned', data);
