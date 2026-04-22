@@ -9,7 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "serve": "node server.cjs",
-    "postinstall": "npx cap sync android"
+    "postinstall": "npx cap sync android && node -e \"require('fs').copyFileSync('public/cordova.js','android/app/src/main/assets/public/cordova.js');require('fs').copyFileSync('public/cordova_plugins.js','android/app/src/main/assets/public/cordova_plugins.js');\"",
+    "sync": "npx cap sync android && node -e \"require('fs').copyFileSync('public/cordova.js','android/app/src/main/assets/public/cordova.js');require('fs').copyFileSync('public/cordova_plugins.js','android/app/src/main/assets/public/cordova_plugins.js');\"",
+    "android:build": "npm run build && npm run sync"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.0",
