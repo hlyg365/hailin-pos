@@ -1704,8 +1704,12 @@ export async function enumerateSerialPorts(): Promise<{
   message: string;
 }> {
   try {
-    // 直接获取 HailinHardware 插件（绕过 Capacitor 检查，避免栈溢出）
+    console.log('[硬件服务] enumerateSerialPorts 开始');
+    
+    // 步骤1: 获取 hailin 对象
     const hailin = (window as any).HailinHardware;
+    console.log('[硬件服务] hailin:', typeof hailin);
+    
     if (!hailin) {
       console.error('[硬件服务] HailinHardware 未找到');
       return { 
@@ -1716,7 +1720,9 @@ export async function enumerateSerialPorts(): Promise<{
       };
     }
     
-    // 检查方法是否存在
+    // 步骤2: 检查方法
+    console.log('[硬件服务] listSerialPorts 类型:', typeof hailin.listSerialPorts);
+    
     if (typeof hailin.listSerialPorts !== 'function') {
       console.error('[硬件服务] listSerialPorts 方法不存在');
       return { 
@@ -1727,12 +1733,25 @@ export async function enumerateSerialPorts(): Promise<{
       };
     }
     
-    console.log('[硬件服务] 调用 listSerialPorts()...');
-    const result = await hailin.listSerialPorts();
-    console.log('[硬件服务] listSerialPorts 返回:', JSON.stringify(result));
+    // 步骤3: 调用原生方法
+    console.log('[硬件服务] 调用 hailin.listSerialPorts()...');
+    const rawResult = hailin.listSerialPorts();
+    console.log('[硬件服务] 原生调用完成，结果类型:', typeof rawResult);
+    
+    // 步骤4: 处理 Promise 结果
+    let result: any;
+    if (rawResult && typeof rawResult.then === 'function') {
+      console.log('[硬件服务] 结果是 Promise，等待...');
+      result = await rawResult;
+    } else {
+      result = rawResult;
+    }
+    
+    console.log('[硬件服务] 最终结果:', JSON.stringify(result));
     return result;
   } catch (error: any) {
-    console.error('[硬件服务] listSerialPorts 失败:', error);
+    console.error('[硬件服务] enumerateSerialPorts 异常:', error);
+    console.error('[硬件服务] 错误栈:', error.stack);
     return { 
       serialPorts: [], 
       usbDevices: [], 
