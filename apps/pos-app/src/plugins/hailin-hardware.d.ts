@@ -17,6 +17,9 @@ declare module '@capacitor/core' {
       scaleClearTare(options?: { connectionId?: string }): Promise<{ success: boolean }>;
       detectScale(options: { port: string; baudRate: number }): Promise<{ success: boolean; detected: boolean; port?: string; baudRate?: number }>;
       
+      // 枚举可用串口设备
+      listSerialPorts(): Promise<{ success: boolean; ports: Array<{ path: string; name: string; readable: boolean; writable: boolean }>; count: number; error?: string }>;
+      
       // 打印机
       printerConnect(options: { host: string; port: number }): Promise<{ success: boolean; connectionId?: string }>;
       printerInit(): Promise<{ success: boolean }>;

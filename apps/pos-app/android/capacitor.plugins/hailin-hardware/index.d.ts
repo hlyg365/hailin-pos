@@ -9,6 +9,9 @@ export interface ScaleWeight {
 }
 
 export interface HailinHardwarePlugin extends Plugin {
+  // 枚举可用串口设备
+  listSerialPorts(): Promise<{ success: boolean; ports: Array<{ path: string; name: string; readable: boolean; writable: boolean }>; count: number; error?: string }>;
+  
   // 电子秤
   scaleConnect(options: { port: string; baudRate: number; protocol?: string }): Promise<{ success: boolean; connectionId?: string }>;
   scaleConnectTcp(options: { host: string; port: number; protocol?: string }): Promise<{ success: boolean; connectionId?: string }>;
