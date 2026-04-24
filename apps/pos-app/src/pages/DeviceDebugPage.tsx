@@ -140,7 +140,6 @@ export default function DeviceDebugPage() {
       refreshStatus();
     }
   };
-
   // 枚举可用串口设备
   const enumeratePorts = async () => {
     setConnecting(true);
@@ -148,78 +147,34 @@ export default function DeviceDebugPage() {
     addLog('info', '🔍 正在枚举串口设备...');
     addLog('info', '========================================');
     
-    // 首先诊断插件状态
-    addLog('info', '');
-    addLog('info', '📋 诊断插件状态:');
-    addLog('info', `  window.HailinHardware: ${typeof (window as any).HailinHardware}`);
-    addLog('info', `  window.Capacitor: ${typeof (window as any).Capacitor}`);
-    addLog('info', `  window.Capacitor.isNative: ${(window as any).Capacitor?.isNative}`);
-    addLog('info', `  window.Capacitor.isNativePlatform: ${typeof (window as any).Capacitor?.isNativePlatform}`);
-    addLog('info', `  window.Capacitor.Plugins: ${typeof (window as any).Capacitor?.Plugins}`);
-    addLog('info', `  window.Capacitor.Plugins.HailinHardware: ${typeof (window as any).Capacitor?.Plugins?.HailinHardware}`);
-    addLog('info', `  window.cordova: ${typeof (window as any).cordova}`);
-    addLog('info', `  window.cordova.exec: ${typeof (window as any).cordova?.exec}`);
-    addLog('info', '');
-    
-    // 使用getHardwarePlugin获取插件
-    addLog('info', '🔧 调用 getHardwarePlugin()...');
-    const plugin = getHardwarePlugin();
-    addLog('info', `  返回值: ${plugin ? '非空对象' : 'null'}`);
-    
-    if (plugin) {
-      addLog('success', '✅ 插件获取成功');
-      
-      const port = serialConfig.port || '/dev/ttyS0';
-      const baudRate = serialConfig.baudRate || 9600;
-      addLog('info', `尝试连接: ${port} @ ${baudRate} bps`);
-      
-      // 使用Cordova回调模式
-      (plugin as any).scaleConnect(
-        { port: port, baudRate: baudRate, protocol: 'soki' },
-        (result: any) => {
-          // 成功回调
-          addLog('info', '');
-          addLog('info', '✅ scaleConnect 回调成功');
+    try {
+      // 首先尝试 Capacitor.nativeCallback 方式
+      addLog('info', '尝试通过 Capacitor.nativeCallback 调用...');
+      const cap = (window as any).Capacitor;
+      if (cap) {
+        try {
+          const result = await cap.nativeCallback('HailinHardware', 'listSerialPorts', {});
+          addLog('info', '✅ 枚举成功');
           addLog('info', `结果: ${JSON.stringify(result)}`);
-          
-          if (result?.success) {
-            addLog('success', '✅ 串口连接成功!');
-          } else {
-            addLog('error', `❌ 连接失败: ${result?.error || result?.message || '未知错误'}`);
-          }
-          setConnecting(false);
-        },
-        (error: any) => {
-          // 错误回调 - 关键：打印具体错误码
-          addLog('error', '❌ scaleConnect 回调错误');
-          addLog('error', `错误码: ${error?.code || 'unknown'}`);
-          addLog('error', `错误信息: ${error?.message || JSON.stringify(error)}`);
-          addLog('info', '');
-          addLog('info', '常见错误码:');
-          addLog('info', '  EPERM - 权限不足，需要root或修改权限');
-          addLog('info', '  ENOENT - 设备文件不存在');
-          addLog('info', '  EBUSY - 端口被占用');
-          addLog('info', '  EINVAL - 参数无效');
-          setConnecting(false);
+          const ports = result?.ports || [];
+          addLog('info', `找到 ${ports.length} 个串口`);
+          ports.forEach((port: any) => {
+            addLog('info', `  ${port.path || port}`);
+          });
+        } catch (e: any) {
+          addLog('error', `nativeCallback 失败: ${e.message}`);
         }
-      );
-    } else {
-      addLog('error', '❌ 插件获取失败!');
-      addLog('error', '可能原因:');
-      addLog('error', '  1. cordova.js 未正确加载');
-      addLog('error', '  2. HailinHardwarePlugin 未注册到 Capacitor');
-      addLog('error', '  3. APP版本过旧，需要重新安装');
-      addLog('error', '  4. 非原生平台环境（Web预览模式）');
-      addLog('info', '');
-      addLog('info', '💡 解决方案:');
-      addLog('info', '  1. 确认已安装最新版本的APK');
-      addLog('info', '  2. 尝试卸载后重新安装');
-      addLog('info', '  3. 在Android设备上测试，不要在浏览器中测试');
+      } else {
+        addLog('error', '❌ Capacitor 未找到');
+      }
+    } catch (e: any) {
+      addLog('error', `❌ 异常: ${e.message}`);
     }
     
     setConnecting(false);
   };
 
+  // 自动检测电子秤（协议握手法）
   // 自动检测电子秤（协议握手法）
   const detectScale = async () => {
     setConnecting(true);
@@ -294,61 +249,70 @@ export default function DeviceDebugPage() {
     addLog('info', '========================================');
     
     try {
-      addLog('info', '检查 window.HailinHardware...');
+      // Capacitor 插件的正确访问方式
+      addLog('info', '检查 Capacitor.Plugins.HailinHardware...');
       
-      // 最保守的检查方式，避免触发栈溢出
-      const hailin = (window as any).HailinHardware;
+      // 使用 try-catch 包裹可能触发栈溢出的访问
+      let hailin: any = null;
+      try {
+        hailin = (window as any).Capacitor?.Plugins?.HailinHardware;
+      } catch (e) {
+        addLog('error', `❌ 访问 Capacitor.Plugins 异常: ${e}`);
+      }
       
       if (!hailin) {
-        addLog('error', '❌ HailinHardware 未找到');
+        // 尝试备用方式
+        try {
+          hailin = (window as any).HailinHardware;
+        } catch (e) {
+          addLog('error', `❌ 访问 HailinHardware 异常: ${e}`);
+        }
+      }
+      
+      if (!hailin) {
+        addLog('error', '❌ 插件未加载');
+        addLog('info', '尝试通过 Capacitor.nativeCallback 直接调用...');
+        
+        // 最后尝试：直接通过 Capacitor.nativeCallback 调用
+        try {
+          const cap = (window as any).Capacitor;
+          if (cap) {
+            addLog('info', 'Capacitor 存在，尝试 nativeCallback...');
+            const result = await cap.nativeCallback('HailinHardware', 'listSerialPorts', {});
+            addLog('info', `结果: ${JSON.stringify(result)}`);
+            setConnecting(false);
+            return;
+          }
+        } catch (e: any) {
+          addLog('error', `nativeCallback 失败: ${e.message}`);
+        }
+        
         setConnecting(false);
         return;
       }
       
-      addLog('info', '✅ HailinHardware 存在');
+      addLog('info', '✅ 插件存在，调用 listSerialPorts...');
       
-      // 直接调用，不检查方法是否存在（避免栈溢出）
-      addLog('info', '调用 listSerialPorts...');
-      
-      // 使用 try-catch 包裹调用
+      // 调用插件方法
       try {
-        const result = hailin.listSerialPorts(
-          // 成功回调
-          (ports: any) => {
-            addLog('info', '');
-            addLog('info', '✅ 枚举成功');
-            addLog('info', `结果: ${JSON.stringify(ports)}`);
-            
-            const portList = ports?.ports || ports?.serialPorts || [];
-            const usbList = ports?.usbDevices || [];
-            
-            addLog('info', `找到 ${portList.length} 个串口, ${usbList.length} 个USB设备`);
-            portList.forEach((port: any) => {
-              addLog('info', `  ✓ ${port.path || port}`);
-            });
-            
-            setConnecting(false);
-          },
-          // 错误回调
-          (error: any) => {
-            addLog('error', '❌ 枚举失败');
-            addLog('error', `错误: ${JSON.stringify(error)}`);
-            addLog('error', `消息: ${error?.message || error}`);
-            setConnecting(false);
-          }
-        );
+        const result = await hailin.listSerialPorts();
+        addLog('info', '✅ 枚举成功');
+        addLog('info', `结果: ${JSON.stringify(result)}`);
         
-        addLog('info', 'listSerialPorts 已调用，等待回调...');
-        
+        const ports = result?.ports || result?.serialPorts || [];
+        addLog('info', `找到 ${ports.length} 个串口设备`);
+        ports.forEach((port: any) => {
+          addLog('info', `  ${port.path || port}`);
+        });
       } catch (e: any) {
-        addLog('error', `❌ 调用异常: ${e.message}`);
-        setConnecting(false);
+        addLog('error', `❌ 调用失败: ${e.message}`);
       }
       
     } catch (e: any) {
       addLog('error', `❌ 异常: ${e.message}`);
-      setConnecting(false);
     }
+    
+    setConnecting(false);
   };
 
   // 测试连接打印机
