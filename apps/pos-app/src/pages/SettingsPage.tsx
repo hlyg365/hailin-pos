@@ -43,8 +43,8 @@ export default function SettingsPage() {
     { value: 'general', label: '通用协议' },
   ];
   
-  // 波特率选项
-  const baudRates = [9600, 2400, 4800, 1200, 19200, 38400];
+  // 波特率选项（顶尖OS2推荐2400）
+  const baudRates = [2400, 9600, 4800, 1200, 19200, 38400];
   
   // 添加日志
   const addLog = (type: 'info' | 'success' | 'error' | 'warn', message: string) => {
@@ -133,13 +133,13 @@ export default function SettingsPage() {
         }
       } else {
         // 串口秤
-        const port = deviceConfig.scale.address || '/dev/ttyS4';
-        addLog('info', `使用串口连接: ${port} @ ${deviceConfig.scale.baudRate || 9600} bps`);
+        const port = deviceConfig.scale.address || '/dev/ttyS0';
+        addLog('info', `使用串口连接: ${port} @ ${deviceConfig.scale.baudRate || 2400} bps`);
         
         const config: ScaleConfig = {
           type: 'serial',
           port: port,  // 关键：必须传入端口地址
-          baudRate: deviceConfig.scale.baudRate || 9600,
+          baudRate: deviceConfig.scale.baudRate || 2400,
           protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
         };
         
@@ -353,12 +353,11 @@ export default function SettingsPage() {
                       className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       {/* 动态设备列表将通过自动检测填充 */}
-                      <option value="/dev/ttyS4">串口4 (ttyS4) - 推荐</option>
-                      <option value="/dev/ttyS5">串口5 (ttyS5)</option>
-                      <option value="/dev/ttyS6">串口6 (ttyS6)</option>
-                      <option value="/dev/ttyS0">串口0 (ttyS0)</option>
+                      <option value="/dev/ttyS0">串口0 (ttyS0) - 主板串口</option>
+                      <option value="/dev/ttyUSB0">USB转串口0 (ttyUSB0) - 推荐</option>
+                      <option value="/dev/ttyUSB1">USB转串口1 (ttyUSB1)</option>
                       <option value="/dev/ttyS1">串口1 (ttyS1)</option>
-                      <option value="/dev/ttyUSB0">USB转串口0 (ttyUSB0)</option>
+                      <option value="/dev/ttyS4">串口4 (ttyS4)</option>
                       <option value="/dev/ttyUSB1">USB转串口1 (ttyUSB1)</option>
                       <option value="/dev/ttyUSB2">USB转串口2 (ttyUSB2)</option>
                       <option value="/dev/ttyACM0">ACM串口0 (ttyACM0)</option>
@@ -539,7 +538,7 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
                     <select
-                      value={deviceConfig.scale.baudRate || 9600}
+                      value={deviceConfig.scale.baudRate || 2400}
                       onChange={(e) => {
                         deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) });
                         addLog('info', `波特率改为: ${e.target.value}`);

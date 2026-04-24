@@ -24,8 +24,8 @@ export default function DeviceDebugPage() {
   
   // 串口配置 - 顶尖OS2X-15 电子秤默认参数
   const [serialConfig, setSerialConfig] = useState({
-    port: '/dev/ttyS4',  // 默认使用串口4（用户实测正确的端口）
-    baudRate: 9600,      // 9600波特率（用户实测稳定）
+    port: '/dev/ttyS0',  // 主板串口0（根据实测记录）
+    baudRate: 2400,      // 顶尖OS2推荐波特率 2400
     protocol: 'soki',     // 顶尖OS2专用协议
   });
   
@@ -354,43 +354,58 @@ export default function DeviceDebugPage() {
     }
     
     addLog('info', '');
-    addLog('info', '📋 步骤2: 尝试常见串口设备...');
+    addLog('info', '📋 步骤2: 尝试常见串口设备（按优先级排序）...');
     
+    // 按优先级排序：USB转串口 → 主板串口 → 其他
     const commonPorts = [
-      '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3', '/dev/ttyS4',
+      // USB转串口（最常见，电子秤通过USB线连接时）
       '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyUSB2', '/dev/ttyUSB3',
+      // 主板硬件串口
+      '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3', '/dev/ttyS4',
+      '/dev/ttyS5', '/dev/ttyS6', '/dev/ttyS7',
+      // USB ACM设备
       '/dev/ttyACM0', '/dev/ttyACM1',
+      // 其他
       '/dev/ttyHS0', '/dev/ttyHS1', '/dev/ttyHS2', '/dev/ttyHS3',
       '/dev/ttyMT0', '/dev/ttyMT1'
     ];
     
+    // 同时测试两种常用波特率
+    const baudRates = [2400, 9600];
+    
     let foundPort = false;
     
-    for (const port of commonPorts) {
-      addLog('info', `尝试: ${port}...`);
-      try {
-        const result = await plugin.scaleConnect({
-          port: port,
-          baudRate: serialConfig.baudRate || 9600,
-          protocol: 'soki'
-        });
-        
-        let parsed = result;
-        if (typeof result === 'string') {
-          try { parsed = JSON.parse(result); } catch (e) { /* ignore */ }
+    for (const baudRate of baudRates) {
+      addLog('info', '');
+      addLog('info', `--- 测试波特率: ${baudRate} ---`);
+      
+      for (const port of commonPorts) {
+        try {
+          const result = await plugin.scaleConnect({
+            port: port,
+            baudRate: baudRate,
+            protocol: 'soki'
+          });
+          
+          let parsed = result;
+          if (typeof result === 'string') {
+            try { parsed = JSON.parse(result); } catch (e) { /* ignore */ }
+          }
+          
+          if (parsed?.success) {
+            addLog('success', `✅ 找到可用串口: ${port} @ ${baudRate}bps!`);
+            addLog('success', `   请记住此端口并配置使用`);
+            setSerialConfig(prev => ({ ...prev, port: port, baudRate: baudRate }));
+            foundPort = true;
+            break;
+          }
+        } catch (e) {
+          // 忽略错误继续
         }
-        
-        if (parsed?.success) {
-          addLog('success', `✅ 找到可用串口: ${port}!`);
-          addLog('success', `   请记住此端口并配置使用`);
-          setSerialConfig(prev => ({ ...prev, port: port }));
-          foundPort = true;
-          break;
-        }
-      } catch (e) {
-        // 忽略错误继续
+        await new Promise(r => setTimeout(r, 30));
       }
-      await new Promise(r => setTimeout(r, 50));
+      
+      if (foundPort) break;
     }
     
     if (!foundPort) {
@@ -410,8 +425,8 @@ export default function DeviceDebugPage() {
       addLog('info', '');
       addLog('info', '3️⃣ 电子秤波特率设置？');
       addLog('info', '   → 进入电子秤设置菜单');
-      addLog('info', '   → 检查波特率是否设置为9600');
-      addLog('info', '   → 不同品牌波特率可能不同');
+      addLog('info', '   → 顶尖OS2推荐波特率: 2400');
+      addLog('info', '   → 常见波特率: 2400, 9600');
       addLog('info', '');
       addLog('info', '4️⃣ 收银机系统设置？');
       addLog('info', '   → 检查收银机是否识别到串口');
