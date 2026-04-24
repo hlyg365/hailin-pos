@@ -140,7 +140,9 @@ public class HailinHardwarePlugin extends Plugin {
                 SerialConnection serial = new SerialConnection(appContext);
                 SerialConnection.SerialConnectResult result = serial.connectWithDetail(port, baudRate, dataBits, stopBits, parity);
                 
-                Log.i(TAG, "[秤] connectWithDetail 结果: success=" + result.success + ", error=" + result.error);
+                Log.i(TAG, "[秤] connectWithDetail 结果: success=" + result.success + ", error=" + result.error + ", message=" + result.message);
+                Log.i(TAG, "[秤] 正在构建JS返回结果...");
+                Log.i(TAG, "[秤] 构建结果: success=false, error=" + result.error + ", detail=" + result.message);
                 
                 if (result.success) {
                     serialPool.put("scale", serial);

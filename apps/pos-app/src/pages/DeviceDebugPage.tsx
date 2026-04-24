@@ -174,23 +174,58 @@ export default function DeviceDebugPage() {
       addLog('info', `  listSerialPorts: ${typeof (plugin as any).listSerialPorts}`);
       addLog('info', '');
       
-      // 直接尝试调用
+      // 直接尝试调用 plugin.scaleConnect()
       addLog('info', '🔧 尝试直接调用 plugin.scaleConnect()...');
+      addLog('info', `   参数: port=${serialConfig.port || '/dev/ttyS4'}, baudRate=${serialConfig.baudRate || 9600}`);
       try {
-        const connectResult = await plugin.scaleConnect({
+        const rawResult = await plugin.scaleConnect({
           port: serialConfig.port || '/dev/ttyS4',
           baudRate: serialConfig.baudRate || 9600,
           protocol: 'soki'
         });
-        addLog('info', `  scaleConnect 返回: ${JSON.stringify(connectResult)}`);
         
-        if (connectResult.success) {
-          addLog('success', '✅ 串口连接成功!');
-        } else {
-          addLog('error', `❌ 串口连接失败: ${connectResult.error || connectResult.message}`);
+        // 显示原始返回值
+        addLog('info', `  原始返回类型: ${typeof rawResult}`);
+        addLog('info', `  原始返回值: ${JSON.stringify(rawResult)}`);
+        addLog('info', `  原始返回值(字符串): ${String(rawResult)}`);
+        
+        // 解析结果
+        let result = rawResult;
+        if (typeof rawResult === 'string') {
+          try {
+            result = JSON.parse(rawResult);
+            addLog('info', '  ✅ 成功解析为JSON对象');
+          } catch (e) {
+            addLog('error', `  ❌ 无法解析为JSON: ${rawResult}`);
+          }
+        }
+        
+        if (result && typeof result === 'object') {
+          addLog('info', `  解析后结果: success=${result.success}, error=${result.error}, message=${result.message}`);
+          
+          if (result.success) {
+            addLog('success', '✅ 串口连接成功!');
+          } else {
+            addLog('error', `❌ 串口连接失败: ${result.error || result.message}`);
+            if (result.detail) {
+              addLog('error', `   详情: ${result.detail}`);
+            }
+            if (result.suggestion) {
+              addLog('info', `   建议: ${result.suggestion}`);
+            }
+          }
+        } else if (rawResult === -1 || rawResult === '-1') {
+          addLog('error', '❌ 连接返回-1，通常表示设备不存在或权限不足');
+          addLog('info', '   可能原因:');
+          addLog('info', '   1. /dev/ttyS4 设备文件不存在');
+          addLog('info', '   2. 电子秤未开机');
+          addLog('info', '   3. 串口线松动或损坏');
+          addLog('info', '   4. 波特率不匹配');
         }
       } catch (e: any) {
         addLog('error', `❌ 调用失败: ${e.message}`);
+        addLog('error', `   错误类型: ${e.constructor?.name}`);
+        addLog('error', `   错误堆栈: ${e.stack?.split('\n')[1] || '无'}`);
       }
     } else {
       addLog('error', '❌ 插件获取失败!');
@@ -265,6 +300,7 @@ export default function DeviceDebugPage() {
         addLog('info', '2. 串口线是否连接正确');
         addLog('info', `3. 波特率是否匹配 (${serialConfig.baudRate || 9600})`);
         addLog('info', '4. 是否使用了正确的串口号');
+        addLog('info', '5. 尝试点击下方"🔄 扫描所有串口"按钮');
       }
     } catch (e: any) {
       addLog('error', `检测异常: ${e.message}`);
@@ -272,6 +308,88 @@ export default function DeviceDebugPage() {
       setConnecting(false);
       refreshStatus();
     }
+  };
+
+  // 扫描所有常见串口
+  const scanAllPorts = async () => {
+    if (!plugin) {
+      addLog('error', '❌ 插件未就绪');
+      return;
+    }
+    
+    setConnecting(true);
+    addLog('info', '========================================');
+    addLog('info', '🔄 正在扫描所有常见串口...');
+    addLog('info', '========================================');
+    
+    const commonPorts = [
+      '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3', '/dev/ttyS4',
+      '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyUSB2', '/dev/ttyUSB3',
+      '/dev/ttyACM0', '/dev/ttyACM1',
+      '/dev/ttyHS0', '/dev/ttyHS1', '/dev/ttyHS2', '/dev/ttyHS3',
+      '/dev/ttyMT0', '/dev/ttyMT1'
+    ];
+    
+    let foundPort = false;
+    
+    for (const port of commonPorts) {
+      addLog('info', `尝试: ${port}...`);
+      try {
+        const result = await plugin.scaleConnect({
+          port: port,
+          baudRate: serialConfig.baudRate || 9600,
+          protocol: 'soki'
+        });
+        
+        let parsed = result;
+        if (typeof result === 'string') {
+          try { parsed = JSON.parse(result); } catch (e) { /* ignore */ }
+        }
+        
+        if (parsed?.success) {
+          addLog('success', `✅ 找到可用串口: ${port}!`);
+          addLog('success', `   请记住此端口并配置使用`);
+          setSerialConfig(prev => ({ ...prev, port: port }));
+          foundPort = true;
+          break;
+        }
+      } catch (e) {
+        // 忽略错误继续
+      }
+      await new Promise(r => setTimeout(r, 50));
+    }
+    
+    if (!foundPort) {
+      addLog('error', '❌ 未找到可用串口');
+      addLog('info', '');
+      addLog('info', '========================================');
+      addLog('info', '📋 硬件检查清单');
+      addLog('info', '========================================');
+      addLog('info', '');
+      addLog('info', '1️⃣ 电子秤是否已开机？');
+      addLog('info', '   → 检查电子秤显示屏是否亮起');
+      addLog('info', '');
+      addLog('info', '2️⃣ 串口线是否连接正确？');
+      addLog('info', '   → 检查收银机和电子秤两端的串口线');
+      addLog('info', '   → 尝试重新插拔串口线');
+      addLog('info', '   → 检查串口线是否有损坏');
+      addLog('info', '');
+      addLog('info', '3️⃣ 电子秤波特率设置？');
+      addLog('info', '   → 进入电子秤设置菜单');
+      addLog('info', '   → 检查波特率是否设置为9600');
+      addLog('info', '   → 不同品牌波特率可能不同');
+      addLog('info', '');
+      addLog('info', '4️⃣ 收银机系统设置？');
+      addLog('info', '   → 检查收银机是否识别到串口');
+      addLog('info', '   → 进入收银机BIOS检查串口是否启用');
+      addLog('info', '');
+      addLog('info', '5️⃣ 查看收银机设备列表：');
+      addLog('info', '   → 在收银机终端运行: ls -l /dev/tty*');
+      addLog('info', '   → 记下可用的串口设备名');
+      addLog('info', '   → 在APP中手动输入正确的串口名');
+    }
+    
+    setConnecting(false);
   };
 
   // 测试连接打印机
@@ -585,6 +703,15 @@ export default function DeviceDebugPage() {
             className="w-full bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 py-2 mt-2"
           >
             {connecting ? '检测中...' : '🔍 自动检测电子秤'}
+          </button>
+          
+          {/* 扫描所有串口按钮 */}
+          <button
+            onClick={scanAllPorts}
+            disabled={connecting}
+            className="w-full bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 py-2 mt-2"
+          >
+            {connecting ? '扫描中...' : '🔄 扫描所有串口'}
           </button>
           
           <div className="mt-2 text-xs text-gray-500">
