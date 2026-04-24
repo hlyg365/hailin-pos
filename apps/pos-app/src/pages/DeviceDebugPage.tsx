@@ -310,7 +310,7 @@ export default function DeviceDebugPage() {
     }
   };
 
-  // 扫描所有常见串口
+    // 扫描所有常见串口
   const scanAllPorts = async () => {
     if (!plugin) {
       addLog('error', '❌ 插件未就绪');
@@ -321,6 +321,40 @@ export default function DeviceDebugPage() {
     addLog('info', '========================================');
     addLog('info', '🔄 正在扫描所有常见串口...');
     addLog('info', '========================================');
+    
+    // 首先枚举USB设备
+    addLog('info', '');
+    addLog('info', '📋 步骤1: 枚举USB设备...');
+    const hailin = (window as any).HailinHardware;
+    if (hailin?.listUsbDevices) {
+      try {
+        const usbResult = await hailin.listUsbDevices();
+        if (usbResult?.count > 0) {
+          addLog('success', `发现 ${usbResult.count} 个USB设备:`);
+          try {
+            const devs = JSON.parse(JSON.stringify(usbResult.devices));
+            Object.values(devs).forEach((d: any) => {
+              addLog('info', `  ✓ ${d.name || '未知设备'} [${d.chipType || '?'}]`);
+              addLog('info', `      VID:${d.vendorId?.toString(16)?.toUpperCase()} PID:${d.productId?.toString(16)?.toUpperCase()}`);
+              if (d.serialPort) {
+                addLog('info', `      串口: ${d.serialPort}`);
+              }
+            });
+          } catch (e) {
+            addLog('info', `  设备详情: ${JSON.stringify(usbResult.devices)}`);
+          }
+        } else {
+          addLog('info', '未发现USB设备');
+        }
+      } catch (e: any) {
+        addLog('error', `枚举USB设备失败: ${e.message}`);
+      }
+    } else {
+      addLog('info', 'listUsbDevices 方法不可用');
+    }
+    
+    addLog('info', '');
+    addLog('info', '📋 步骤2: 尝试常见串口设备...');
     
     const commonPorts = [
       '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3', '/dev/ttyS4',
@@ -711,7 +745,36 @@ export default function DeviceDebugPage() {
             disabled={connecting}
             className="w-full bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 py-2 mt-2"
           >
-            {connecting ? '扫描中...' : '🔄 扫描所有串口'}
+            {connecting ? '扫描中...' : '🔄 扫描所有串口 + USB设备'}
+          </button>
+          
+          {/* 枚举USB设备按钮 */}
+          <button
+            onClick={async () => {
+              const hailin = (window as any).HailinHardware;
+              if (hailin?.listUsbDevices) {
+                addLog('info', '正在枚举USB设备...');
+                try {
+                  const result = await hailin.listUsbDevices();
+                  addLog('info', `USB设备数量: ${result.count || 0}`);
+                  if (result.devices) {
+                    const devs = JSON.parse(JSON.stringify(result.devices));
+                    Object.values(devs).forEach((d: any) => {
+                      addLog('info', `设备: ${d.name || '未知'} [${d.chipType || '?'}]`);
+                      addLog('info', `  VID:${d.vendorId?.toString(16)?.toUpperCase()} PID:${d.productId?.toString(16)?.toUpperCase()}`);
+                      if (d.serialPort) addLog('info', `  串口路径: ${d.serialPort}`);
+                    });
+                  }
+                } catch (e: any) {
+                  addLog('error', `枚举失败: ${e.message}`);
+                }
+              } else {
+                addLog('error', 'listUsbDevices 方法不可用');
+              }
+            }}
+            className="w-full bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 py-2 mt-2"
+          >
+            📋 枚举USB设备
           </button>
           
           <div className="mt-2 text-xs text-gray-500">
