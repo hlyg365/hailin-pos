@@ -417,17 +417,11 @@ public class HailinHardwarePlugin extends Plugin {
                 }
             }
             
-            // 列出所有tty*设备（调试用）
-            Log.i(TAG, "[枚举串口] 所有tty设备:");
-            for (File file : files) {
-                if (file.getName().startsWith("tty")) {
-                    Log.i(TAG, "  " + file.getName() + " (r=" + file.canRead() + ", w=" + file.canWrite() + ")");
-                }
-            }
-            
             result.put("success", true);
             result.put("ports", ports);
             result.put("count", ports.length());
+            result.put("serialPorts", ports);
+            result.put("usbDevices", new JSONArray());
             call.resolve(result);
             
         } catch (Exception e) {
@@ -435,7 +429,9 @@ public class HailinHardwarePlugin extends Plugin {
             e.printStackTrace();
             result.put("success", false);
             result.put("error", e.getMessage());
-            result.put("ports", ports);
+            result.put("ports", new JSONArray());
+            result.put("serialPorts", new JSONArray());
+            result.put("usbDevices", new JSONArray());
             call.resolve(result);
         }
     }
