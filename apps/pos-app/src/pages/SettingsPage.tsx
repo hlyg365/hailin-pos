@@ -44,7 +44,7 @@ export default function SettingsPage() {
   ];
   
   // 波特率选项
-  const baudRates = [9600, 2400, 4800, 1200, 19200, 38400];
+  const baudRates = [2400, 9600, 4800, 1200, 19200, 38400];
   
   // 添加日志
   const addLog = (type: 'info' | 'success' | 'error' | 'warn', message: string) => {
@@ -134,12 +134,12 @@ export default function SettingsPage() {
       } else {
         // 串口秤
         const port = deviceConfig.scale.address || '/dev/ttyS4';
-        addLog('info', `使用串口连接: ${port} @ ${deviceConfig.scale.baudRate || 9600} bps`);
+        addLog('info', `使用串口连接: ${port} @ ${deviceConfig.scale.baudRate || 2400} bps`);
         
         const config: ScaleConfig = {
           type: 'serial',
           port: port,  // 关键：必须传入端口地址
-          baudRate: deviceConfig.scale.baudRate || 9600,
+          baudRate: deviceConfig.scale.baudRate || 2400,
           protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
         };
         
@@ -486,7 +486,7 @@ export default function SettingsPage() {
                           try {
                             const result = await hailin.detectScale({
                               port: deviceConfig.scale.address || '/dev/ttyS0',
-                              baudRate: deviceConfig.scale.baudRate || 9600,
+                              baudRate: deviceConfig.scale.baudRate || 2400,
                               protocol: deviceConfig.scale.protocol || 'soki',
                             });
                             if (result.success) {
@@ -531,7 +531,7 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
                     <select
-                      value={deviceConfig.scale.baudRate || 9600}
+                      value={deviceConfig.scale.baudRate || 2400}
                       onChange={(e) => {
                         deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) });
                         addLog('info', `波特率改为: ${e.target.value}`);
@@ -546,7 +546,7 @@ export default function SettingsPage() {
                 </div>
                 
                 <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                  💡 顶尖OS2系列: 协议=soki, 波特率=9600
+                  💡 顶尖OS2系列: 协议=soki, 波特率=2400
                 </p>
                 
                 <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700 mb-4">
@@ -686,7 +686,7 @@ export default function SettingsPage() {
                           try {
                             const result = await hailin.detectScale({
                               port: deviceConfig.scale.address || '/dev/ttyS0',
-                              baudRate: deviceConfig.scale.baudRate || 9600,
+                              baudRate: deviceConfig.scale.baudRate || 2400,
                               protocol: deviceConfig.scale.protocol || 'soki',
                             });
                             if (result.success) {

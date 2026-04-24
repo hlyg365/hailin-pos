@@ -441,7 +441,7 @@ interface USBScaleConfig {
 
 // 顶尖 OS2 系列电子秤默认配置
 const SCALE_DEFAULTS = {
-  baudRate: 2400,      // 顶尖OS2 默认波特率
+  baudRate: 2400,      // 顶尖OS2 默认波特率（注意：不是9600）
   protocol: 'soki',    // 顶尖OS2 协议
   dataBits: 8,
   stopBits: 1,

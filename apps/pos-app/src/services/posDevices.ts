@@ -275,7 +275,7 @@ class SerialScale {
       // 使用Android原生串口连接
       const result = await hailin.scaleConnect({
         port: config.port || '/dev/ttyS4',  // 默认使用串口4
-        baudRate: config.baudRate || 9600,  // 默认9600波特率（顶尖OS2）
+        baudRate: config.baudRate || 2400,  // 顶尖OS2默认2400波特率
         dataBits: 8,
         stopBits: 1,
         parity: 'none',

@@ -90,7 +90,7 @@ public class HailinHardwarePlugin extends Plugin {
     @PluginMethod
     public void scaleConnect(PluginCall call) {
         String port = call.getString("port", "/dev/ttyS4");
-        int baudRate = call.getInt("baudRate", 9600);  // 9600为顶尖OS2默认波特率
+        int baudRate = call.getInt("baudRate", 2400);  // 顶尖OS2默认2400波特率（不是9600）
         int dataBits = call.getInt("dataBits", 8);
         int stopBits = call.getInt("stopBits", 1);
         String parity = call.getString("parity", "none");
@@ -203,7 +203,7 @@ public class HailinHardwarePlugin extends Plugin {
     @PluginMethod
     public void detectScale(PluginCall call) {
         String port = call.getString("port", "/dev/ttyS4");
-        int baudRate = call.getInt("baudRate", 9600);
+        int baudRate = call.getInt("baudRate", 2400);  // 顶尖OS2默认2400波特率
         
         executor.execute(() -> {
             SerialConnection serial = null;
