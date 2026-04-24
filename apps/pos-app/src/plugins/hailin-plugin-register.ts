@@ -6,6 +6,9 @@ import { Capacitor } from '@capacitor/core';
 
 // HailinHardware 插件的原生接口
 interface HailinHardwareInterface {
+  // 枚举可用串口设备
+  listSerialPorts(): Promise<{ success: boolean; ports: Array<{ path: string; name: string; readable: boolean; writable: boolean }>; count: number; error?: string }>;
+  // 电子秤
   scaleConnect(options: { port: string; baudRate: number; protocol?: string }): Promise<{ success: boolean; connectionId?: string }>;
   scaleDisconnect(options?: { connectionId?: string }): Promise<{ success: boolean }>;
   scaleReadWeight(options?: { connectionId?: string }): Promise<{ weight: number; unit: string; stable: boolean }>;
@@ -37,6 +40,10 @@ function registerHailinHardwarePlugin(): void {
   
   // 定义插件实现
   const pluginImplementation: HailinHardwareInterface = {
+    // 枚举可用串口设备
+    async listSerialPorts() {
+      return (window as any).Capacitor.nativeCallback('HailinHardware', 'listSerialPorts', {});
+    },
     async scaleConnect(options) {
       return (window as any).Capacitor.nativeCallback('HailinHardware', 'scaleConnect', options);
     },

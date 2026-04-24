@@ -1,0 +1,24 @@
+{
+  "additionalAndroidDependencies": [],
+  "android": {
+    "assets": {
+      "include": [
+        "assets/plugin.cjs.js",
+        "assets/plugin.esm.js"
+      ]
+    },
+    "library": false,
+    "srcDir": "src"
+  },
+  "description": "HailinHardware Plugin for Capacitor",
+  "isExternal": true,
+  "name": "HailinHardware",
+  "package": "@hailin/hailin-hardware",
+  "plugins": [
+    "HailinHardware"
+  ],
+  "rootNamespace": "com.hailin.pos",
+  "src": "src",
+  "uuid": "hailin-hardware-plugin-uuid",
+  "version": "1.0.0"
+}

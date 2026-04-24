@@ -1,5 +1,5 @@
 {
-  "name": "hailin-hardware",
+  "name": "@hailin/hailin-hardware",
   "version": "1.0.0",
   "description": "HailinHardware Plugin for Capacitor",
   "main": "index.js",
