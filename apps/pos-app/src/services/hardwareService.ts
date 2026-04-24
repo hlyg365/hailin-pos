@@ -250,42 +250,31 @@ async function nativeCall(options: NativeCallOptions): Promise<any> {
 
 // 获取插件（导出供外部使用）
 export function getHardwarePlugin(): HailinHardwarePlugin | null {
-  const isNative = typeof window !== 'undefined' && 
-                   window.Capacitor && 
-                   (window.Capacitor as any).isNativePlatform?.();
-  console.log('[硬件服务] isNativePlatform:', isNative);
-  if (!isNative) {
-    console.log('[硬件服务] 非原生平台，返回null');
-    return null;
-  }
-  
   try {
-    console.log('[硬件服务] 尝试获取 HailinHardware 插件...');
+    const isNative = typeof window !== 'undefined' && 
+                     window.Capacitor && 
+                     (window.Capacitor as any).isNativePlatform?.();
+    if (!isNative) {
+      return null;
+    }
     
     // 方式1: window.HailinHardware（cordova.js注册）
     const plugin1 = (window as any).HailinHardware;
-    if (plugin1) {
-      console.log('[硬件服务] ✓ HailinHardware 已加载（window.HailinHardware）');
+    if (plugin1 && typeof plugin1.listSerialPorts === 'function') {
       return plugin1 as HailinHardwarePlugin;
     }
     
     // 方式2: Capacitor.Plugins.HailinHardware
-    const capPlugins = (window as any).Capacitor?.Plugins;
-    console.log('[硬件服务] Capacitor.Plugins:', capPlugins ? Object.keys(capPlugins) : 'undefined');
-    const plugin2 = capPlugins?.HailinHardware;
-    if (plugin2) {
-      console.log('[硬件服务] ✓ HailinHardware 已加载（Capacitor.Plugins）');
+    const plugin2 = (window as any).Capacitor?.Plugins?.HailinHardware;
+    if (plugin2 && typeof plugin2.listSerialPorts === 'function') {
       return plugin2 as HailinHardwarePlugin;
     }
     
-    console.warn('[硬件服务] HailinHardware 插件未找到');
-    console.log('[硬件服务] window.HailinHardware:', !!window.HailinHardware);
-    console.log('[硬件服务] window.Capacitor:', !!window.Capacitor);
-    console.log('[硬件服务] Capacitor.Plugins:', capPlugins ? '存在' : '不存在');
+    return null;
   } catch (e) {
-    console.error('[硬件服务] 获取 HailinHardware 插件异常:', e);
+    console.error('[硬件服务] 获取插件异常:', e);
+    return null;
   }
-  return null;
 }
 
 // 初始化插件
