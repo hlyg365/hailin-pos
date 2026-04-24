@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { deviceManager, deviceEvents } from '../services/hardwareService';
+import { deviceManager, deviceEvents, enumerateSerialPorts, enumerateSerialPortsWithRetry } from '../services/hardwareService';
 import { getHardwarePlugin } from '../services/hardwareService';
 
 export default function DeviceDebugPage() {
@@ -311,148 +311,96 @@ export default function DeviceDebugPage() {
 
     // 扫描所有常见串口
   const scanAllPorts = async () => {
-    // 直接获取插件
-    const plugin = getHardwarePlugin();
-    
-    if (!plugin) {
-      addLog('error', '❌ 插件未就绪');
-      addLog('error', '请确保已安装最新APK');
-      setConnecting(false);
-      return;
-    }
-    
     setConnecting(true);
     addLog('info', '========================================');
-    addLog('info', '🔄 正在扫描所有常见串口...');
+    addLog('info', '🔍 正在枚举串口设备...');
     addLog('info', '========================================');
-    addLog('success', '✅ 插件获取成功');
     
-    // 首先枚举USB设备
+    // 首先诊断插件状态
     addLog('info', '');
-    addLog('info', '📋 步骤1: 枚举USB设备...');
-    const hailin = (window as any).HailinHardware;
-    addLog('info', `  hailin对象类型: ${typeof hailin}`);
-    addLog('info', `  hailin.listUsbDevices: ${typeof hailin?.listUsbDevices}`);
+    addLog('info', '📋 诊断插件状态:');
+    addLog('info', `  window.HailinHardware: ${typeof (window as any).HailinHardware}`);
+    addLog('info', `  window.Capacitor.Plugins.HailinHardware: ${typeof (window as any).Capacitor?.Plugins?.HailinHardware}`);
     
-    if (hailin?.listUsbDevices) {
-      try {
-        const usbResult = await hailin.listUsbDevices();
-        addLog('info', `  返回结果: ${JSON.stringify(usbResult)}`);
-        if (usbResult?.count > 0) {
-          addLog('success', `发现 ${usbResult.count} 个USB设备:`);
-          try {
-            const devs = JSON.parse(JSON.stringify(usbResult.devices));
-            Object.values(devs).forEach((d: any) => {
-              addLog('info', `  ✓ ${d.name || '未知设备'} [${d.chipType || '?'}]`);
-              addLog('info', `      VID:${d.vendorId?.toString(16)?.toUpperCase()} PID:${d.productId?.toString(16)?.toUpperCase()}`);
-              if (d.serialPort) {
-                addLog('info', `      串口: ${d.serialPort}`);
-              }
-            });
-          } catch (e) {
-            addLog('info', `  设备详情: ${JSON.stringify(usbResult.devices)}`);
-          }
-        } else {
-          addLog('info', '未发现USB设备');
-        }
-      } catch (e: any) {
-        addLog('error', `枚举USB设备失败: ${e.message}`);
-      }
-    } else {
-      addLog('info', '⚠️ listUsbDevices 方法不可用');
-      addLog('info', '列出hailin所有方法...');
-      if (hailin) {
-        const methods = Object.keys(hailin).filter(k => typeof (hailin as any)[k] === 'function');
-        addLog('info', `  可用方法: ${methods.join(', ')}`);
-      }
-    }
-    
-    addLog('info', '');
-    addLog('info', '📋 步骤2: 尝试常见串口设备（按优先级排序）...');
-    
-    // 按优先级排序：USB转串口 → 主板串口 → 其他
-    const commonPorts = [
-      // USB转串口（最常见，电子秤通过USB线连接时）
-      '/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyUSB2', '/dev/ttyUSB3',
-      // 主板硬件串口
-      '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3', '/dev/ttyS4',
-      '/dev/ttyS5', '/dev/ttyS6', '/dev/ttyS7',
-      // USB ACM设备
-      '/dev/ttyACM0', '/dev/ttyACM1',
-      // 其他
-      '/dev/ttyHS0', '/dev/ttyHS1', '/dev/ttyHS2', '/dev/ttyHS3',
-      '/dev/ttyMT0', '/dev/ttyMT1'
-    ];
-    
-    // 同时测试两种常用波特率（9600优先）
-    const baudRates = [9600, 2400];
-    
-    let foundPort = false;
-    
-    for (const baudRate of baudRates) {
-      addLog('info', '');
-      addLog('info', `--- 测试波特率: ${baudRate} ---`);
+    try {
+      // 使用enumerateSerialPorts函数（这个函数调用原生插件的listSerialPorts方法）
+      const result = await enumerateSerialPortsWithRetry(3);
       
-      for (const port of commonPorts) {
-        try {
-          const result = await plugin.scaleConnect({
-            port: port,
-            baudRate: baudRate,
-            protocol: 'soki'
+      addLog('info', '');
+      addLog('info', `枚举结果: ${JSON.stringify(result)}`);
+      
+      if (result.success) {
+        addLog('success', `✅ 枚举成功`);
+        addLog('info', '');
+        addLog('info', `📋 找到 ${result.serialPorts?.length || 0} 个串口设备:`);
+        
+        if (result.serialPorts && result.serialPorts.length > 0) {
+          result.serialPorts.forEach((port: any) => {
+            const perm = port.canRead && port.canWrite ? '读写' : (port.canRead ? '只读' : '无权限');
+            addLog('info', `  ${port.path} - ${perm}`);
           });
-          
-          let parsed = result;
-          if (typeof result === 'string') {
-            try { parsed = JSON.parse(result); } catch (e) { /* ignore */ }
-          }
-          
-          if (parsed?.success) {
-            addLog('success', `✅ 找到可用串口: ${port} @ ${baudRate}bps!`);
-            addLog('success', `   请记住此端口并配置使用`);
-            setSerialConfig(prev => ({ ...prev, port: port, baudRate: baudRate }));
-            foundPort = true;
-            break;
-          }
-        } catch (e) {
-          // 忽略错误继续
+        } else {
+          addLog('info', '  未找到任何串口设备');
         }
-        await new Promise(r => setTimeout(r, 30));
+        
+        addLog('info', '');
+        addLog('info', `📋 找到 ${result.usbDevices?.length || 0} 个USB设备:`);
+        
+        if (result.usbDevices && result.usbDevices.length > 0) {
+          result.usbDevices.forEach((device: any) => {
+            addLog('info', `  ${device.name || '未知设备'}`);
+            addLog('info', `    VID: ${device.vendorId?.toString(16)?.toUpperCase() || '?'}`);
+            addLog('info', `    PID: ${device.productId?.toString(16)?.toUpperCase() || '?'}`);
+          });
+        } else {
+          addLog('info', '  未找到USB设备');
+        }
+      } else {
+        addLog('error', `❌ 枚举失败: ${result.message}`);
       }
       
-      if (foundPort) break;
-    }
-    
-    if (!foundPort) {
-      addLog('error', '❌ 未找到可用串口');
       addLog('info', '');
       addLog('info', '========================================');
-      addLog('info', '📋 硬件检查清单');
+      addLog('info', '📋 步骤2: 尝试连接电子秤...');
       addLog('info', '========================================');
-      addLog('info', '');
-      addLog('info', '1️⃣ 电子秤是否已开机？');
-      addLog('info', '   → 检查电子秤显示屏是否亮起');
-      addLog('info', '');
-      addLog('info', '2️⃣ 串口线是否连接正确？');
-      addLog('info', '   → 检查收银机和电子秤两端的串口线');
-      addLog('info', '   → 尝试重新插拔串口线');
-      addLog('info', '   → 检查串口线是否有损坏');
-      addLog('info', '');
-      addLog('info', '3️⃣ 电子秤波特率设置？');
-      addLog('info', '   → 进入电子秤设置菜单');
-      addLog('info', '   → 顶尖OS2推荐波特率: 2400');
-      addLog('info', '   → 常见波特率: 2400, 9600');
-      addLog('info', '');
-      addLog('info', '4️⃣ 收银机系统设置？');
-      addLog('info', '   → 检查收银机是否识别到串口');
-      addLog('info', '   → 进入收银机BIOS检查串口是否启用');
-      addLog('info', '');
-      addLog('info', '5️⃣ 查看收银机设备列表：');
-      addLog('info', '   → 在收银机终端运行: ls -l /dev/tty*');
-      addLog('info', '   → 记下可用的串口设备名');
-      addLog('info', '   → 在APP中手动输入正确的串口名');
+      
+      // 枚举成功后，尝试连接已发现的串口
+      const plugin = getHardwarePlugin();
+      if (plugin && result.serialPorts && result.serialPorts.length > 0) {
+        const baudRates = [9600, 2400];
+        
+        for (const portInfo of result.serialPorts) {
+          for (const baudRate of baudRates) {
+            addLog('info', `尝试连接 ${portInfo.path} @ ${baudRate}...`);
+            try {
+              const connectResult = await plugin.scaleConnect({
+                port: portInfo.path,
+                baudRate: baudRate,
+                protocol: 'soki'
+              });
+              
+              let parsed = connectResult;
+              if (typeof connectResult === 'string') {
+                try { parsed = JSON.parse(connectResult); } catch (e) { /* ignore */ }
+              }
+              
+              if (parsed?.success) {
+                addLog('success', `✅ 连接成功: ${portInfo.path} @ ${baudRate}bps!`);
+                setSerialConfig(prev => ({ ...prev, port: portInfo.path, baudRate: baudRate }));
+                break;
+              }
+            } catch (e) {
+              // 忽略错误继续
+            }
+            await new Promise(r => setTimeout(r, 50));
+          }
+        }
+      }
+    } catch (error: any) {
+      addLog('error', `扫描异常: ${error.message}`);
+    } finally {
+      setConnecting(false);
     }
-    
-    setConnecting(false);
   };
 
   // 测试连接打印机
