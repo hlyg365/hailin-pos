@@ -40,57 +40,126 @@ function registerHailinHardwarePlugin(): void {
   
   // 定义插件实现
   const pluginImplementation: HailinHardwareInterface = {
-    // 枚举可用串口设备
+    // 枚举可用串口设备 - 使用 nativePromise 获取异步结果
     async listSerialPorts() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'listSerialPorts', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'listSerialPorts', {});
+      }
+      // fallback 到 nativeCallback（返回 callbackId，不是结果）
+      return cap.nativeCallback('HailinHardware', 'listSerialPorts', {});
     },
     async scaleConnect(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'scaleConnect', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'scaleConnect', options);
+      }
+      return cap.nativeCallback('HailinHardware', 'scaleConnect', options);
     },
     async scaleDisconnect(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'scaleDisconnect', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'scaleDisconnect', options || {});
+      }
+      return cap.nativeCallback('HailinHardware', 'scaleDisconnect', options || {});
     },
     async scaleReadWeight(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'scaleReadWeight', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'scaleReadWeight', options || {});
+      }
+      return cap.nativeCallback('HailinHardware', 'scaleReadWeight', options || {});
     },
     async scaleTare(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'scaleTare', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'scaleTare', options || {});
+      }
+      return cap.nativeCallback('HailinHardware', 'scaleTare', options || {});
     },
     async scaleZero(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'scaleZero', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'scaleZero', options || {});
+      }
+      return cap.nativeCallback('HailinHardware', 'scaleZero', options || {});
     },
     async printerConnect(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'printerConnect', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'printerConnect', options);
+      }
+      return cap.nativeCallback('HailinHardware', 'printerConnect', options);
     },
     async printerInit() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'printerInit', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'printerInit', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'printerInit', {});
     },
     async printerPrintText(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'printerPrintText', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'printerPrintText', options);
+      }
+      return cap.nativeCallback('HailinHardware', 'printerPrintText', options);
     },
     async printerNewLine() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'printerNewLine', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'printerNewLine', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'printerNewLine', {});
     },
     async printerCut() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'printerCut', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'printerCut', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'printerCut', {});
     },
     async printerDisconnect() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'printerDisconnect', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'printerDisconnect', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'printerDisconnect', {});
     },
     async openCashDrawer() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'openCashDrawer', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'openCashDrawer', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'openCashDrawer', {});
     },
     async showOnCustomerDisplay(options) {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'showOnCustomerDisplay', options);
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'showOnCustomerDisplay', options);
+      }
+      return cap.nativeCallback('HailinHardware', 'showOnCustomerDisplay', options);
     },
     async dismissCustomerDisplay() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'dismissCustomerDisplay', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'dismissCustomerDisplay', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'dismissCustomerDisplay', {});
     },
     async enableBarcodeScanner() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'enableBarcodeScanner', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'enableBarcodeScanner', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'enableBarcodeScanner', {});
     },
     async disableBarcodeScanner() {
-      return (window as any).Capacitor.nativeCallback('HailinHardware', 'disableBarcodeScanner', {});
+      const cap = (window as any).Capacitor;
+      if (cap && typeof cap.nativePromise === 'function') {
+        return cap.nativePromise('HailinHardware', 'disableBarcodeScanner', {});
+      }
+      return cap.nativeCallback('HailinHardware', 'disableBarcodeScanner', {});
     },
     async addListener(eventName, callback) {
       return (window as any).Capacitor.addListener('HailinHardware', eventName, callback);
