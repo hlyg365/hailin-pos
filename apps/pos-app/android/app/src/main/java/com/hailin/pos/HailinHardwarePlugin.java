@@ -142,8 +142,6 @@ public class HailinHardwarePlugin extends Plugin {
                 
                 Log.i(TAG, "[秤] connectWithDetail 结果: success=" + result.success + ", error=" + result.error);
                 
-                JSObject jsResult = new JSObject();
-                
                 if (result.success) {
                     serialPool.put("scale", serial);
                     
@@ -181,7 +179,7 @@ public class HailinHardwarePlugin extends Plugin {
                 }
             } catch (Exception e) {
                 Log.e(TAG, "电子秤连接异常", e);
-                JSObject jsResult = new JSObject();
+                jsResult = new JSObject();
                 jsResult.put("success", false);
                 jsResult.put("error", "电子秤连接异常: " + e.getMessage());
                 call.resolve(jsResult);
@@ -223,81 +221,6 @@ public class HailinHardwarePlugin extends Plugin {
                 Log.e(TAG, "网络秤连接失败", e);
                 call.reject("网络秤连接失败: " + e.getMessage());
             }
-        });
-    }
-    
-    /**
-     * 枚举所有可用的串口设备（调试用）
-     */
-    @PluginMethod
-    public void listSerialPorts(PluginCall call) {
-        executor.execute(() -> {
-            Log.i(TAG, "[枚举串口] 开始枚举...");
-            
-            JSObject result = new JSObject();
-            JSONArray ports = new JSONArray();
-            JSONArray usbDevices = new JSONArray();
-            
-            try {
-                // 枚举 /dev 下的所有串口设备
-                File devDir = new File("/dev");
-                if (devDir.exists() && devDir.isDirectory()) {
-                    File[] files = devDir.listFiles();
-                    if (files != null) {
-                        for (File f : files) {
-                            String name = f.getName();
-                            // 匹配常见的串口设备名
-                            if (name.startsWith("ttyS") || name.startsWith("ttyUSB") || 
-                                name.startsWith("ttyACM") || name.startsWith("ttyGS") ||
-                                name.startsWith("ttyHS") || name.startsWith("ttyMT")) {
-                                JSONObject portInfo = new JSONObject();
-                                portInfo.put("path", f.getAbsolutePath());
-                                portInfo.put("name", name);
-                                portInfo.put("exists", f.exists());
-                                portInfo.put("canRead", f.canRead());
-                                portInfo.put("canWrite", f.canWrite());
-                                ports.put(portInfo);
-                                Log.i(TAG, "[枚举串口] 找到: " + f.getAbsolutePath() + 
-                                      " (可读:" + f.canRead() + ", 可写:" + f.canWrite() + ")");
-                            }
-                        }
-                    }
-                } else {
-                    Log.w(TAG, "[枚举串口] /dev 目录不存在或无法访问");
-                }
-                
-                // 枚举 USB 设备
-                UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
-                if (usbManager != null) {
-                    HashMap<String, UsbDevice> deviceList = usbManager.getDeviceList();
-                    Log.i(TAG, "[枚举USB] 找到 " + deviceList.size() + " 个USB设备");
-                    
-                    for (UsbDevice device : deviceList.values()) {
-                        JSONObject deviceInfo = new JSONObject();
-                        deviceInfo.put("name", device.getDeviceName());
-                        deviceInfo.put("productId", device.getProductId());
-                        deviceInfo.put("vendorId", device.getVendorId());
-                        deviceInfo.put("deviceId", device.getDeviceId());
-                        deviceInfo.put("interfaceCount", device.getInterfaceCount());
-                        usbDevices.put(deviceInfo);
-                        Log.i(TAG, "[枚举USB] 设备: " + device.getDeviceName() + 
-                              " (PID:" + device.getProductId() + ", VID:" + device.getVendorId() + ")");
-                    }
-                }
-                
-                result.put("success", true);
-                result.put("serialPorts", ports);
-                result.put("usbDevices", usbDevices);
-                result.put("count", ports.length());
-                result.put("message", "找到 " + ports.length() + " 个串口设备");
-                
-            } catch (Exception e) {
-                Log.e(TAG, "[枚举串口] 失败: " + e.getMessage());
-                result.put("success", false);
-                result.put("error", e.getMessage());
-            }
-            
-            call.resolve(result);
         });
     }
     
