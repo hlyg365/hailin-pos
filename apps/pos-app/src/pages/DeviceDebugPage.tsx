@@ -293,67 +293,62 @@ export default function DeviceDebugPage() {
     addLog('info', '🔍 正在枚举串口设备...');
     addLog('info', '========================================');
     
-    // 使用Cordova回调模式
-    const hailin = (window as any).HailinHardware;
-    
-    if (!hailin) {
-      addLog('error', '❌ HailinHardware 插件未加载');
-      addLog('info', '请确保已安装最新APK');
-      setConnecting(false);
-      return;
-    }
-    
-    if (typeof hailin.listSerialPorts !== 'function') {
-      addLog('error', '❌ listSerialPorts 方法不存在');
-      setConnecting(false);
-      return;
-    }
-    
-    addLog('info', '调用 hailin.listSerialPorts()...');
-    
-    // Cordova 回调模式
-    (hailin as any).listSerialPorts(
-      (result: any) => {
-        // 成功回调
-        addLog('info', '');
-        addLog('info', '✅ 枚举成功');
-        addLog('info', `结果: ${JSON.stringify(result)}`);
-        
-        const ports = result?.ports || result?.serialPorts || [];
-        const usbDevices = result?.usbDevices || [];
-        
-        addLog('info', '');
-        addLog('info', `📋 找到 ${ports.length} 个串口设备:`);
-        if (ports.length > 0) {
-          ports.forEach((port: any) => {
-            const perm = port.canRead && port.canWrite ? '读写' : (port.canRead ? '只读' : '无权限');
-            addLog('info', `  ✓ ${port.path} - ${perm}`);
-          });
-        } else {
-          addLog('info', '  未找到任何串口设备');
-        }
-        
-        addLog('info', '');
-        addLog('info', `📋 找到 ${usbDevices.length} 个USB设备:`);
-        if (usbDevices.length > 0) {
-          usbDevices.forEach((device: any) => {
-            addLog('info', `  ✓ ${device.name || '未知设备'}`);
-          });
-        } else {
-          addLog('info', '  未找到USB设备');
-        }
-        
+    try {
+      addLog('info', '检查 window.HailinHardware...');
+      
+      // 最保守的检查方式，避免触发栈溢出
+      const hailin = (window as any).HailinHardware;
+      
+      if (!hailin) {
+        addLog('error', '❌ HailinHardware 未找到');
         setConnecting(false);
-      },
-      (error: any) => {
-        // 错误回调 - 打印具体错误
-        addLog('error', '❌ 枚举失败');
-        addLog('error', `错误码: ${error?.code || 'unknown'}`);
-        addLog('error', `错误信息: ${error?.message || JSON.stringify(error)}`);
-        addLog('error', `完整错误: ${JSON.stringify(error)}`);
+        return;
+      }
+      
+      addLog('info', '✅ HailinHardware 存在');
+      
+      // 直接调用，不检查方法是否存在（避免栈溢出）
+      addLog('info', '调用 listSerialPorts...');
+      
+      // 使用 try-catch 包裹调用
+      try {
+        const result = hailin.listSerialPorts(
+          // 成功回调
+          (ports: any) => {
+            addLog('info', '');
+            addLog('info', '✅ 枚举成功');
+            addLog('info', `结果: ${JSON.stringify(ports)}`);
+            
+            const portList = ports?.ports || ports?.serialPorts || [];
+            const usbList = ports?.usbDevices || [];
+            
+            addLog('info', `找到 ${portList.length} 个串口, ${usbList.length} 个USB设备`);
+            portList.forEach((port: any) => {
+              addLog('info', `  ✓ ${port.path || port}`);
+            });
+            
+            setConnecting(false);
+          },
+          // 错误回调
+          (error: any) => {
+            addLog('error', '❌ 枚举失败');
+            addLog('error', `错误: ${JSON.stringify(error)}`);
+            addLog('error', `消息: ${error?.message || error}`);
+            setConnecting(false);
+          }
+        );
+        
+        addLog('info', 'listSerialPorts 已调用，等待回调...');
+        
+      } catch (e: any) {
+        addLog('error', `❌ 调用异常: ${e.message}`);
         setConnecting(false);
       }
-    );
+      
+    } catch (e: any) {
+      addLog('error', `❌ 异常: ${e.message}`);
+      setConnecting(false);
+    }
   };
 
   // 测试连接打印机
