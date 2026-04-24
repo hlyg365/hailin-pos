@@ -275,7 +275,7 @@ class SerialScale {
       // 使用Android原生串口连接
       const result = await hailin.scaleConnect({
         port: config.port || '/dev/ttyS4',  // 默认使用串口4
-        baudRate: config.baudRate || 2400,  // 顶尖OS2默认2400波特率
+        baudRate: config.baudRate || 9600,  // 9600波特率
         dataBits: 8,
         stopBits: 1,
         parity: 'none',
@@ -696,7 +696,7 @@ class SerialScale {
 // ============ 网络电子秤服务 ============
 class NetworkScale {
   private deviceId: string | null = null;
-  private config: ScaleConfig = { type: 'network', baudRate: 2400, protocol: 'soki' };
+  private config: ScaleConfig = { type: 'network', baudRate: 9600, protocol: 'soki' };
   private _status: DeviceStatus = { connected: false, online: false };
   private lastReading: ScaleReading = { weight: 0, unit: 'kg', stable: false, timestamp: 0 };
   private onReadingCallback?: (reading: ScaleReading) => void;
