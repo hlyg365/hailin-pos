@@ -172,18 +172,23 @@ class SerialScale {
   }
   
   // 获取Android原生插件（增加重试和等待）
-  private static getAndroidPlugin(maxRetries = 3, delayMs = 500): Promise<any> {
+  private static getAndroidPlugin(maxRetries = 10, delayMs = 500): Promise<any> {
     return new Promise((resolve) => {
       const tryGet = (retries: number) => {
+        console.log(`[秤] 检查原生插件... 剩余重试: ${retries}`);
+        
+        // 检查 Capacitor.Plugins
         const capacitorPlugins = (window as any).Capacitor?.Plugins;
         if (capacitorPlugins?.HailinHardware) {
-          console.log('[秤] Android原生插件已就绪 (Capacitor.Plugins)');
+          console.log('[秤] ✅ Android原生插件已就绪 (Capacitor.Plugins.HailinHardware)');
           resolve(capacitorPlugins.HailinHardware);
           return;
         }
         
+        // 检查 window.HailinHardware
         const hailinHardware = (window as any).HailinHardware;
         if (hailinHardware) {
+          console.log('[秤] ✅ Android原生插件已就绪 (window.HailinHardware)');
           // 尝试挂载
           if (!(window as any).Capacitor) {
             (window as any).Capacitor = {};
@@ -192,16 +197,23 @@ class SerialScale {
             (window as any).Capacitor.Plugins = {};
           }
           (window as any).Capacitor.Plugins.HailinHardware = hailinHardware;
-          console.log('[秤] Android原生插件已就绪 (window.HailinHardware)');
           resolve(hailinHardware);
           return;
         }
+        
+        // 打印当前状态帮助调试
+        console.log('[秤] 插件检查详情:');
+        console.log('  - window.Capacitor:', !!(window as any).Capacitor);
+        console.log('  - window.Capacitor?.Plugins:', !!(window as any).Capacitor?.Plugins);
+        console.log('  - window.HailinHardware:', !!(window as any).HailinHardware);
+        console.log('  - window.cordova:', !!(window as any).cordova);
         
         if (retries > 0) {
           console.log(`[秤] 等待插件加载... 剩余重试: ${retries}`);
           setTimeout(() => tryGet(retries - 1), delayMs);
         } else {
-          console.warn('[秤] Android原生插件未加载');
+          console.warn('[秤] ❌ Android原生插件未加载 (超时)');
+          console.warn('[秤] 请确保APP已安装并更新到最新版本');
           resolve(null);
         }
       };
@@ -262,17 +274,26 @@ class SerialScale {
   
   // Android原生USB Serial连接
   private async connectAndroidNative(config: ScaleConfig): Promise<boolean> {
-    console.log('[秤] 使用Android原生USB Serial连接');
+    console.log('[秤] ========== 开始Android原生串口连接 ==========');
+    console.log('[秤] 配置:', JSON.stringify({
+      port: config.port || '/dev/ttyS4',
+      baudRate: config.baudRate || 9600,
+      protocol: config.protocol || 'soki'
+    }));
     
     const hailin = await SerialScale.getAndroidPlugin();
     if (!hailin) {
-      console.error('[秤] Android原生插件未加载');
+      console.error('[秤] ❌ Android原生插件未加载');
+      console.error('[秤] 请检查: 1) cordova.js是否加载 2) APP版本是否最新');
       this._status = { connected: false, online: false, error: 'Android原生插件未加载，请确保APP已更新' };
       return false;
     }
     
+    console.log('[秤] ✅ 获取到原生插件，准备调用scaleConnect...');
+    
     try {
       // 使用Android原生串口连接
+      console.log('[秤] 调用 hailin.scaleConnect()...');
       const result = await hailin.scaleConnect({
         port: config.port || '/dev/ttyS4',  // 默认使用串口4
         baudRate: config.baudRate || 9600,  // 9600波特率
@@ -282,8 +303,10 @@ class SerialScale {
         protocol: config.protocol || 'soki',
       });
       
+      console.log('[秤] scaleConnect 返回结果:', JSON.stringify(result));
+      
       if (result.success) {
-        console.log('[秤] Android原生串口连接成功');
+        console.log('[秤] ✅ Android原生串口连接成功!');
         this._status = { connected: true, online: true };
         
         // 启动数据监听
@@ -291,12 +314,14 @@ class SerialScale {
         
         return true;
       } else {
-        console.error('[秤] Android原生串口连接失败:', result.error || result.message);
-        this._status = { connected: false, online: false, error: result.error || '连接失败' };
+        console.error('[秤] ❌ Android原生串口连接失败:', result.error || result.message);
+        console.error('[秤] 详细信息:', result.detail || result.info || '无');
+        this._status = { connected: false, online: false, error: result.error || result.detail || '连接失败' };
         return false;
       }
     } catch (error: any) {
-      console.error('[秤] Android原生串口连接异常:', error);
+      console.error('[秤] ❌ Android原生串口连接异常:', error);
+      console.error('[秤] 错误堆栈:', error.stack);
       this._status = { connected: false, online: false, error: error.message };
       return false;
     }

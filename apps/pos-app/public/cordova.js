@@ -200,60 +200,88 @@
         _callNative: function(method, args) {
             console.log('[HailinHardware] _callNative:', method, args);
             
+            var self = this;
+            
             return new Promise(function(resolve, reject) {
-                // 方式1: 通过 Capacitor.Plugins
-                var capPlugin = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.HailinHardware);
-                if (capPlugin && typeof capPlugin[method] === 'function') {
-                    console.log('[HailinHardware] 使用 Capacitor.Plugins 方式');
-                    capPlugin[method].apply(capPlugin, args)
-                        .then(resolve)
-                        .catch(reject);
-                    return;
-                }
-                
-                // 方式2: 通过 Cordova.exec
-                if (window.cordova && window.cordova.exec) {
-                    console.log('[HailinHardware] 使用 cordova.exec 方式');
-                    window.cordova.exec(
-                        function(result) { resolve(result); },
-                        function(error) { reject(error); },
-                        'HailinHardware',
-                        method,
-                        args
-                    );
-                    return;
-                }
-                
-                // 方式3: 通过 MainActivity 全局方法
-                var mainActivity = (window.MainActivity && window.MainActivity.call);
-                if (mainActivity) {
-                    console.log('[HailinHardware] 使用 MainActivity.call 方式');
-                    window.MainActivity.call('HailinHardware', method, args)
-                        .then(resolve)
-                        .catch(reject);
-                    return;
-                }
-                
-                // 方式4: 直接调用 Java 方法 (Android)
-                var androidBridge = (window.android && window.android.bridge);
-                if (androidBridge) {
-                    console.log('[HailinHardware] 使用 android.bridge 方式');
-                    try {
-                        // Android WebView 可以直接调用 Java 方法
-                        var result = window.android.bridge.call(method, JSON.stringify(args));
-                        if (result) {
-                            resolve(JSON.parse(result));
-                        } else {
-                            resolve({ success: true });
-                        }
-                    } catch (e) {
-                        reject(e);
+                // 查找原生插件的多种方式
+                var tryCall = function() {
+                    // 方式1: 通过 Capacitor.Plugins (最常用)
+                    var capPlugin = (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.HailinHardware);
+                    if (capPlugin && typeof capPlugin[method] === 'function') {
+                        console.log('[HailinHardware] 使用 Capacitor.Plugins 方式');
+                        capPlugin[method].apply(capitorPlugins, args)
+                            .then(resolve)
+                            .catch(reject);
+                        return true;
                     }
-                    return;
-                }
+                    
+                    // 方式2: 通过 Cordova.exec (经典方式)
+                    if (window.cordova && window.cordova.exec) {
+                        console.log('[HailinHardware] 使用 cordova.exec 方式');
+                        window.cordova.exec(
+                            function(result) { resolve(result); },
+                            function(error) { reject(error); },
+                            'HailinHardware',
+                            method,
+                            args
+                        );
+                        return true;
+                    }
+                    
+                    // 方式3: 通过 MainActivity 全局方法
+                    var mainActivity = (window.MainActivity && window.MainActivity.call);
+                    if (mainActivity) {
+                        console.log('[HailinHardware] 使用 MainActivity.call 方式');
+                        window.MainActivity.call('HailinHardware', method, args)
+                            .then(resolve)
+                            .catch(reject);
+                        return true;
+                    }
+                    
+                    // 方式4: 直接调用 Java 方法 (Android)
+                    var androidBridge = (window.android && window.android.bridge);
+                    if (androidBridge) {
+                        console.log('[HailinHardware] 使用 android.bridge 方式');
+                        try {
+                            var result = window.android.bridge.call(method, JSON.stringify(args));
+                            if (result) {
+                                resolve(JSON.parse(result));
+                            } else {
+                                resolve({ success: true });
+                            }
+                        } catch (e) {
+                            reject(e);
+                        }
+                        return true;
+                    }
+                    
+                    return false;
+                };
                 
-                console.error('[HailinHardware] 无法找到原生插件!');
-                reject(new Error('Plugin not available'));
+                // 尝试立即调用
+                if (tryCall()) return;
+                
+                // 如果立即调用失败，等待Capacitor初始化后重试
+                console.log('[HailinHardware] 等待Capacitor初始化...');
+                var retryCount = 0;
+                var maxRetries = 20; // 增加重试次数，最多10秒
+                var retryDelay = 500;
+                
+                var retryInterval = setInterval(function() {
+                    retryCount++;
+                    console.log('[HailinHardware] 重试 #' + retryCount);
+                    
+                    if (tryCall()) {
+                        clearInterval(retryInterval);
+                        return;
+                    }
+                    
+                    if (retryCount >= maxRetries) {
+                        clearInterval(retryInterval);
+                        console.error('[HailinHardware] ❌ 无法找到原生插件 (已重试' + maxRetries + '次)');
+                        reject(new Error('Plugin not available after ' + maxRetries + ' retries'));
+                    }
+                }, retryDelay);
             });
         },
         

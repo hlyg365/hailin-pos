@@ -1707,5 +1707,70 @@ export const LabelPrinter = LabelPrinterService;
 export const BarcodeScanner = BarcodeScannerService;
 export const CustomerDisplay = CustomerDisplayService;
 
+// ==================== 调试工具函数 ====================
+
+/**
+ * 枚举所有可用的串口设备（调试用）
+ */
+export async function enumerateSerialPorts(): Promise<{
+  serialPorts: Array<{path: string; name: string; exists: boolean; canRead: boolean; canWrite: boolean}>;
+  usbDevices: Array<{name: string; productId: number; vendorId: number}>;
+  success: boolean;
+  message: string;
+}> {
+  const plugin = getHardwarePlugin();
+  if (!plugin) {
+    console.error('[硬件服务] 原生插件未加载');
+    return { 
+      serialPorts: [], 
+      usbDevices: [], 
+      success: false, 
+      message: '原生插件未加载，请确保APP已更新' 
+    };
+  }
+  
+  try {
+    console.log('[硬件服务] 调用 listSerialPorts()...');
+    const result = await plugin.listSerialPorts();
+    console.log('[硬件服务] listSerialPorts 返回:', JSON.stringify(result, null, 2));
+    return result;
+  } catch (error: any) {
+    console.error('[硬件服务] listSerialPorts 失败:', error);
+    return { 
+      serialPorts: [], 
+      usbDevices: [], 
+      success: false, 
+      message: error.message || '枚举失败' 
+    };
+  }
+}
+
+/**
+ * 枚举串口（带重试）
+ */
+export async function enumerateSerialPortsWithRetry(maxRetries = 5): Promise<{
+  serialPorts: Array<{path: string; name: string; exists: boolean; canRead: boolean; canWrite: boolean}>;
+  usbDevices: Array<{name: string; productId: number; vendorId: number}>;
+  success: boolean;
+  message: string;
+}> {
+  for (let i = 0; i < maxRetries; i++) {
+    console.log(`[硬件服务] 枚举串口尝试 ${i + 1}/${maxRetries}`);
+    const result = await enumerateSerialPorts();
+    if (result.success) {
+      return result;
+    }
+    if (i < maxRetries - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  return { 
+    serialPorts: [], 
+    usbDevices: [], 
+    success: false, 
+    message: '枚举失败，已重试' + maxRetries + '次' 
+  };
+}
+
 // 导出类型
 export type { ScaleWeight, DeviceStatus, PrinterOptions, ReceiptData, LabelData, AIMatchResult };

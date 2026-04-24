@@ -53,6 +53,10 @@
     <uses-permission android:name="android.permission.USB_PERMISSION" />
     <uses-permission android:name="android.permission.HARDWARE_TEST" />
     
+    <!-- USB Host 模式（用于USB转串口） -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.accessory" android:required="false" />
+    
     <!-- 串口权限（用于连接内置电子秤） -->
     <!-- 串口权限通常由系统授予，无需在此声明 -->
     
