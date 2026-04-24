@@ -331,9 +331,13 @@ export default function DeviceDebugPage() {
     addLog('info', '');
     addLog('info', '📋 步骤1: 枚举USB设备...');
     const hailin = (window as any).HailinHardware;
+    addLog('info', `  hailin对象类型: ${typeof hailin}`);
+    addLog('info', `  hailin.listUsbDevices: ${typeof hailin?.listUsbDevices}`);
+    
     if (hailin?.listUsbDevices) {
       try {
         const usbResult = await hailin.listUsbDevices();
+        addLog('info', `  返回结果: ${JSON.stringify(usbResult)}`);
         if (usbResult?.count > 0) {
           addLog('success', `发现 ${usbResult.count} 个USB设备:`);
           try {
@@ -355,7 +359,12 @@ export default function DeviceDebugPage() {
         addLog('error', `枚举USB设备失败: ${e.message}`);
       }
     } else {
-      addLog('info', 'listUsbDevices 方法不可用');
+      addLog('info', '⚠️ listUsbDevices 方法不可用');
+      addLog('info', '列出hailin所有方法...');
+      if (hailin) {
+        const methods = Object.keys(hailin).filter(k => typeof (hailin as any)[k] === 'function');
+        addLog('info', `  可用方法: ${methods.join(', ')}`);
+      }
     }
     
     addLog('info', '');
