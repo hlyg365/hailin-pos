@@ -148,12 +148,13 @@ export default function DeviceDebugPage() {
     addLog('info', '========================================');
     
     try {
-      // 首先尝试 Capacitor.nativeCallback 方式
-      addLog('info', '尝试通过 Capacitor.nativeCallback 调用...');
-      const cap = (window as any).Capacitor;
-      if (cap) {
-        try {
-          const result = await cap.nativeCallback('HailinHardware', 'listSerialPorts', {});
+      // 方式1: 尝试 Capacitor.Plugins.HailinHardware.listSerialPorts()
+      addLog('info', '方式1: 尝试 Capacitor.Plugins.HailinHardware.listSerialPorts()...');
+      try {
+        const capPlugin = (window as any).Capacitor?.Plugins?.HailinHardware;
+        if (capPlugin && typeof capPlugin.listSerialPorts === 'function') {
+          addLog('info', '✅ 方式1: Capacitor 插件方法存在');
+          const result = await capPlugin.listSerialPorts();
           addLog('info', '✅ 枚举成功');
           addLog('info', `结果: ${JSON.stringify(result)}`);
           const ports = result?.ports || [];
@@ -161,12 +162,121 @@ export default function DeviceDebugPage() {
           ports.forEach((port: any) => {
             addLog('info', `  ${port.path || port}`);
           });
-        } catch (e: any) {
-          addLog('error', `nativeCallback 失败: ${e.message}`);
+          setConnecting(false);
+          return;
+        } else if (capPlugin) {
+          addLog('info', '⚠️ 方式1: 插件存在但 listSerialPorts 不是函数');
+        } else {
+          addLog('info', '⚠️ 方式1: Capacitor.Plugins.HailinHardware 不存在');
         }
-      } else {
-        addLog('error', '❌ Capacitor 未找到');
+      } catch (e: any) {
+        addLog('error', `方式1 异常: ${e.message}`);
       }
+      
+      // 方式2: 尝试 Capacitor.nativeCallback
+      addLog('info', '方式2: 尝试 Capacitor.nativeCallback...');
+      try {
+        const cap = (window as any).Capacitor;
+        if (cap && typeof cap.nativeCallback === 'function') {
+          addLog('info', 'Capacitor.nativeCallback 存在');
+          const result = await cap.nativeCallback('HailinHardware', 'listSerialPorts', {});
+          addLog('info', '✅ 方式2: 枚举成功');
+          addLog('info', `结果: ${JSON.stringify(result)}`);
+          const ports = result?.ports || [];
+          addLog('info', `找到 ${ports.length} 个串口`);
+          ports.forEach((port: any) => {
+            addLog('info', `  ${port.path || port}`);
+          });
+          setConnecting(false);
+          return;
+        } else {
+          addLog('info', '⚠️ 方式2: Capacitor.nativeCallback 不可用');
+        }
+      } catch (e: any) {
+        addLog('error', `方式2 异常: ${e.message}`);
+      }
+      
+      // 方式3: 尝试 window.HailinHardware.listSerialPorts (Cordova 兼容)
+      addLog('info', '方式3: 尝试 window.HailinHardware.listSerialPorts()...');
+      try {
+        const hailin = (window as any).HailinHardware;
+        if (hailin && typeof hailin.listSerialPorts === 'function') {
+          addLog('info', '✅ 方式3: HailinHardware 存在');
+          const result = await hailin.listSerialPorts();
+          addLog('info', '✅ 枚举成功');
+          addLog('info', `结果: ${JSON.stringify(result)}`);
+          const ports = result?.ports || [];
+          addLog('info', `找到 ${ports.length} 个串口`);
+          ports.forEach((port: any) => {
+            addLog('info', `  ${port.path || port}`);
+          });
+          setConnecting(false);
+          return;
+        } else if (hailin) {
+          addLog('info', '⚠️ 方式3: HailinHardware 存在但 listSerialPorts 不是函数');
+        } else {
+          addLog('info', '⚠️ 方式3: window.HailinHardware 不存在');
+        }
+      } catch (e: any) {
+        addLog('error', `方式3 异常: ${e.message}`);
+      }
+      
+      // 方式4: 尝试 Cordova.exec
+      addLog('info', '方式4: 尝试 Cordova.exec...');
+      try {
+        const cordova = (window as any).cordova;
+        if (cordova && typeof cordova.exec === 'function') {
+          addLog('info', 'Cordova.exec 存在');
+          const result = await new Promise((resolve, reject) => {
+            cordova.exec(
+              (result: any) => resolve(result),
+              (error: any) => reject(error),
+              'HailinHardware',
+              'ListSerialPorts', // 注意：Cordova 方法名首字母大写
+              []
+            );
+          });
+          addLog('info', '✅ 方式4: 枚举成功');
+          addLog('info', `结果: ${JSON.stringify(result)}`);
+          const ports = result?.ports || [];
+          addLog('info', `找到 ${ports.length} 个串口`);
+          ports.forEach((port: any) => {
+            addLog('info', `  ${port.path || port}`);
+          });
+          setConnecting(false);
+          return;
+        } else {
+          addLog('info', '⚠️ 方式4: Cordova.exec 不可用');
+        }
+      } catch (e: any) {
+        addLog('error', `方式4 异常: ${e.message}`);
+      }
+      
+      // 方式5: 尝试 Capacitor Bridge 直接调用
+      addLog('info', '方式5: 尝试 Capacitor Bridge...');
+      try {
+        const bridge = (window as any).Capacitor?.bridge;
+        if (bridge && typeof bridge.call === 'function') {
+          addLog('info', 'Capacitor Bridge 存在');
+          const callbackId = await bridge.call('HailinHardware', 'listSerialPorts', {});
+          addLog('info', '✅ 方式5: 调用成功');
+          addLog('info', `callbackId: ${callbackId}`);
+          setConnecting(false);
+          return;
+        } else {
+          addLog('info', '⚠️ 方式5: Capacitor Bridge 不可用');
+        }
+      } catch (e: any) {
+        addLog('error', `方式5 异常: ${e.message}`);
+      }
+      
+      // 所有方式都失败
+      addLog('error', '❌ 所有调用方式均失败');
+      addLog('info', '可能原因:');
+      addLog('info', '1. 原生插件未正确编译到 APK');
+      addLog('info', '2. 插件方法未正确注册');
+      addLog('info', '3. 需要重新构建 APK');
+      
     } catch (e: any) {
       addLog('error', `❌ 异常: ${e.message}`);
     }
