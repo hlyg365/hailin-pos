@@ -7,7 +7,7 @@ import { registerPlugin } from '@capacitor/core';
 import { registerHailinHardwarePlugin } from '../plugins/hailin-plugin-register';
 
 // 立即尝试手动注册插件
-if (Capacitor.isNativePlatform()) {
+if (typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
   setTimeout(() => {
     registerHailinHardwarePlugin();
   }, 50);
@@ -251,25 +251,11 @@ async function nativeCall(options: NativeCallOptions): Promise<any> {
 // 获取插件（导出供外部使用）
 export function getHardwarePlugin(): HailinHardwarePlugin | null {
   try {
-    const isNative = typeof window !== 'undefined' && 
-                     window.Capacitor && 
-                     (window.Capacitor as any).isNativePlatform?.();
-    if (!isNative) {
-      return null;
+    // 直接获取 HailinHardware（避免 Capacitor 相关检查可能导致的栈溢出）
+    const plugin = (window as any).HailinHardware;
+    if (plugin && typeof plugin.listSerialPorts === 'function') {
+      return plugin as HailinHardwarePlugin;
     }
-    
-    // 方式1: window.HailinHardware（cordova.js注册）
-    const plugin1 = (window as any).HailinHardware;
-    if (plugin1 && typeof plugin1.listSerialPorts === 'function') {
-      return plugin1 as HailinHardwarePlugin;
-    }
-    
-    // 方式2: Capacitor.Plugins.HailinHardware
-    const plugin2 = (window as any).Capacitor?.Plugins?.HailinHardware;
-    if (plugin2 && typeof plugin2.listSerialPorts === 'function') {
-      return plugin2 as HailinHardwarePlugin;
-    }
-    
     return null;
   } catch (e) {
     console.error('[硬件服务] 获取插件异常:', e);
@@ -305,7 +291,7 @@ function startPluginRetry() {
   }, 200); // 缩短到200ms重试，更快发现插件
 }
 
-if (!hardwarePlugin && Capacitor.isNativePlatform()) {
+if (!hardwarePlugin && typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
   startPluginRetry();
 }
 
@@ -1717,21 +1703,33 @@ export async function enumerateSerialPorts(): Promise<{
   success: boolean;
   message: string;
 }> {
-  const plugin = getHardwarePlugin();
-  if (!plugin) {
-    console.error('[硬件服务] 原生插件未加载');
-    return { 
-      serialPorts: [], 
-      usbDevices: [], 
-      success: false, 
-      message: '原生插件未加载，请确保APP已更新' 
-    };
-  }
-  
   try {
+    // 直接获取 HailinHardware 插件（绕过 Capacitor 检查，避免栈溢出）
+    const hailin = (window as any).HailinHardware;
+    if (!hailin) {
+      console.error('[硬件服务] HailinHardware 未找到');
+      return { 
+        serialPorts: [], 
+        usbDevices: [], 
+        success: false, 
+        message: '原生插件未加载' 
+      };
+    }
+    
+    // 检查方法是否存在
+    if (typeof hailin.listSerialPorts !== 'function') {
+      console.error('[硬件服务] listSerialPorts 方法不存在');
+      return { 
+        serialPorts: [], 
+        usbDevices: [], 
+        success: false, 
+        message: 'listSerialPorts 方法不可用' 
+      };
+    }
+    
     console.log('[硬件服务] 调用 listSerialPorts()...');
-    const result = await plugin.listSerialPorts();
-    console.log('[硬件服务] listSerialPorts 返回:', JSON.stringify(result, null, 2));
+    const result = await hailin.listSerialPorts();
+    console.log('[硬件服务] listSerialPorts 返回:', JSON.stringify(result));
     return result;
   } catch (error: any) {
     console.error('[硬件服务] listSerialPorts 失败:', error);
