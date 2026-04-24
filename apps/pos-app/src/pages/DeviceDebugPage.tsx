@@ -311,8 +311,13 @@ export default function DeviceDebugPage() {
 
     // 扫描所有常见串口
   const scanAllPorts = async () => {
+    // 直接获取插件
+    const plugin = getHardwarePlugin();
+    
     if (!plugin) {
       addLog('error', '❌ 插件未就绪');
+      addLog('error', '请确保已安装最新APK');
+      setConnecting(false);
       return;
     }
     
@@ -320,6 +325,7 @@ export default function DeviceDebugPage() {
     addLog('info', '========================================');
     addLog('info', '🔄 正在扫描所有常见串口...');
     addLog('info', '========================================');
+    addLog('success', '✅ 插件获取成功');
     
     // 首先枚举USB设备
     addLog('info', '');
