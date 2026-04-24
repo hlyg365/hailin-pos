@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { deviceManager, deviceEvents } from '../services/hardwareService';
+import { deviceManager, deviceEvents, enumerateSerialPorts } from '../services/hardwareService';
 
 export default function DeviceDebugPage() {
   // 连接日志
@@ -137,6 +137,57 @@ export default function DeviceDebugPage() {
     } finally {
       setConnecting(false);
       refreshStatus();
+    }
+  };
+
+  // 枚举可用串口设备
+  const enumeratePorts = async () => {
+    setConnecting(true);
+    addLog('info', '正在枚举串口设备...');
+    
+    try {
+      const result = await enumerateSerialPorts();
+      
+      if (result.success) {
+        addLog('success', `找到 ${result.serialPorts?.length || 0} 个串口设备:`);
+        
+        if (result.serialPorts && result.serialPorts.length > 0) {
+          result.serialPorts.forEach((port: any) => {
+            const perm = port.canRead && port.canWrite ? '读写' : (port.canRead ? '只读' : '无权限');
+            addLog('info', `  ${port.path} - ${perm}`);
+          });
+        } else {
+          addLog('info', '未找到任何串口设备');
+        }
+        
+        addLog('info', '');
+        addLog('info', `找到 ${result.usbDevices?.length || 0} 个USB设备:`);
+        
+        if (result.usbDevices && result.usbDevices.length > 0) {
+          result.usbDevices.forEach((device: any) => {
+            addLog('info', `  ${device.name} (VID:${device.vendorId?.toString(16)}, PID:${device.productId?.toString(16)})`);
+          });
+        } else {
+          addLog('info', '未找到USB设备');
+        }
+        
+        // 如果找到了设备，自动设置第一个
+        if (result.serialPorts && result.serialPorts.length > 0) {
+          const firstPort = result.serialPorts[0];
+          setSerialConfig(prev => ({
+            ...prev,
+            port: firstPort.path
+          }));
+          addLog('info', `已自动设置端口为: ${firstPort.path}`);
+        }
+      } else {
+        addLog('error', `枚举失败: ${result.message}`);
+        addLog('info', '提示: 请确保APP已更新到最新版本');
+      }
+    } catch (e: any) {
+      addLog('error', `枚举异常: ${e.message}`);
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -499,6 +550,15 @@ export default function DeviceDebugPage() {
               {connecting ? '连接中...' : '连接串口秤'}
             </button>
           )}
+          
+          {/* 枚举串口设备按钮 */}
+          <button
+            onClick={enumeratePorts}
+            disabled={connecting}
+            className="w-full bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 py-2 mt-2"
+          >
+            {connecting ? '枚举中...' : '📋 枚举串口设备'}
+          </button>
           
           {/* 检测设备按钮 */}
           <button

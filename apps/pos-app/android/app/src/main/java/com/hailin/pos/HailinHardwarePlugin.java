@@ -96,10 +96,39 @@ public class HailinHardwarePlugin extends Plugin {
         String parity = call.getString("parity", "none");
         String protocol = call.getString("protocol", "soki");
         
-        Log.i(TAG, "[秤] scaleConnect 开始: port=" + port + ", baudRate=" + baudRate);
+        Log.i(TAG, "========================================");
+        Log.i(TAG, "[秤] scaleConnect 开始");
+        Log.i(TAG, "[秤] 参数: port=" + port + ", baudRate=" + baudRate);
+        Log.i(TAG, "[秤] 参数: dataBits=" + dataBits + ", stopBits=" + stopBits + ", parity=" + parity);
+        Log.i(TAG, "[秤] 参数: protocol=" + protocol);
+        Log.i(TAG, "========================================");
         
         executor.execute(() -> {
+            JSObject jsResult = new JSObject();
+            
             try {
+                // 首先检查设备是否存在
+                File deviceFile = new File(port);
+                Log.i(TAG, "[秤] 检查设备文件: " + port);
+                Log.i(TAG, "[秤]   - 存在: " + deviceFile.exists());
+                Log.i(TAG, "[秤]   - 可读: " + deviceFile.canRead());
+                Log.i(TAG, "[秤]   - 可写: " + deviceFile.canWrite());
+                
+                // 列出所有tty设备帮助调试
+                File devDir = new File("/dev");
+                if (devDir.exists()) {
+                    File[] files = devDir.listFiles();
+                    if (files != null) {
+                        StringBuilder allTty = new StringBuilder("[秤] /dev下所有tty设备:");
+                        for (File f : files) {
+                            if (f.getName().startsWith("tty")) {
+                                allTty.append(" ").append(f.getName());
+                            }
+                        }
+                        Log.i(TAG, allTty.toString());
+                    }
+                }
+                
                 // 首先断开已有连接，避免端口占用
                 SerialConnection existingSerial = serialPool.remove("scale");
                 if (existingSerial != null) {
