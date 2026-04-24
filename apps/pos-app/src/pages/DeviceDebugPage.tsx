@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { deviceManager, deviceEvents, enumerateSerialPorts, enumerateSerialPortsWithRetry } from '../services/hardwareService';
+import { deviceManager, deviceEvents, enumerateSerialPorts } from '../services/hardwareService';
 import { getHardwarePlugin } from '../services/hardwareService';
 
 export default function DeviceDebugPage() {
@@ -316,15 +316,14 @@ export default function DeviceDebugPage() {
     addLog('info', '🔍 正在枚举串口设备...');
     addLog('info', '========================================');
     
-    // 首先诊断插件状态
-    addLog('info', '');
-    addLog('info', '📋 诊断插件状态:');
-    addLog('info', `  window.HailinHardware: ${typeof (window as any).HailinHardware}`);
-    addLog('info', `  window.Capacitor.Plugins.HailinHardware: ${typeof (window as any).Capacitor?.Plugins?.HailinHardware}`);
-    
     try {
-      // 使用enumerateSerialPorts函数（这个函数调用原生插件的listSerialPorts方法）
-      const result = await enumerateSerialPortsWithRetry(3);
+      // 带超时的枚举
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('枚举超时(5秒)')), 5000);
+      });
+      
+      const enumeratePromise = enumerateSerialPorts();
+      const result = await Promise.race([enumeratePromise, timeoutPromise]);
       
       addLog('info', '');
       addLog('info', `枚举结果: ${JSON.stringify(result)}`);
@@ -357,44 +356,7 @@ export default function DeviceDebugPage() {
         }
       } else {
         addLog('error', `❌ 枚举失败: ${result.message}`);
-      }
-      
-      addLog('info', '');
-      addLog('info', '========================================');
-      addLog('info', '📋 步骤2: 尝试连接电子秤...');
-      addLog('info', '========================================');
-      
-      // 枚举成功后，尝试连接已发现的串口
-      const plugin = getHardwarePlugin();
-      if (plugin && result.serialPorts && result.serialPorts.length > 0) {
-        const baudRates = [9600, 2400];
-        
-        for (const portInfo of result.serialPorts) {
-          for (const baudRate of baudRates) {
-            addLog('info', `尝试连接 ${portInfo.path} @ ${baudRate}...`);
-            try {
-              const connectResult = await plugin.scaleConnect({
-                port: portInfo.path,
-                baudRate: baudRate,
-                protocol: 'soki'
-              });
-              
-              let parsed = connectResult;
-              if (typeof connectResult === 'string') {
-                try { parsed = JSON.parse(connectResult); } catch (e) { /* ignore */ }
-              }
-              
-              if (parsed?.success) {
-                addLog('success', `✅ 连接成功: ${portInfo.path} @ ${baudRate}bps!`);
-                setSerialConfig(prev => ({ ...prev, port: portInfo.path, baudRate: baudRate }));
-                break;
-              }
-            } catch (e) {
-              // 忽略错误继续
-            }
-            await new Promise(r => setTimeout(r, 50));
-          }
-        }
+        addLog('info', '请检查电子秤是否已连接并开机');
       }
     } catch (error: any) {
       addLog('error', `扫描异常: ${error.message}`);
