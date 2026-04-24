@@ -43,8 +43,8 @@ export default function SettingsPage() {
     { value: 'general', label: '通用协议' },
   ];
   
-  // 波特率选项（顶尖OS2推荐2400）
-  const baudRates = [2400, 9600, 4800, 1200, 19200, 38400];
+  // 波特率选项（用户实测9600稳定）
+  const baudRates = [9600, 2400, 4800, 1200, 19200, 38400];
   
   // 添加日志
   const addLog = (type: 'info' | 'success' | 'error' | 'warn', message: string) => {
@@ -538,7 +538,7 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">波特率</label>
                     <select
-                      value={deviceConfig.scale.baudRate || 2400}
+                      value={deviceConfig.scale.baudRate || 9600}
                       onChange={(e) => {
                         deviceConfig.updateConfig('scale', { baudRate: parseInt(e.target.value) });
                         addLog('info', `波特率改为: ${e.target.value}`);

@@ -25,7 +25,7 @@ export default function DeviceDebugPage() {
   // 串口配置 - 顶尖OS2X-15 电子秤默认参数
   const [serialConfig, setSerialConfig] = useState({
     port: '/dev/ttyS0',  // 主板串口0（根据实测记录）
-    baudRate: 2400,      // 顶尖OS2推荐波特率 2400
+    baudRate: 9600,      // 用户实测稳定的波特率
     protocol: 'soki',     // 顶尖OS2专用协议
   });
   
@@ -370,8 +370,8 @@ export default function DeviceDebugPage() {
       '/dev/ttyMT0', '/dev/ttyMT1'
     ];
     
-    // 同时测试两种常用波特率
-    const baudRates = [2400, 9600];
+    // 同时测试两种常用波特率（9600优先）
+    const baudRates = [9600, 2400];
     
     let foundPort = false;
     
