@@ -248,8 +248,8 @@ async function nativeCall(options: NativeCallOptions): Promise<any> {
   }
 }
 
-// 获取插件
-function getHardwarePlugin(): HailinHardwarePlugin | null {
+// 获取插件（导出供外部使用）
+export function getHardwarePlugin(): HailinHardwarePlugin | null {
   const isNative = typeof window !== 'undefined' && 
                    window.Capacitor && 
                    (window.Capacitor as any).isNativePlatform?.();

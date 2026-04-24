@@ -4,7 +4,8 @@
  */
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { deviceManager, deviceEvents, enumerateSerialPorts } from '../services/hardwareService';
+import { deviceManager, deviceEvents } from '../services/hardwareService';
+import { getHardwarePlugin } from '../services/hardwareService';
 
 export default function DeviceDebugPage() {
   // 连接日志
@@ -143,52 +144,69 @@ export default function DeviceDebugPage() {
   // 枚举可用串口设备
   const enumeratePorts = async () => {
     setConnecting(true);
-    addLog('info', '正在枚举串口设备...');
+    addLog('info', '========================================');
+    addLog('info', '🔍 正在枚举串口设备...');
+    addLog('info', '========================================');
     
-    try {
-      const result = await enumerateSerialPorts();
+    // 首先诊断插件状态
+    addLog('info', '');
+    addLog('info', '📋 诊断插件状态:');
+    addLog('info', `  window.HailinHardware: ${typeof (window as any).HailinHardware}`);
+    addLog('info', `  window.Capacitor: ${typeof (window as any).Capacitor}`);
+    addLog('info', `  window.Capacitor.isNative: ${(window as any).Capacitor?.isNative}`);
+    addLog('info', `  window.Capacitor.isNativePlatform: ${typeof (window as any).Capacitor?.isNativePlatform}`);
+    addLog('info', `  window.Capacitor.Plugins: ${typeof (window as any).Capacitor?.Plugins}`);
+    addLog('info', `  window.Capacitor.Plugins.HailinHardware: ${typeof (window as any).Capacitor?.Plugins?.HailinHardware}`);
+    addLog('info', `  window.cordova: ${typeof (window as any).cordova}`);
+    addLog('info', `  window.cordova.exec: ${typeof (window as any).cordova?.exec}`);
+    addLog('info', '');
+    
+    // 使用getHardwarePlugin获取插件
+    addLog('info', '🔧 调用 getHardwarePlugin()...');
+    const plugin = getHardwarePlugin();
+    addLog('info', `  返回值: ${plugin ? '非空对象' : 'null'}`);
+    
+    if (plugin) {
+      addLog('success', '✅ 插件获取成功');
+      addLog('info', '插件方法检查:');
+      addLog('info', `  scaleConnect: ${typeof plugin.scaleConnect}`);
+      addLog('info', `  scaleDisconnect: ${typeof plugin.scaleDisconnect}`);
+      addLog('info', `  listSerialPorts: ${typeof (plugin as any).listSerialPorts}`);
+      addLog('info', '');
       
-      if (result.success) {
-        addLog('success', `找到 ${result.serialPorts?.length || 0} 个串口设备:`);
+      // 直接尝试调用
+      addLog('info', '🔧 尝试直接调用 plugin.scaleConnect()...');
+      try {
+        const connectResult = await plugin.scaleConnect({
+          port: serialConfig.port || '/dev/ttyS4',
+          baudRate: serialConfig.baudRate || 9600,
+          protocol: 'soki'
+        });
+        addLog('info', `  scaleConnect 返回: ${JSON.stringify(connectResult)}`);
         
-        if (result.serialPorts && result.serialPorts.length > 0) {
-          result.serialPorts.forEach((port: any) => {
-            const perm = port.canRead && port.canWrite ? '读写' : (port.canRead ? '只读' : '无权限');
-            addLog('info', `  ${port.path} - ${perm}`);
-          });
+        if (connectResult.success) {
+          addLog('success', '✅ 串口连接成功!');
         } else {
-          addLog('info', '未找到任何串口设备');
+          addLog('error', `❌ 串口连接失败: ${connectResult.error || connectResult.message}`);
         }
-        
-        addLog('info', '');
-        addLog('info', `找到 ${result.usbDevices?.length || 0} 个USB设备:`);
-        
-        if (result.usbDevices && result.usbDevices.length > 0) {
-          result.usbDevices.forEach((device: any) => {
-            addLog('info', `  ${device.name} (VID:${device.vendorId?.toString(16)}, PID:${device.productId?.toString(16)})`);
-          });
-        } else {
-          addLog('info', '未找到USB设备');
-        }
-        
-        // 如果找到了设备，自动设置第一个
-        if (result.serialPorts && result.serialPorts.length > 0) {
-          const firstPort = result.serialPorts[0];
-          setSerialConfig(prev => ({
-            ...prev,
-            port: firstPort.path
-          }));
-          addLog('info', `已自动设置端口为: ${firstPort.path}`);
-        }
-      } else {
-        addLog('error', `枚举失败: ${result.message}`);
-        addLog('info', '提示: 请确保APP已更新到最新版本');
+      } catch (e: any) {
+        addLog('error', `❌ 调用失败: ${e.message}`);
       }
-    } catch (e: any) {
-      addLog('error', `枚举异常: ${e.message}`);
-    } finally {
-      setConnecting(false);
+    } else {
+      addLog('error', '❌ 插件获取失败!');
+      addLog('error', '可能原因:');
+      addLog('error', '  1. cordova.js 未正确加载');
+      addLog('error', '  2. HailinHardwarePlugin 未注册到 Capacitor');
+      addLog('error', '  3. APP版本过旧，需要重新安装');
+      addLog('error', '  4. 非原生平台环境（Web预览模式）');
+      addLog('info', '');
+      addLog('info', '💡 解决方案:');
+      addLog('info', '  1. 确认已安装最新版本的APK');
+      addLog('info', '  2. 尝试卸载后重新安装');
+      addLog('info', '  3. 在Android设备上测试，不要在浏览器中测试');
     }
+    
+    setConnecting(false);
   };
 
   // 自动检测电子秤（协议握手法）
