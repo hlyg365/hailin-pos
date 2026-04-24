@@ -1636,9 +1636,19 @@ export class DeviceManager {
    */
   async getStatus(): Promise<DeviceStatus> {
     if (hardwarePlugin) {
-      return await hardwarePlugin.getDeviceStatus();
+      try {
+        // 检查方法是否存在
+        if (typeof (hardwarePlugin as any).getDeviceStatus === 'function') {
+          return await (hardwarePlugin as any).getDeviceStatus();
+        }
+        // 如果方法不存在，尝试其他方式
+        console.warn('[硬件服务] getDeviceStatus 方法不可用，使用备用方式获取状态');
+      } catch (e: any) {
+        console.warn('[硬件服务] getDeviceStatus 调用失败:', e.message);
+      }
     }
     
+    // 备用：使用本地状态
     return {
       scaleConnected: this.scale.isConnected,
       printerConnected: this.receiptPrinter.isConnected,

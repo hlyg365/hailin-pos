@@ -171,15 +171,16 @@ export default function DeviceDebugPage() {
       addLog('info', '插件方法检查:');
       addLog('info', `  scaleConnect: ${typeof plugin.scaleConnect}`);
       addLog('info', `  scaleDisconnect: ${typeof plugin.scaleDisconnect}`);
+      addLog('info', `  getDeviceStatus: ${typeof (plugin as any).getDeviceStatus}`);
       addLog('info', `  listSerialPorts: ${typeof (plugin as any).listSerialPorts}`);
       addLog('info', '');
       
       // 直接尝试调用 plugin.scaleConnect()
       addLog('info', '🔧 尝试直接调用 plugin.scaleConnect()...');
-      addLog('info', `   参数: port=${serialConfig.port || '/dev/ttyS4'}, baudRate=${serialConfig.baudRate || 9600}`);
+      addLog('info', `   参数: port=${serialConfig.port || '/dev/ttyS0'}, baudRate=${serialConfig.baudRate || 9600}`);
       try {
         const rawResult = await plugin.scaleConnect({
-          port: serialConfig.port || '/dev/ttyS4',
+          port: serialConfig.port || '/dev/ttyS0',
           baudRate: serialConfig.baudRate || 9600,
           protocol: 'soki'
         });
@@ -217,10 +218,8 @@ export default function DeviceDebugPage() {
         } else if (rawResult === -1 || rawResult === '-1') {
           addLog('error', '❌ 连接返回-1，通常表示设备不存在或权限不足');
           addLog('info', '   可能原因:');
-          addLog('info', '   1. /dev/ttyS4 设备文件不存在');
-          addLog('info', '   2. 电子秤未开机');
-          addLog('info', '   3. 串口线松动或损坏');
-          addLog('info', '   4. 波特率不匹配');
+          addLog('info', '   1. /dev/ttyS0 设备文件不存在');
+          addLog('info', '   2. 请使用"扫描所有串口"功能查找正确的串口设备');
         }
       } catch (e: any) {
         addLog('error', `❌ 调用失败: ${e.message}`);
