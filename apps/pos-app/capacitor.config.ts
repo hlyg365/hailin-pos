@@ -44,6 +44,8 @@ const config: CapacitorConfig = {
 declare module '@capacitor/core' {
   interface PluginRegistry {
     HailinHardware: {
+      // 枚举可用串口设备
+      listSerialPorts(): Promise<{ success: boolean; ports: Array<{ path: string; name: string; readable: boolean; writable: boolean }>; count: number; error?: string }>;
       // 电子秤
       scaleConnect(options: { port: string; baudRate: number; protocol: string }): Promise<{ success: boolean; connectionId?: string }>;
       scaleDisconnect(options: { connectionId: string }): Promise<{ success: boolean }>;
