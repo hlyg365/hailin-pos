@@ -168,64 +168,41 @@ export default function DeviceDebugPage() {
     
     if (plugin) {
       addLog('success', '✅ 插件获取成功');
-      addLog('info', '插件方法检查:');
-      addLog('info', `  scaleConnect: ${typeof plugin.scaleConnect}`);
-      addLog('info', `  scaleDisconnect: ${typeof plugin.scaleDisconnect}`);
-      addLog('info', `  getDeviceStatus: ${typeof (plugin as any).getDeviceStatus}`);
-      addLog('info', `  listSerialPorts: ${typeof (plugin as any).listSerialPorts}`);
-      addLog('info', '');
       
-      // 直接尝试调用 plugin.scaleConnect()
-      addLog('info', '🔧 尝试直接调用 plugin.scaleConnect()...');
-      addLog('info', `   参数: port=${serialConfig.port || '/dev/ttyS0'}, baudRate=${serialConfig.baudRate || 9600}`);
-      try {
-        const rawResult = await plugin.scaleConnect({
-          port: serialConfig.port || '/dev/ttyS0',
-          baudRate: serialConfig.baudRate || 9600,
-          protocol: 'soki'
-        });
-        
-        // 显示原始返回值
-        addLog('info', `  原始返回类型: ${typeof rawResult}`);
-        addLog('info', `  原始返回值: ${JSON.stringify(rawResult)}`);
-        addLog('info', `  原始返回值(字符串): ${String(rawResult)}`);
-        
-        // 解析结果
-        let result = rawResult;
-        if (typeof rawResult === 'string') {
-          try {
-            result = JSON.parse(rawResult);
-            addLog('info', '  ✅ 成功解析为JSON对象');
-          } catch (e) {
-            addLog('error', `  ❌ 无法解析为JSON: ${rawResult}`);
-          }
-        }
-        
-        if (result && typeof result === 'object') {
-          addLog('info', `  解析后结果: success=${result.success}, error=${result.error}, message=${result.message}`);
+      const port = serialConfig.port || '/dev/ttyS0';
+      const baudRate = serialConfig.baudRate || 9600;
+      addLog('info', `尝试连接: ${port} @ ${baudRate} bps`);
+      
+      // 使用Cordova回调模式
+      (plugin as any).scaleConnect(
+        { port: port, baudRate: baudRate, protocol: 'soki' },
+        (result: any) => {
+          // 成功回调
+          addLog('info', '');
+          addLog('info', '✅ scaleConnect 回调成功');
+          addLog('info', `结果: ${JSON.stringify(result)}`);
           
-          if (result.success) {
+          if (result?.success) {
             addLog('success', '✅ 串口连接成功!');
           } else {
-            addLog('error', `❌ 串口连接失败: ${result.error || result.message}`);
-            if (result.detail) {
-              addLog('error', `   详情: ${result.detail}`);
-            }
-            if (result.suggestion) {
-              addLog('info', `   建议: ${result.suggestion}`);
-            }
+            addLog('error', `❌ 连接失败: ${result?.error || result?.message || '未知错误'}`);
           }
-        } else if (rawResult === -1 || rawResult === '-1') {
-          addLog('error', '❌ 连接返回-1，通常表示设备不存在或权限不足');
-          addLog('info', '   可能原因:');
-          addLog('info', '   1. /dev/ttyS0 设备文件不存在');
-          addLog('info', '   2. 请使用"扫描所有串口"功能查找正确的串口设备');
+          setConnecting(false);
+        },
+        (error: any) => {
+          // 错误回调 - 关键：打印具体错误码
+          addLog('error', '❌ scaleConnect 回调错误');
+          addLog('error', `错误码: ${error?.code || 'unknown'}`);
+          addLog('error', `错误信息: ${error?.message || JSON.stringify(error)}`);
+          addLog('info', '');
+          addLog('info', '常见错误码:');
+          addLog('info', '  EPERM - 权限不足，需要root或修改权限');
+          addLog('info', '  ENOENT - 设备文件不存在');
+          addLog('info', '  EBUSY - 端口被占用');
+          addLog('info', '  EINVAL - 参数无效');
+          setConnecting(false);
         }
-      } catch (e: any) {
-        addLog('error', `❌ 调用失败: ${e.message}`);
-        addLog('error', `   错误类型: ${e.constructor?.name}`);
-        addLog('error', `   错误堆栈: ${e.stack?.split('\n')[1] || '无'}`);
-      }
+      );
     } else {
       addLog('error', '❌ 插件获取失败!');
       addLog('error', '可能原因:');
@@ -316,53 +293,67 @@ export default function DeviceDebugPage() {
     addLog('info', '🔍 正在枚举串口设备...');
     addLog('info', '========================================');
     
-    try {
-      // 带超时的枚举
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('枚举超时(5秒)')), 5000);
-      });
-      
-      const enumeratePromise = enumerateSerialPorts();
-      const result = await Promise.race([enumeratePromise, timeoutPromise]);
-      
-      addLog('info', '');
-      addLog('info', `枚举结果: ${JSON.stringify(result)}`);
-      
-      if (result.success) {
-        addLog('success', `✅ 枚举成功`);
+    // 使用Cordova回调模式
+    const hailin = (window as any).HailinHardware;
+    
+    if (!hailin) {
+      addLog('error', '❌ HailinHardware 插件未加载');
+      addLog('info', '请确保已安装最新APK');
+      setConnecting(false);
+      return;
+    }
+    
+    if (typeof hailin.listSerialPorts !== 'function') {
+      addLog('error', '❌ listSerialPorts 方法不存在');
+      setConnecting(false);
+      return;
+    }
+    
+    addLog('info', '调用 hailin.listSerialPorts()...');
+    
+    // Cordova 回调模式
+    (hailin as any).listSerialPorts(
+      (result: any) => {
+        // 成功回调
         addLog('info', '');
-        addLog('info', `📋 找到 ${result.serialPorts?.length || 0} 个串口设备:`);
+        addLog('info', '✅ 枚举成功');
+        addLog('info', `结果: ${JSON.stringify(result)}`);
         
-        if (result.serialPorts && result.serialPorts.length > 0) {
-          result.serialPorts.forEach((port: any) => {
+        const ports = result?.ports || result?.serialPorts || [];
+        const usbDevices = result?.usbDevices || [];
+        
+        addLog('info', '');
+        addLog('info', `📋 找到 ${ports.length} 个串口设备:`);
+        if (ports.length > 0) {
+          ports.forEach((port: any) => {
             const perm = port.canRead && port.canWrite ? '读写' : (port.canRead ? '只读' : '无权限');
-            addLog('info', `  ${port.path} - ${perm}`);
+            addLog('info', `  ✓ ${port.path} - ${perm}`);
           });
         } else {
           addLog('info', '  未找到任何串口设备');
         }
         
         addLog('info', '');
-        addLog('info', `📋 找到 ${result.usbDevices?.length || 0} 个USB设备:`);
-        
-        if (result.usbDevices && result.usbDevices.length > 0) {
-          result.usbDevices.forEach((device: any) => {
-            addLog('info', `  ${device.name || '未知设备'}`);
-            addLog('info', `    VID: ${device.vendorId?.toString(16)?.toUpperCase() || '?'}`);
-            addLog('info', `    PID: ${device.productId?.toString(16)?.toUpperCase() || '?'}`);
+        addLog('info', `📋 找到 ${usbDevices.length} 个USB设备:`);
+        if (usbDevices.length > 0) {
+          usbDevices.forEach((device: any) => {
+            addLog('info', `  ✓ ${device.name || '未知设备'}`);
           });
         } else {
           addLog('info', '  未找到USB设备');
         }
-      } else {
-        addLog('error', `❌ 枚举失败: ${result.message}`);
-        addLog('info', '请检查电子秤是否已连接并开机');
+        
+        setConnecting(false);
+      },
+      (error: any) => {
+        // 错误回调 - 打印具体错误
+        addLog('error', '❌ 枚举失败');
+        addLog('error', `错误码: ${error?.code || 'unknown'}`);
+        addLog('error', `错误信息: ${error?.message || JSON.stringify(error)}`);
+        addLog('error', `完整错误: ${JSON.stringify(error)}`);
+        setConnecting(false);
       }
-    } catch (error: any) {
-      addLog('error', `扫描异常: ${error.message}`);
-    } finally {
-      setConnecting(false);
-    }
+    );
   };
 
   // 测试连接打印机
