@@ -280,6 +280,14 @@ export default function SettingsPage() {
             <span className={`px-2 py-1 rounded text-xs ${isPrinterConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
               {isPrinterConnected ? '✅ 打印已连接' : '⚪ 打印未连接'}
             </span>
+            {/* 设备调试入口 */}
+            <Link 
+              to="/device-debug" 
+              className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-700 hover:bg-purple-200"
+              title="设备调试诊断"
+            >
+              🔧 调试
+            </Link>
           </div>
         </div>
       </header>
