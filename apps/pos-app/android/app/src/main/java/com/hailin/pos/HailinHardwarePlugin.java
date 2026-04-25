@@ -2377,45 +2377,17 @@ public class HailinHardwarePlugin extends Plugin {
                     sendToWebView("scaleData", event);
                     Log.d(TAG, "发送稳定重量: " + processedWeight.weight + " kg");
                 } else {
-                    // 数据不稳定，但仍然发送数据让前端实时显示
-                    // 如果原始重量接近零（小于50g），强制归零
-                    if (rawWeight.weight < 0.05) {
-                        ScaleWeight zeroWeight = new ScaleWeight();
-                        zeroWeight.weight = 0;
-                        zeroWeight.unit = "kg";
-                        zeroWeight.stable = true;
-                        zeroWeight.timestamp = System.currentTimeMillis();
-                        serial.lastWeight = zeroWeight;
-                        
-                        JSObject event = new JSObject();
-                        event.put("weight", 0);
-                        event.put("unit", "kg");
-                        event.put("stable", true);
-                        event.put("timestamp", zeroWeight.timestamp);
-                        notifyListeners("scaleData", event);
-                        // 通过WebView直接发送（备用方案）
-                        sendToWebView("scaleData", event);
-                        Log.d(TAG, "秤归零（原始重量太小）: 0.000 kg");
-                    } else {
-                        // 数据不稳定且重量较大，发送不稳定数据让前端实时响应
-                        ScaleWeight roughWeight = new ScaleWeight();
-                        roughWeight.weight = rawWeight.weight;
-                        roughWeight.unit = "kg";
-                        roughWeight.stable = false;
-                        roughWeight.timestamp = System.currentTimeMillis();
-                        serial.lastWeight = roughWeight;
-                        
-                        // 始终发送数据，包括不稳定数据，确保前端实时响应
-                        JSObject event = new JSObject();
-                        event.put("weight", roughWeight.weight);
-                        event.put("unit", roughWeight.unit);
-                        event.put("stable", roughWeight.stable);
-                        event.put("timestamp", roughWeight.timestamp);
-                        notifyListeners("scaleData", event);
-                        // 通过WebView直接发送（备用方案）
-                        sendToWebView("scaleData", event);
-                        Log.d(TAG, "发送不稳定数据: " + roughWeight.weight + " kg");
-                    }
+                    // 数据不稳定，但仍然发送原始数据让前端实时显示
+                    // 不再强制归零，直接发送原始重量
+                    JSObject event = new JSObject();
+                    event.put("weight", rawWeight.weight);
+                    event.put("unit", rawWeight.unit);
+                    event.put("stable", false); // 明确标记为不稳定
+                    event.put("timestamp", System.currentTimeMillis());
+                    notifyListeners("scaleData", event);
+                    // 通过WebView直接发送（备用方案）
+                    sendToWebView("scaleData", event);
+                    Log.d(TAG, "发送不稳定数据: " + rawWeight.weight + " kg (原始)");
                 }
                 return;
             }
@@ -2465,12 +2437,21 @@ public class HailinHardwarePlugin extends Plugin {
                 hex.append(String.format("%02X ", data[i]));
             }
             Log.i(TAG, "秤原始数据[HEX]: " + hex.toString());
-            showToast("读到数据: " + hex.toString());
+            
+            // 同时显示ASCII
+            StringBuilder ascii = new StringBuilder();
+            for (int i = 0; i < len; i++) {
+                if (data[i] >= 32 && data[i] < 127) {
+                    ascii.append((char) data[i]);
+                } else {
+                    ascii.append('.');
+                }
+            }
+            Log.i(TAG, "秤原始数据[ASCII]: '" + ascii.toString() + "'");
             
             // 2字节数据可能是简单的状态或确认响应
             if (len == 2) {
                 Log.i(TAG, "[秤] 收到2字节响应: " + hex.toString());
-                showToast("秤响应: " + hex.toString());
                 // 返回一个空的稳定重量，继续监听
                 ScaleWeight w = new ScaleWeight();
                 w.weight = 0;
@@ -2480,41 +2461,73 @@ public class HailinHardwarePlugin extends Plugin {
                 return w;
             }
             
+            // 尝试直接解析为纯ASCII数字格式（如 "0.500kg", " 0.500 kg" 等）
+            String rawStr = new String(data, 0, len).trim();
+            Log.i(TAG, "[秤] 尝试ASCII解析: '" + rawStr + "'");
+            
+            // 匹配多种格式: "0.500", " 0.500kg", "S 00.500kg", "0.500 kg" 等
+            Pattern asciiPattern = Pattern.compile("[\\s]*([Ss]?)\\s*([0-9]+\\.?[[0-9]*)]+\\s*(kg|g)?");
+            Matcher asciiMatcher = asciiPattern.matcher(rawStr);
+            if (asciiMatcher.find()) {
+                String numPart = asciiMatcher.group(2);
+                if (numPart != null && !numPart.isEmpty()) {
+                    try {
+                        double weight = Double.parseDouble(numPart.trim());
+                        boolean isStable = rawStr.startsWith("S") || rawStr.startsWith("s");
+                        if (weight < 0.001) isStable = false;
+                        
+                        ScaleWeight w = new ScaleWeight();
+                        w.weight = weight;
+                        w.unit = "kg";
+                        w.stable = isStable;
+                        w.timestamp = System.currentTimeMillis();
+                        w.raw = rawStr;
+                        
+                        Log.i(TAG, "[秤] ASCII解析成功: " + weight + " kg, 稳定:" + isStable);
+                        return w;
+                    } catch (NumberFormatException e) {
+                        Log.e(TAG, "[秤] ASCII数字解析失败: " + numPart);
+                    }
+                }
+            }
+            
             // 16字节数据 - 顶尖OS2协议（9600波特率）
-            if (len == 16) {
-                Log.i(TAG, "[秤] 收到16字节数据");
+            if (len >= 8) {
+                Log.i(TAG, "[秤] 尝试OS2协议解析 (" + len + "字节)");
                 
                 // 尝试作为ASCII字符串解析
-                String str = new String(data, 0, len).trim();
+                String str = new String(data, 0, Math.min(len, 16)).trim();
                 Log.i(TAG, "[秤] 原始字符串: '" + str + "'");
-                showToast("原始数据: " + str);
                 
-                // 格式: "S 00.498kgd" 或 "S00.498kgd"
+                // 格式: "S 00.498kgd" 或 "S00.498kgd" 或 " 00.498kg"
                 // 解析：00.498 应该直接得到 0.498kg
                 
                 // 查找S后面的数字部分
                 int startIndex = -1;
-                for (int i = 0; i < len; i++) {
-                    if (data[i] == 'S' || data[i] == 's') {
-                        startIndex = i + 1;
+                for (int i = 0; i < len && i < 16; i++) {
+                    if (data[i] == 'S' || data[i] == 's' || (data[i] >= '0' && data[i] <= '9')) {
+                        startIndex = i;
                         break;
                     }
                 }
                 
                 if (startIndex < 0) {
-                    Log.w(TAG, "[秤] 未找到S开头");
+                    Log.w(TAG, "[秤] 未找到有效起始字符");
                     return null;
                 }
                 
-                // 从S后面开始提取数字和小数点
+                // 从找到的位置开始提取数字和小数点
                 String numStr = "";
-                for (int i = startIndex; i < len; i++) {
+                boolean foundDot = false;
+                for (int i = startIndex; i < len && i < 16; i++) {
                     char c = (char) data[i];
-                    // 收集数字和小数点
-                    if ((c >= '0' && c <= '9') || c == '.') {
+                    if (c >= '0' && c <= '9') {
                         numStr += c;
-                    } else if (numStr.length() > 0 && c != ' ') {
-                        // 已有数字，遇到非数字字符（非空格）停止
+                    } else if (c == '.' && !foundDot) {
+                        numStr += c;
+                        foundDot = true;
+                    } else if (numStr.length() > 0 && c != ' ' && c != '\t') {
+                        // 已有数字，遇到非数字非空格字符停止
                         break;
                     }
                 }
@@ -2526,7 +2539,7 @@ public class HailinHardwarePlugin extends Plugin {
                         double weight = Double.parseDouble(numStr);
                         
                         // 判断是否稳定（S开头通常表示稳定）
-                        boolean isStable = str.startsWith("S") || str.startsWith("s");
+                        boolean isStable = (data.length > 0 && (data[0] == 'S' || data[0] == 's'));
                         
                         // 如果重量接近0，可能不稳定
                         if (weight < 0.01) {
@@ -2540,8 +2553,7 @@ public class HailinHardwarePlugin extends Plugin {
                         w.timestamp = System.currentTimeMillis();
                         w.raw = str;
                         
-                        Log.i(TAG, "[秤] >>> 重量: " + weight + " kg, 稳定:" + isStable);
-                        showToast(">>> 重量: " + weight + " kg");
+                        Log.i(TAG, "[秤] >>> OS2解析成功: " + weight + " kg, 稳定:" + isStable);
                         return w;
                         
                     } catch (NumberFormatException e) {
