@@ -251,11 +251,52 @@ async function nativeCall(options: NativeCallOptions): Promise<any> {
 // 获取插件（导出供外部使用）
 export function getHardwarePlugin(): HailinHardwarePlugin | null {
   try {
-    // 直接获取 HailinHardware（避免 Capacitor 相关检查可能导致的栈溢出）
-    const plugin = (window as any).HailinHardware;
-    if (plugin && typeof plugin.listSerialPorts === 'function') {
-      return plugin as HailinHardwarePlugin;
+    // 优先从 Capacitor.Plugins 获取（HailinHardwareBridge 需要用到插件的 notifyListeners）
+    const capacitorPlugin = (Capacitor as any).Plugins?.HailinHardware;
+    if (capacitorPlugin) {
+      // 检查插件是否有方法
+      if (typeof capacitorPlugin.listSerialPorts === 'function' || 
+          typeof capacitorPlugin.scaleConnect === 'function') {
+        return capacitorPlugin as HailinHardwarePlugin;
+      }
     }
+    
+    // Fallback: 从 window.HailinHardware 获取（某些版本的 Capacitor 可能将插件暴露在 window 上）
+    const windowPlugin = (window as any).HailinHardware;
+    if (windowPlugin && typeof windowPlugin.listSerialPorts === 'function') {
+      return windowPlugin as HailinHardwarePlugin;
+    }
+    
+    // 额外检查：如果 Capacitor.Plugins 存在但插件方法不同，尝试直接使用 Capacitor Bridge
+    const bridge = (window as any).Capacitor?.bridge;
+    if (bridge) {
+      // 创建一个代理对象，支持通过 bridge.call 调用原生方法
+      const proxyPlugin: any = {
+        _bridge: bridge,
+        listSerialPorts: async () => {
+          return await bridge.call('HailinHardware', 'listSerialPorts', {});
+        },
+        scaleConnect: async (config: any) => {
+          return await bridge.call('HailinHardware', 'scaleConnect', config);
+        },
+        scaleReadWeight: async () => {
+          return await bridge.call('HailinHardware', 'scaleReadWeight', {});
+        },
+        scaleDisconnect: async () => {
+          return await bridge.call('HailinHardware', 'scaleDisconnect', {});
+        },
+        // 其他方法...
+        addListener: async (event: string, callback: Function) => {
+          // Capacitor 的 bridge 不直接支持 addListener，我们需要使用 Capacitor 的事件系统
+          return await (Capacitor as any).addListener('HailinHardware', event, callback);
+        },
+        removeAllListeners: async () => {
+          return await (Capacitor as any).removeAllListeners('HailinHardware');
+        }
+      };
+      return proxyPlugin as HailinHardwarePlugin;
+    }
+    
     return null;
   } catch (e) {
     console.error('[硬件服务] 获取插件异常:', e);
@@ -263,8 +304,22 @@ export function getHardwarePlugin(): HailinHardwarePlugin | null {
   }
 }
 
-// 初始化插件
-hardwarePlugin = getHardwarePlugin();
+// 初始化插件（延迟执行，等待 Capacitor 和 hailin-plugin-register 完成初始化）
+let pluginInitialized = false;
+
+function initPlugin() {
+  if (pluginInitialized) return;
+  
+  hardwarePlugin = getHardwarePlugin();
+  
+  if (hardwarePlugin) {
+    pluginInitialized = true;
+    console.log('[硬件服务] 插件初始化成功');
+    // 插件就绪后绑定事件
+    bindPluginListeners();
+    bindWebViewBridgeListeners();
+  }
+}
 
 // ==================== WebView 直接桥接（接收原生 sendToWebView 发送的事件） ====================
 // Android 原生层 HailinHardwarePlugin.sendToWebView() 会调用 window.HailinHardwareBridge
@@ -302,35 +357,6 @@ if (typeof window !== 'undefined') {
   console.log('[硬件服务] WebView桥接已初始化');
 }
 
-// 如果插件未立即可用，设置定时器重试
-let retryInterval: ReturnType<typeof setInterval> | null = null;
-function startPluginRetry() {
-  if (retryInterval) return;
-  retryInterval = setInterval(() => {
-    pluginRetryCount++;
-    hardwarePlugin = getHardwarePlugin();
-    if (hardwarePlugin) {
-      console.log('[硬件服务] 插件重试成功!');
-      if (retryInterval) {
-        clearInterval(retryInterval);
-        retryInterval = null;
-      }
-      // 插件就绪后绑定事件
-      bindPluginListeners();
-    } else if (pluginRetryCount >= MAX_PLUGIN_RETRIES) {
-      console.warn('[硬件服务] HailinHardware 原生插件未安装，将使用模拟实现');
-      if (retryInterval) {
-        clearInterval(retryInterval);
-        retryInterval = null;
-      }
-    }
-  }, 200); // 缩短到200ms重试，更快发现插件
-}
-
-if (!hardwarePlugin && typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-  startPluginRetry();
-}
-
 // ==================== 事件总线 ====================
 
 type EventCallback = (data: any) => void;
@@ -338,7 +364,10 @@ const eventListeners: Map<string, Set<EventCallback>> = new Map();
 
 // 转发原生事件到前端（延迟绑定，等待插件初始化）
 function bindPluginListeners() {
-  if (!hardwarePlugin) return;
+  if (!hardwarePlugin) {
+    console.log('[硬件服务] bindPluginListeners: hardwarePlugin 为 null，跳过');
+    return;
+  }
   
   console.log('[硬件服务] 开始绑定原生事件监听器');
   
@@ -352,6 +381,7 @@ function bindPluginListeners() {
   // 监听扫码事件
   hardwarePlugin.addListener('barcodeScanned', (data: any) => {
     emit('barcodeScanned', data);
+    emit('scan', data);
   });
   
   console.log('[硬件服务] 原生事件监听器绑定完成');
@@ -397,10 +427,33 @@ if (typeof window !== 'undefined') {
   }, 100);
 }
 
-// 延迟绑定原生插件事件（初始）
-setTimeout(bindPluginListeners, 500);
-
-// 持续监听：每秒检查一次插件和重新绑定
+// 延迟初始化插件，等待 Capacitor 和 hailin-plugin-register 完成
+if (typeof window !== 'undefined') {
+  // 等待 DOM 加载完成
+  if (document.readyState === 'complete') {
+    // DOM 已加载，延迟执行
+    setTimeout(initPlugin, 200);
+  } else {
+    window.addEventListener('load', () => {
+      setTimeout(initPlugin, 200);
+    });
+  }
+  
+  // 持续监听：每秒检查一次插件，最多30秒
+  let retryCount = 0;
+  const retryTimer = setInterval(() => {
+    if (!pluginInitialized) {
+      initPlugin();
+      retryCount++;
+      if (retryCount >= 30) {
+        console.warn('[硬件服务] 插件初始化超时（30秒），将使用模拟实现');
+        clearInterval(retryTimer);
+      }
+    } else {
+      clearInterval(retryTimer);
+    }
+  }, 1000);
+}
 setInterval(() => {
   if (!hardwarePlugin) {
     hardwarePlugin = getHardwarePlugin();
