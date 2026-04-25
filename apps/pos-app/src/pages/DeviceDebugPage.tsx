@@ -398,6 +398,127 @@ export default function DeviceDebugPage() {
     setConnecting(false);
   };
 
+  // 快速连接 - 跳过枚举，直接尝试连接常用端口
+  const quickConnectScale = async () => {
+    setConnecting(true);
+    addLog('info', '========================================');
+    addLog('info', '⚡ 快速连接 - 直接尝试常用端口');
+    addLog('info', '========================================');
+    
+    // 常用端口组合（顶尖秤：波特率2400，协议soki）
+    const commonPorts = [
+      { port: '/dev/ttyUSB0', baudRate: 2400, name: 'USB转串口0' },
+      { port: '/dev/ttyUSB1', baudRate: 2400, name: 'USB转串口1' },
+      { port: '/dev/ttyUSB2', baudRate: 2400, name: 'USB转串口2' },
+      { port: '/dev/ttyS0', baudRate: 2400, name: '串口0' },
+      { port: '/dev/ttyS1', baudRate: 2400, name: '串口1' },
+      { port: '/dev/ttyS3', baudRate: 2400, name: '串口3' },
+      // 9600波特率也试试
+      { port: '/dev/ttyUSB0', baudRate: 9600, name: 'USB转串口0 (9600)' },
+      { port: '/dev/ttyS0', baudRate: 9600, name: '串口0 (9600)' },
+    ];
+    
+    // 获取原生插件
+    const getPlugin = () => {
+      try {
+        return (window as any).Capacitor?.Plugins?.HailinHardware;
+      } catch {
+        return null;
+      }
+    };
+    
+    let plugin = getPlugin();
+    if (!plugin) {
+      addLog('error', '❌ 原生插件未加载');
+      addLog('info', '请确认APK已正确安装');
+      setConnecting(false);
+      return;
+    }
+    
+    addLog('info', '✅ 原生插件就绪');
+    addLog('info', `将依次尝试 ${commonPorts.length} 个端口配置...`);
+    
+    let found = false;
+    
+    for (let i = 0; i < commonPorts.length; i++) {
+      const config = commonPorts[i];
+      addLog('info', `----------------------------------------`);
+      addLog('info', `尝试 ${i + 1}/${commonPorts.length}: ${config.name}`);
+      addLog('info', `  端口: ${config.port}`);
+      addLog('info', `  波特率: ${config.baudRate}`);
+      
+      try {
+        // 调用 scaleConnect
+        const connectResult = await plugin.scaleConnect({
+          port: config.port,
+          baudRate: config.baudRate,
+          protocol: 'soki',
+          connectionId: 'quick-' + i
+        });
+        
+        addLog('info', `  连接结果: ${JSON.stringify(connectResult)}`);
+        
+        if (connectResult?.success) {
+          addLog('success', `✅ 可能找到了电子秤！`);
+          found = true;
+          
+          // 尝试读取重量
+          addLog('info', `  正在读取重量...`);
+          await new Promise(r => setTimeout(r, 1000)); // 等待1秒
+          
+          try {
+            const weightResult = await plugin.scaleReadWeight({
+              connectionId: 'quick-' + i
+            });
+            addLog('info', `  重量结果: ${JSON.stringify(weightResult)}`);
+            
+            if (weightResult?.success && weightResult.weight !== undefined) {
+              addLog('success', `✅ 连接成功！重量: ${weightResult.weight} ${weightResult.unit}`);
+              addLog('info', `----------------------------------------`);
+              addLog('info', `📌 请记下这个配置:`);
+              addLog('info', `   端口: ${config.port}`);
+              addLog('info', `   波特率: ${config.baudRate}`);
+              
+              // 更新配置
+              setSerialConfig(prev => ({
+                ...prev,
+                port: config.port,
+                baudRate: config.baudRate,
+                protocol: 'soki'
+              }));
+              
+              setConnecting(false);
+              return;
+            }
+          } catch (e: any) {
+            addLog('warn', `  读取重量失败: ${e.message}`);
+          }
+          
+          // 连接成功但无重量数据，继续尝试其他端口
+          try {
+            await plugin.scaleDisconnect({ connectionId: 'quick-' + i });
+          } catch {}
+        }
+        
+      } catch (e: any) {
+        addLog('warn', `  异常: ${e.message}`);
+      }
+      
+      // 每个端口间隔500ms
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
+    addLog('error', '❌ 所有端口都尝试完毕，未找到电子秤');
+    addLog('info', '----------------------------------------');
+    addLog('info', '可能原因:');
+    addLog('info', '1. 电子秤未连接或未开启');
+    addLog('info', '2. USB转串口驱动未安装');
+    addLog('info', '3. 串口线接触不良');
+    addLog('info', '4. 波特率配置不正确 (顶尖秤默认2400)');
+    
+    setConnecting(false);
+  };
+
   // 测试连接打印机
   const testPrinter = async () => {
     if (!printerIP) {
@@ -718,6 +839,15 @@ export default function DeviceDebugPage() {
             className="w-full bg-purple-500 text-white rounded hover:bg-purple-600 disabled:opacity-50 py-2 mt-2"
           >
             {connecting ? '扫描中...' : '🔄 扫描所有串口 + USB设备'}
+          </button>
+          
+          {/* 快速连接按钮 - 跳过枚举，直接尝试连接 */}
+          <button
+            onClick={quickConnectScale}
+            disabled={connecting}
+            className="w-full bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-50 py-2 mt-2"
+          >
+            ⚡ 快速连接 (跳过枚举，直接尝试)
           </button>
           
           {/* 枚举USB设备按钮 */}
