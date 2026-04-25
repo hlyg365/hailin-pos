@@ -1,10 +1,10 @@
 [project]
-requires = ["nodejs-18"]
+requires = ["nodejs-24"]
 
 [dev]
 build = ["pnpm", "install"]
-run = ["cd", "apps/pos-app", "&&", "pnpm", "dev"]
+run = ["pnpm", "run", "dev"]
 
 [deploy]
 build = ["cd", "apps/pos-app", "&&", "pnpm", "install", "&&", "pnpm", "build"]
-run = ["bash", "apps/pos-app/start-prod.sh"]
+run = ["cd", "apps/pos-app", "&&", "pnpm", "run", "preview", "--host", "0.0.0.0", "--port", "5000"]
