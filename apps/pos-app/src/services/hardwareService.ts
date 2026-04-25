@@ -304,19 +304,47 @@ export function getHardwarePlugin(): HailinHardwarePlugin | null {
   }
 }
 
+// 获取插件（延迟获取，确保 Capacitor 和 hailin-plugin-register 已完成初始化）
+let _cachedPlugin: HailinHardwarePlugin | null = null;
+let _pluginInitAttempted = false;
+
+function getPlugin(): HailinHardwarePlugin | null {
+  // 如果已经有缓存的插件，直接返回
+  if (_cachedPlugin) {
+    return _cachedPlugin;
+  }
+  
+  // 如果已经尝试过获取插件但失败，不再重试
+  if (_pluginInitAttempted) {
+    return null;
+  }
+  
+  _pluginInitAttempted = true;
+  _cachedPlugin = getHardwarePlugin();
+  
+  if (_cachedPlugin) {
+    console.log('[硬件服务] 插件获取成功');
+  } else {
+    console.warn('[硬件服务] 插件获取失败，将使用模拟模式');
+  }
+  
+  return _cachedPlugin;
+}
+
 // 初始化插件（延迟执行，等待 Capacitor 和 hailin-plugin-register 完成初始化）
 let pluginInitialized = false;
 
 function initPlugin() {
   if (pluginInitialized) return;
   
-  hardwarePlugin = getHardwarePlugin();
+  const plugin = getHardwarePlugin();
+  _cachedPlugin = plugin;
   
-  if (hardwarePlugin) {
+  if (plugin) {
     pluginInitialized = true;
     console.log('[硬件服务] 插件初始化成功');
     // 插件就绪后绑定事件
-    bindPluginListeners();
+    bindPluginListeners(plugin);
     bindWebViewBridgeListeners();
   }
 }
@@ -363,23 +391,23 @@ type EventCallback = (data: any) => void;
 const eventListeners: Map<string, Set<EventCallback>> = new Map();
 
 // 转发原生事件到前端（延迟绑定，等待插件初始化）
-function bindPluginListeners() {
-  if (!hardwarePlugin) {
-    console.log('[硬件服务] bindPluginListeners: hardwarePlugin 为 null，跳过');
+function bindPluginListeners(plugin: HailinHardwarePlugin) {
+  if (!plugin) {
+    console.log('[硬件服务] bindPluginListeners: plugin 为 null，跳过');
     return;
   }
   
   console.log('[硬件服务] 开始绑定原生事件监听器');
   
   // 监听秤数据
-  hardwarePlugin.addListener('scaleData', (data: any) => {
+  plugin.addListener('scaleData', (data: any) => {
     console.log('[硬件服务] 收到秤数据:', data);
     emit('scaleData', data);
     emit('weightChanged', data);
   });
   
   // 监听扫码事件
-  hardwarePlugin.addListener('barcodeScanned', (data: any) => {
+  plugin.addListener('barcodeScanned', (data: any) => {
     emit('barcodeScanned', data);
     emit('scan', data);
   });
@@ -457,7 +485,8 @@ if (typeof window !== 'undefined') {
 setInterval(() => {
   if (!hardwarePlugin) {
     hardwarePlugin = getHardwarePlugin();
-    if (hardwarePlugin) {
+    const plugin = getPlugin();
+      if (plugin) {
       console.log('[硬件服务] 插件延迟就绪，绑定事件');
       bindPluginListeners();
     }
@@ -563,9 +592,13 @@ export class ScaleService {
     
     console.log(`[秤] 连接串口: ${port} @ ${baudRate}bps, 协议: ${protocol}`);
     
+    // 重新获取插件（确保使用最新初始化的插件）
+    const plugin = getHardwarePlugin();
+    
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.scaleConnect({
+      if (plugin) {
+        console.log('[秤] 找到原生插件，调用 scaleConnect...');
+        const result = await plugin.scaleConnect({
           port,
           baudRate,
           dataBits: 8,
@@ -573,6 +606,7 @@ export class ScaleService {
           parity: 'none',
           protocol
         });
+        console.log('[秤] scaleConnect 返回:', result);
         this.connected = result.success;
         
         if (this.connected) {
@@ -607,8 +641,9 @@ export class ScaleService {
     console.log(`[秤] 连接USB HID秤: VID=${config.vendorId?.toString(16)}, PID=${config.productId?.toString(16)}`);
     
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.scaleConnectUSB({
+      const plugin = getPlugin();
+      if (plugin) {
+        const result = await getPlugin()?.scaleConnectUSB({
           vendorId: config.vendorId,
           productId: config.productId,
           protocol: this.protocol
@@ -641,9 +676,12 @@ export class ScaleService {
     
     console.log(`[秤] 连接网络秤: ${host}:${port}`);
     
+    // 重新获取插件
+    const plugin = getHardwarePlugin();
+    
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.scaleConnectTcp({
+      if (plugin) {
+        const result = await plugin.scaleConnectTcp({
           host,
           port: port || 9101,
           protocol
@@ -736,9 +774,9 @@ export class ScaleService {
     console.log(`[秤] 检测电子秤: ${port} @ ${baudRate}`);
     
     try {
-      if (hardwarePlugin && hardwarePlugin.scaleConnect) {
+      if (hardwarePlugin && getPlugin()?.scaleConnect) {
         // 使用 scaleConnect 方法尝试连接
-        const result = await hardwarePlugin.scaleConnect({
+        const result = await getPlugin()?.scaleConnect({
           port,
           baudRate,
           protocol: 'soki'
@@ -749,7 +787,7 @@ export class ScaleService {
         if (result && result.success) {
           // 连接成功，读取一次重量验证
           try {
-            const weight = await hardwarePlugin.scaleReadWeight?.({ connectionId: 'scale' });
+            const weight = await getPlugin()?.scaleReadWeight?.({ connectionId: 'scale' });
             return {
               success: true,
               detected: true,
@@ -807,8 +845,9 @@ export class ScaleService {
     timestamp: number;
   }> {
     try {
-      if (hardwarePlugin) {
-        return await hardwarePlugin.getScaleStatus();
+      const plugin = getPlugin();
+      if (plugin) {
+        return await getPlugin()?.getScaleStatus();
       } else {
         return {
           connected: this.connected,
@@ -840,8 +879,9 @@ export class ScaleService {
     serialPorts: string[];
   }> {
     try {
-      if (hardwarePlugin) {
-        return await hardwarePlugin.getDeviceInfo();
+      const plugin = getPlugin();
+      if (plugin) {
+        return await getPlugin()?.getDeviceInfo();
       } else {
         return {
           scale: { connected: false, supportedProtocols: ['soki', 'aclss', 'general', 'dahua', 'toieda'] },
@@ -860,8 +900,9 @@ export class ScaleService {
    */
   async sendCommand(command: string): Promise<boolean> {
     try {
-      if (hardwarePlugin) {
-        await hardwarePlugin.sendScaleCommand({ command });
+      const plugin = getPlugin();
+      if (plugin) {
+        await getPlugin()?.sendScaleCommand({ command });
         return true;
       }
       return false;
@@ -878,8 +919,9 @@ export class ScaleService {
     if (!this.connected) return null;
     
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.scaleReadWeight({ connectionId: this.connectionId });
+      const plugin = getPlugin();
+      if (plugin) {
+        const result = await getPlugin()?.scaleReadWeight({ connectionId: this.connectionId });
         this.lastWeight = result;
         return result;
       } else {
@@ -925,8 +967,9 @@ export class ScaleService {
     if (!this.connected) return false;
     
     try {
-      if (hardwarePlugin) {
-        await hardwarePlugin.scaleTare({ connectionId: this.connectionId });
+      const plugin = getPlugin();
+      if (plugin) {
+        await getPlugin()?.scaleTare({ connectionId: this.connectionId });
       } else {
         console.log('[秤] 模拟去皮');
       }
@@ -944,8 +987,9 @@ export class ScaleService {
     if (!this.connected) return false;
     
     try {
-      if (hardwarePlugin) {
-        await hardwarePlugin.scaleZero({ connectionId: this.connectionId });
+      const plugin = getPlugin();
+      if (plugin) {
+        await getPlugin()?.scaleZero({ connectionId: this.connectionId });
       } else {
         console.log('[秤] 模拟清零');
       }
@@ -966,8 +1010,9 @@ export class ScaleService {
     
     off('scaleData', this.handleScaleData);
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.scaleDisconnect({ connectionId: this.connectionId });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.scaleDisconnect({ connectionId: this.connectionId });
     }
     
     this.connected = false;
@@ -1091,8 +1136,9 @@ export class ReceiptPrinterService {
     this.port = port;
     
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.printerConnect({ host, port });
+      const plugin = getPlugin();
+      if (plugin) {
+        const result = await getPlugin()?.printerConnect({ host, port });
         this.connected = result.success;
       } else {
         // 模拟连接
@@ -1117,8 +1163,9 @@ export class ReceiptPrinterService {
   async init(): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerInit();
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerInit();
     } else {
       console.log('[打印机] 模拟初始化');
     }
@@ -1133,8 +1180,9 @@ export class ReceiptPrinterService {
       return;
     }
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerPrintText({ text, ...options });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerPrintText({ text, ...options });
     } else {
       console.log(`[打印机] 打印: ${text}`);
     }
@@ -1146,8 +1194,9 @@ export class ReceiptPrinterService {
   async newLine(lines = 1): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerNewLine({ lines });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerNewLine({ lines });
     }
   }
   
@@ -1157,8 +1206,9 @@ export class ReceiptPrinterService {
   async printDivider(char = '-', width = 32): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerPrintDivider({ type: char, width });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerPrintDivider({ type: char, width });
     }
   }
   
@@ -1168,8 +1218,9 @@ export class ReceiptPrinterService {
   async printQRCode(data: string, size = 6): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerPrintQRCode({ data, size });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerPrintQRCode({ data, size });
     }
   }
   
@@ -1179,8 +1230,9 @@ export class ReceiptPrinterService {
   async printBarcode(data: string, type = 'CODE128'): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerPrintBarcode({ data, type });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerPrintBarcode({ data, type });
     }
   }
   
@@ -1190,8 +1242,9 @@ export class ReceiptPrinterService {
   async beep(count = 1): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerBeep({ count });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerBeep({ count });
     }
   }
   
@@ -1201,8 +1254,9 @@ export class ReceiptPrinterService {
   async cut(full = true): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerCut({ full });
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerCut({ full });
     }
   }
   
@@ -1216,8 +1270,9 @@ export class ReceiptPrinterService {
     }
     
     try {
-      if (hardwarePlugin) {
-        await hardwarePlugin.openCashDrawer();
+      const plugin = getPlugin();
+      if (plugin) {
+        await getPlugin()?.openCashDrawer();
       } else {
         console.log('[打印机] 模拟打开钱箱');
       }
@@ -1240,8 +1295,9 @@ export class ReceiptPrinterService {
     // 播放提示音
     await this.beep(1);
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerPrintReceipt({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerPrintReceipt({
         receiptData: JSON.stringify(data)
       });
     } else {
@@ -1253,8 +1309,9 @@ export class ReceiptPrinterService {
    * 断开连接
    */
   async disconnect(): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.printerDisconnect();
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.printerDisconnect();
     }
     this.connected = false;
   }
@@ -1274,8 +1331,9 @@ export class LabelPrinterService {
    */
   async connect(host: string, port = 9100): Promise<boolean> {
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.labelPrinterConnect({ host, port });
+      const plugin = getPlugin();
+      if (plugin) {
+        const result = await getPlugin()?.labelPrinterConnect({ host, port });
         this.connected = result.success;
       } else {
         this.connected = true;
@@ -1299,8 +1357,9 @@ export class LabelPrinterService {
   async init(options: { width?: number; height?: number; gap?: number } = {}): Promise<void> {
     if (!this.connected) return;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.labelInit(options);
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.labelInit(options);
     }
   }
   
@@ -1313,8 +1372,9 @@ export class LabelPrinterService {
       return;
     }
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.labelPrint({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.labelPrint({
         labelData: JSON.stringify(data)
       });
     } else {
@@ -1368,8 +1428,9 @@ export class BarcodeScannerService {
   async enable(): Promise<void> {
     this.enabled = true;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.enableBarcodeScanner();
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.enableBarcodeScanner();
     }
     
     // 监听扫码事件
@@ -1382,8 +1443,9 @@ export class BarcodeScannerService {
   async disable(): Promise<void> {
     this.enabled = false;
     
-    if (hardwarePlugin) {
-      await hardwarePlugin.disableBarcodeScanner();
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.disableBarcodeScanner();
     }
     
     off('barcodeScanned', this.handleBarcodeEvent);
@@ -1446,8 +1508,9 @@ export class BarcodeScannerService {
     console.log('[扫码枪] 扫码:', barcode);
     
     // 发送到原生层
-    if (hardwarePlugin) {
-      hardwarePlugin.onBarcodeScanned({ barcode });
+    const plugin = getPlugin();
+      if (plugin) {
+      getPlugin()?.onBarcodeScanned({ barcode });
     }
     
     // 触发扫码事件
@@ -1461,8 +1524,9 @@ export class BarcodeScannerService {
    * 获取最后扫码结果
    */
   async getLastScan(): Promise<string> {
-    if (hardwarePlugin) {
-      const result = await hardwarePlugin.getLastScan();
+    const plugin = getPlugin();
+      if (plugin) {
+      const result = await getPlugin()?.getLastScan();
       return result.barcode;
     }
     return this.lastBarcode;
@@ -1488,8 +1552,9 @@ export class CustomerDisplayService {
    * 显示欢迎界面
    */
   async showWelcome(): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.showOnCustomerDisplay({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.showOnCustomerDisplay({
         mode: 'welcome',
         title: '欢迎光临海邻到家'
       });
@@ -1502,8 +1567,9 @@ export class CustomerDisplayService {
    * 显示金额
    */
   async showAmount(amount: number, title?: string): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.showOnCustomerDisplay({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.showOnCustomerDisplay({
         mode: 'amount',
         title: title || '应付金额',
         amount
@@ -1517,8 +1583,9 @@ export class CustomerDisplayService {
    * 显示支付二维码
    */
   async showQRCode(qrCodeUrl: string, amount?: number): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.showOnCustomerDisplay({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.showOnCustomerDisplay({
         mode: 'qrcode',
         title: '请扫码支付',
         amount,
@@ -1533,8 +1600,9 @@ export class CustomerDisplayService {
    * 显示会员信息
    */
   async showMember(memberName: string, points: number, balance: number): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.showOnCustomerDisplay({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.showOnCustomerDisplay({
         mode: 'member',
         title: `会员: ${memberName}`,
         amount: balance
@@ -1548,8 +1616,9 @@ export class CustomerDisplayService {
    * 显示广告轮播
    */
   async showAdvertisement(): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.showOnCustomerDisplay({
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.showOnCustomerDisplay({
         mode: 'advertisement',
         title: '广告'
       });
@@ -1562,8 +1631,9 @@ export class CustomerDisplayService {
    * 关闭客显
    */
   async dismiss(): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.dismissCustomerDisplay();
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.dismissCustomerDisplay();
     }
   }
 }
@@ -1576,8 +1646,9 @@ export class AIRecognitionService {
    */
   async recognize(imageData: string): Promise<AIMatchResult | null> {
     try {
-      if (hardwarePlugin) {
-        const result = await hardwarePlugin.captureAndRecognize({ imageData });
+      const plugin = getPlugin();
+      if (plugin) {
+        const result = await getPlugin()?.captureAndRecognize({ imageData });
         return result;
       } else {
         // 模拟识别
@@ -1599,8 +1670,9 @@ export class AIRecognitionService {
    * 获取相机状态
    */
   async getCameraStatus(): Promise<{ available: boolean; resolution: string; fps: number }> {
-    if (hardwarePlugin) {
-      const result = await hardwarePlugin.getCameraFrame();
+    const plugin = getPlugin();
+      if (plugin) {
+      const result = await getPlugin()?.getCameraFrame();
       return {
         available: result.cameraAvailable,
         resolution: result.resolution,
@@ -1699,7 +1771,8 @@ export class DeviceManager {
    * 获取所有设备状态
    */
   async getStatus(): Promise<DeviceStatus> {
-    if (hardwarePlugin) {
+    const plugin = getPlugin();
+      if (plugin) {
       try {
         // 检查方法是否存在
         if (typeof (hardwarePlugin as any).getDeviceStatus === 'function') {
@@ -1725,8 +1798,9 @@ export class DeviceManager {
    * 断开所有设备
    */
   async disconnectAll(): Promise<void> {
-    if (hardwarePlugin) {
-      await hardwarePlugin.disconnectAll();
+    const plugin = getPlugin();
+      if (plugin) {
+      await getPlugin()?.disconnectAll();
     }
     
     this.scanner.destroy();
