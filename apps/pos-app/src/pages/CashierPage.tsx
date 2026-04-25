@@ -216,47 +216,26 @@ export default function CashierPage() {
     return orders.filter(o => o.status === 'suspended');
   }, [orders]);
 
-  // 设备自动连接
+  // 设备自动连接（使用 ref 跟踪是否正在连接）
+  const isConnectingRef = useRef(false);
   const connectDevices = useCallback(async () => {
-    if (isConnectingDevices) return;
+    if (isConnectingRef.current) return;
+    isConnectingRef.current = true;
     setIsConnectingDevices(true);
     
     console.log('[收银台] 开始连接设备...');
-    console.log('[收银台] 当前设备配置:', JSON.stringify({
-      scale: { enabled: deviceConfig.scale.enabled, address: deviceConfig.scale.address, port: deviceConfig.scale.tcpPort || deviceConfig.scale.port, type: deviceConfig.scale.type },
-      printer: { enabled: deviceConfig.receiptPrinter.enabled, address: deviceConfig.receiptPrinter.address, port: deviceConfig.receiptPrinter.port },
-      label: { enabled: deviceConfig.labelPrinter?.enabled, address: deviceConfig.labelPrinter?.address, port: deviceConfig.labelPrinter?.port }
-    }));
     
     try {
-      // 检查秤连接状态（如果已经连接，跳过）
-      const scaleAlreadyConnected = deviceManager.scale.isConnected;
-      
       // 检查是否有可用的设备配置
       const hasScaleConfig = deviceConfig.scale.address && deviceConfig.scale.type === 'network';
       const hasPrinterConfig = deviceConfig.receiptPrinter.address;
       const hasLabelConfig = deviceConfig.labelPrinter?.address;
       
-      // 如果秤未连接，尝试使用串口配置连接
-      let scaleConnected = scaleAlreadyConnected;
-      if (!scaleConnected && deviceConfig.scale.enabled) {
-        // 尝试连接秤（使用串口或网络）
-        console.log('[收银台] 尝试连接秤...');
-        const scaleResult = await deviceManager.scale.connect({
-          port: deviceConfig.scale.address || '/dev/ttyS4',
-          baudRate: deviceConfig.scale.tcpPort || deviceConfig.scale.port || 9600,
-          protocol: 'soki',
-          type: deviceConfig.scale.type === 'serial' ? 'serial' : (deviceConfig.scale.type || 'serial')
-        });
-        scaleConnected = scaleResult;
-        console.log('[收银台] 秤连接结果:', scaleResult);
+      if (!hasScaleConfig && !hasPrinterConfig && !hasLabelConfig) {
+        console.warn('[收银台] 未配置任何设备');
       }
       
-      if (!hasScaleConfig && !hasPrinterConfig && !hasLabelConfig && !scaleConnected) {
-        console.warn('[收银台] 未配置任何设备，请先在设置中配置设备IP地址');
-      }
-      
-      // 使用新的硬件服务初始化设备
+      // 使用硬件服务初始化设备
       const status = await deviceManager.init({
         scale: hasScaleConfig ? {
           host: deviceConfig.scale.address,
@@ -272,45 +251,36 @@ export default function CashierPage() {
         } : undefined,
       });
       
-      // 确保秤状态正确
-      if (scaleConnected && !status.scaleConnected) {
-        status.scaleConnected = true;
-      }
-      
       setDeviceStatuses(status);
       console.log('[收银台] 设备连接完成:', status);
     } catch (error: any) {
       console.error('[收银台] 设备连接失败:', error);
-      // 不抛出异常，允许应用继续运行在模拟模式
     } finally {
+      isConnectingRef.current = false;
       setIsConnectingDevices(false);
     }
-  }, [deviceConfig, isConnectingDevices]);
+  }, [deviceConfig]);
 
   // 页面加载时自动连接设备
   useEffect(() => {
+    // 显示欢迎界面到客显屏
+    deviceManager.customerDisplay.showWelcome();
+    
     if (deviceConfig.autoConnect) {
       connectDevices();
-      
-      // 显示欢迎界面到客显屏
-      deviceManager.customerDisplay.showWelcome();
     }
     
     // 定时刷新设备状态
     const statusInterval = setInterval(async () => {
       try {
         const status = await deviceManager.getStatus();
-        // 确保秤状态正确（如果 deviceManager.scale.isConnected 为 true）
-        if (deviceManager.scale.isConnected && !status.scaleConnected) {
-          status.scaleConnected = true;
-        }
         setDeviceStatuses(status);
       } catch (e) {
         console.warn('[收银台] 获取设备状态失败:', e);
       }
-    }, 2000); // 缩短到2秒，更快感知连接状态
+    }, 5000);
     
-    // 使用稳定的引用来监听秤数据
+    // 监听秤数据事件
     const handleWeight = (data: any) => {
       console.log('[收银台] 收到秤数据:', data);
       setScaleWeight({ weight: data.weight, unit: data.unit, stable: data.stable });
@@ -322,16 +292,20 @@ export default function CashierPage() {
       clearInterval(statusInterval);
       deviceEvents.off('weightChanged', handleWeight);
     };
-  }, [connectDevices, deviceConfig.autoConnect]);
+  }, []); // 空依赖，只执行一次
   
-  // 单独监听扫码事件（扫码枪的独立事件）
+  // 单独监听扫码事件
   useEffect(() => {
-    const handleScan = (data: any) => handleBarcodeScan(data.barcode);
+    const handleScan = (data: any) => {
+      if (data?.barcode) {
+        handleBarcodeScan(data.barcode);
+      }
+    };
     deviceEvents.on('scan', handleScan);
     return () => {
       deviceEvents.off('scan', handleScan);
     };
-  }, [handleBarcodeScan]);
+  }, []); // 空依赖，只执行一次
 
   useEffect(() => { barcodeInputRef.current?.focus(); }, []);
 
@@ -624,15 +598,15 @@ export default function CashierPage() {
                       <div className="text-right">
                         <p className="text-xs sm:text-sm opacity-80">当前重量</p>
                         {/* 优先显示 scaleWeight，其次显示 deviceManager.scale.currentWeight */}
-                        {(scaleWeight || deviceManager.scale.currentWeight || deviceStatuses.scaleConnected) ? (
+                        {(scaleWeight || deviceManager.scale?.currentWeight || deviceStatuses.scaleConnected) ? (
                           <>
                             <p className={`text-2xl sm:text-4xl font-bold ${deviceStatuses.scaleConnected ? 'text-yellow-200' : 'text-orange-200'}`}>
-                              {(scaleWeight ? scaleWeight.weight : deviceManager.scale.currentWeight?.weight || 0).toFixed(3)}
+                              {(scaleWeight ? scaleWeight.weight : (deviceManager.scale?.currentWeight?.weight || 0)).toFixed(3)}
                             </p>
                             <p className="text-xs sm:text-sm opacity-80">
                               {scaleWeight 
                                 ? (scaleWeight.stable ? 'kg ✓' : 'kg (不稳定)') 
-                                : (deviceManager.scale.currentWeight?.stable ? 'kg ✓' : 'kg')}
+                                : (deviceManager.scale?.currentWeight?.stable ? 'kg ✓' : 'kg')}
                               {(deviceStatuses.scaleConnected ? '' : ' (监听中)')}
                             </p>
                           </>
@@ -724,7 +698,7 @@ export default function CashierPage() {
                     <button key={product.id} onClick={() => {
                       if (!product.isStandard) {
                         // 非标品（称重商品）使用秤数据或默认1kg
-                        const currentWeight = scaleWeight?.weight || deviceManager.scale.currentWeight?.weight || 1;
+                        const currentWeight = scaleWeight?.weight || deviceManager.scale?.currentWeight?.weight || 1;
                         addItem(product, currentWeight);
                         // 添加后直接使用 totals.total（已自动更新）
                         deviceManager.customerDisplay.showAmount(totals.total + product.retailPrice * currentWeight, product.name);
