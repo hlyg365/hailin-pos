@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useDeviceConfigStore, useStoreStore, useAiConfigStore } from '../store';
-import { deviceManager, type ScaleConfig, type PrinterConfig } from '../services/posDevices';
+import { deviceManager, deviceEvents } from '../services/hardwareService';
 
 export default function SettingsPage() {
   const currentStore = useStoreStore(state => state.currentStore);
@@ -59,15 +59,14 @@ export default function SettingsPage() {
   
   // 刷新设备状态
   useEffect(() => {
-    const updateStatus = () => {
-      const status = deviceManager.getAllStatus();
+    const updateStatus = async () => {
+      const status = await deviceManager.getStatus();
       setDeviceStatuses(status);
       
       // 更新秤读数
-      const scaleStatus = status.networkScale || status.serialScale;
-      if (scaleStatus?.connected) {
+      if (status.scaleConnected) {
         const currentWeight = deviceManager.scale?.currentWeight;
-        if (currentWeight) {
+        if (currentWeight?.weight) {
           setScaleReading({
             weight: currentWeight.weight,
             unit: currentWeight.unit,
@@ -89,13 +88,19 @@ export default function SettingsPage() {
   
   // 秤数据监听
   useEffect(() => {
-    deviceManager.onScaleReading((reading) => {
+    const handleWeight = (reading: any) => {
       setScaleReading({
         weight: reading.weight,
         unit: reading.unit,
         stable: reading.stable,
       });
-    });
+    };
+    
+    deviceEvents.on('weightChanged', handleWeight);
+    
+    return () => {
+      deviceEvents.off('weightChanged', handleWeight);
+    };
   }, []);
   
   // 连接电子秤
@@ -114,16 +119,14 @@ export default function SettingsPage() {
           return;
         }
         
-        addLog('info', `连接 ${deviceConfig.scale.address}:${deviceConfig.scale.port || 8080}`);
+        addLog('info', `连接 ${deviceConfig.scale.address}:${deviceConfig.scale.tcpPort || 8080}`);
         
-        const config: ScaleConfig = {
-          type: 'network',
-          address: deviceConfig.scale.address,
-          port: deviceConfig.scale.port || 8080,
-          protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
-        };
-        
-        success = await deviceManager.connectScale(config);
+        success = await deviceManager.scale.connect({
+          port: deviceConfig.scale.address,
+          baudRate: deviceConfig.scale.tcpPort || 8080,
+          protocol: 'soki',
+          type: 'network'
+        });
         
         if (success) {
           deviceConfig.updateConfig('scale', { enabled: true });
@@ -133,30 +136,32 @@ export default function SettingsPage() {
         }
       } else {
         // 串口秤
-        const port = deviceConfig.scale.address || '/dev/ttyS0';
-        addLog('info', `使用串口连接: ${port} @ ${deviceConfig.scale.baudRate || 2400} bps`);
+        const port = deviceConfig.scale.address || '/dev/ttyS4';
+        const baudRate = deviceConfig.scale.baudRate || 9600;
+        addLog('info', `使用串口连接: ${port} @ ${baudRate} bps, 协议: soki`);
         
-        const config: ScaleConfig = {
-          type: 'serial',
-          port: port,  // 关键：必须传入端口地址
-          baudRate: deviceConfig.scale.baudRate || 2400,
-          protocol: deviceConfig.scale.protocol as ScaleConfig['protocol'] || 'soki',
-        };
-        
-        success = await deviceManager.serialScale.requestAndConnect(config);
+        success = await deviceManager.scale.connect({
+          port: port,
+          baudRate: baudRate,
+          protocol: 'soki',
+          type: 'serial'
+        });
         
         if (success) {
           deviceConfig.updateConfig('scale', { enabled: true });
           addLog('success', '串口秤连接成功！');
+          
+          // 开始持续读取重量
+          deviceManager.scale.startContinuous(500);
         } else {
-          const errorMsg = deviceManager.serialScale.status.error || '未知错误';
-          addLog('error', `串口秤连接失败: ${errorMsg}`);
+          addLog('error', `串口秤连接失败`);
         }
       }
       
       // 更新状态
-      setTimeout(() => {
-        setDeviceStatuses(deviceManager.getAllStatus());
+      setTimeout(async () => {
+        const status = await deviceManager.getStatus();
+        setDeviceStatuses(status);
       }, 500);
       
     } catch (error: any) {
@@ -169,9 +174,10 @@ export default function SettingsPage() {
   // 断开电子秤
   const disconnectScale = async () => {
     addLog('info', '正在断开电子秤...');
-    await deviceManager.disconnectScale();
+    await deviceManager.scale.disconnect();
     deviceConfig.updateConfig('scale', { enabled: false });
-    setDeviceStatuses(deviceManager.getAllStatus());
+    const status = await deviceManager.getStatus();
+    setDeviceStatuses(status);
     addLog('warn', '电子秤已断开');
   };
   
@@ -186,14 +192,10 @@ export default function SettingsPage() {
     addLog('info', `连接打印机 ${deviceConfig.receiptPrinter.address}:${deviceConfig.receiptPrinter.port || 9100}`);
     
     try {
-      const config: PrinterConfig = {
-        type: 'network',
-        address: deviceConfig.receiptPrinter.address,
-        port: deviceConfig.receiptPrinter.port || 9100,
-        width: deviceConfig.receiptPrinter.width || 58,
-      };
-      
-      const success = await deviceManager.connectPrinter(config);
+      const success = await deviceManager.receiptPrinter.connect(
+        deviceConfig.receiptPrinter.address,
+        deviceConfig.receiptPrinter.port || 9100
+      );
       
       if (success) {
         deviceConfig.updateConfig('receiptPrinter', { enabled: true });
@@ -202,7 +204,8 @@ export default function SettingsPage() {
         addLog('error', '打印机连接失败');
       }
       
-      setDeviceStatuses(deviceManager.getAllStatus());
+      const status = await deviceManager.getStatus();
+      setDeviceStatuses(status);
     } catch (error: any) {
       addLog('error', `打印机连接异常: ${error.message}`);
     } finally {
@@ -213,9 +216,10 @@ export default function SettingsPage() {
   // 断开打印机
   const disconnectPrinter = async () => {
     addLog('info', '正在断开打印机...');
-    await deviceManager.disconnectPrinter();
+    await deviceManager.receiptPrinter.disconnect();
     deviceConfig.updateConfig('receiptPrinter', { enabled: false });
-    setDeviceStatuses(deviceManager.getAllStatus());
+    const status = await deviceManager.getStatus();
+    setDeviceStatuses(status);
     addLog('warn', '打印机已断开');
   };
   
@@ -225,15 +229,18 @@ export default function SettingsPage() {
     addLog('info', '正在测试打印...');
     
     try {
-      const success = await deviceManager.printTest();
+      await deviceManager.receiptPrinter.printText('==========\n');
+      await deviceManager.receiptPrinter.printText('  海邻到家\n');
+      await deviceManager.receiptPrinter.printText('==========\n');
+      await deviceManager.receiptPrinter.printText('\n');
+      await deviceManager.receiptPrinter.printText('这是一张测试小票\n');
+      await deviceManager.receiptPrinter.printText('------------------\n');
+      await deviceManager.receiptPrinter.printText('打印时间: ' + new Date().toLocaleString() + '\n');
+      await deviceManager.receiptPrinter.printText('\n');
+      await deviceManager.receiptPrinter.cut();
       
-      if (success) {
-        addLog('success', '打印测试成功！');
-        setPrintResult('success');
-      } else {
-        addLog('error', '打印测试失败');
-        setPrintResult('error');
-      }
+      addLog('success', '打印测试成功！');
+      setPrintResult('success');
     } catch (error: any) {
       addLog('error', `打印异常: ${error.message}`);
       setPrintResult('error');
