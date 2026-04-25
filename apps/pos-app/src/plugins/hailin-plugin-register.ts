@@ -162,7 +162,13 @@ function registerHailinHardwarePlugin(): void {
       return cap.nativeCallback('HailinHardware', 'disableBarcodeScanner', {});
     },
     async addListener(eventName, callback) {
-      return (window as any).Capacitor.addListener('HailinHardware', eventName, callback);
+      // 正确方式：通过 Capacitor.Plugins.HailinHardware.addListener
+      const plugin = (window as any).Capacitor?.Plugins?.HailinHardware;
+      if (plugin && typeof plugin.addListener === 'function') {
+        return await plugin.addListener(eventName, callback);
+      }
+      // Fallback: Capacitor 全局方法
+      return (window as any).Capacitor?.addListener('HailinHardware', eventName, callback);
     },
     async removeAllListeners() {
       return (window as any).Capacitor.nativeCallback('HailinHardware', 'removeAllListeners', {});

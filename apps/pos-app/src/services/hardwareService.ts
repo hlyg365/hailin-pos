@@ -266,6 +266,42 @@ export function getHardwarePlugin(): HailinHardwarePlugin | null {
 // 初始化插件
 hardwarePlugin = getHardwarePlugin();
 
+// ==================== WebView 直接桥接（接收原生 sendToWebView 发送的事件） ====================
+// Android 原生层 HailinHardwarePlugin.sendToWebView() 会调用 window.HailinHardwareBridge
+if (typeof window !== 'undefined') {
+  // 定义全局桥接函数
+  (window as any).HailinHardwareBridge = function(eventName: string, data: any) {
+    console.log('[硬件服务-WebView桥接] 收到事件:', eventName, data);
+    // 将事件分发到事件总线
+    if (eventName === 'scaleData') {
+      emit('scaleData', data);
+      emit('weightChanged', data);
+    } else if (eventName === 'barcodeScanned') {
+      emit('barcodeScanned', data);
+      emit('scan', data);
+    }
+  };
+  
+  // 同时初始化 __hardwareEventBus（备用方案）
+  (window as any).__hardwareEventBus = {
+    listeners: {} as Record<string, Set<Function>>,
+    on: function(event: string, callback: Function) {
+      if (!this.listeners[event]) {
+        this.listeners[event] = new Set();
+      }
+      this.listeners[event].add(callback);
+    },
+    off: function(event: string, callback: Function) {
+      this.listeners[event]?.delete(callback);
+    },
+    emit: function(event: string, data: any) {
+      this.listeners[event]?.forEach(cb => cb(data));
+    }
+  };
+  
+  console.log('[硬件服务] WebView桥接已初始化');
+}
+
 // 如果插件未立即可用，设置定时器重试
 let retryInterval: ReturnType<typeof setInterval> | null = null;
 function startPluginRetry() {

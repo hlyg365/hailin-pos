@@ -229,14 +229,31 @@ export default function CashierPage() {
     }));
     
     try {
-      // 检查是否有可用的设备配置（有IP地址就尝试连接）
+      // 检查秤连接状态（如果已经连接，跳过）
+      const scaleAlreadyConnected = deviceManager.scale.isConnected;
+      
+      // 检查是否有可用的设备配置
       const hasScaleConfig = deviceConfig.scale.address && deviceConfig.scale.type === 'network';
       const hasPrinterConfig = deviceConfig.receiptPrinter.address;
       const hasLabelConfig = deviceConfig.labelPrinter?.address;
       
-      if (!hasScaleConfig && !hasPrinterConfig && !hasLabelConfig) {
+      // 如果秤未连接，尝试使用串口配置连接
+      let scaleConnected = scaleAlreadyConnected;
+      if (!scaleConnected && deviceConfig.scale.enabled) {
+        // 尝试连接秤（使用串口或网络）
+        console.log('[收银台] 尝试连接秤...');
+        const scaleResult = await deviceManager.scale.connect({
+          port: deviceConfig.scale.address || '/dev/ttyS4',
+          baudRate: deviceConfig.scale.tcpPort || deviceConfig.scale.port || 9600,
+          protocol: 'soki',
+          type: deviceConfig.scale.type === 'serial' ? 'serial' : (deviceConfig.scale.type || 'serial')
+        });
+        scaleConnected = scaleResult;
+        console.log('[收银台] 秤连接结果:', scaleResult);
+      }
+      
+      if (!hasScaleConfig && !hasPrinterConfig && !hasLabelConfig && !scaleConnected) {
         console.warn('[收银台] 未配置任何设备，请先在设置中配置设备IP地址');
-        // 仍然尝试初始化（使用模拟模式）
       }
       
       // 使用新的硬件服务初始化设备
@@ -254,6 +271,11 @@ export default function CashierPage() {
           port: deviceConfig.labelPrinter.port || 9100,
         } : undefined,
       });
+      
+      // 确保秤状态正确
+      if (scaleConnected && !status.scaleConnected) {
+        status.scaleConnected = true;
+      }
       
       setDeviceStatuses(status);
       console.log('[收银台] 设备连接完成:', status);
@@ -278,29 +300,38 @@ export default function CashierPage() {
     const statusInterval = setInterval(async () => {
       try {
         const status = await deviceManager.getStatus();
+        // 确保秤状态正确（如果 deviceManager.scale.isConnected 为 true）
+        if (deviceManager.scale.isConnected && !status.scaleConnected) {
+          status.scaleConnected = true;
+        }
         setDeviceStatuses(status);
       } catch (e) {
         console.warn('[收银台] 获取设备状态失败:', e);
       }
-    }, 5000);
+    }, 2000); // 缩短到2秒，更快感知连接状态
     
-    // 监听扫码事件（使用引用用于清理）
-    const handleScan = (data: any) => handleBarcodeScan(data.barcode);
+    // 使用稳定的引用来监听秤数据
     const handleWeight = (data: any) => {
+      console.log('[收银台] 收到秤数据:', data);
       setScaleWeight({ weight: data.weight, unit: data.unit, stable: data.stable });
     };
     
-    deviceEvents.on('scan', handleScan);
-    
-    // 监听秤数据事件，触发UI更新
     deviceEvents.on('weightChanged', handleWeight);
     
     return () => {
       clearInterval(statusInterval);
-      deviceEvents.off('scan', handleScan);
       deviceEvents.off('weightChanged', handleWeight);
     };
   }, [connectDevices, deviceConfig.autoConnect]);
+  
+  // 单独监听扫码事件（扫码枪的独立事件）
+  useEffect(() => {
+    const handleScan = (data: any) => handleBarcodeScan(data.barcode);
+    deviceEvents.on('scan', handleScan);
+    return () => {
+      deviceEvents.off('scan', handleScan);
+    };
+  }, [handleBarcodeScan]);
 
   useEffect(() => { barcodeInputRef.current?.focus(); }, []);
 
@@ -592,16 +623,25 @@ export default function CashierPage() {
                     <div className="flex items-center gap-3 sm:gap-6">
                       <div className="text-right">
                         <p className="text-xs sm:text-sm opacity-80">当前重量</p>
-                        <p className={`text-2xl sm:text-4xl font-bold ${deviceStatuses.scaleConnected ? 'text-yellow-200' : 'text-red-200'}`}>
-                          {deviceStatuses.scaleConnected 
-                            ? (scaleWeight ? scaleWeight.weight.toFixed(3) : (deviceManager.scale.currentWeight?.weight?.toFixed(3) || '0.000'))
-                            : '---'}
-                        </p>
-                        <p className="text-xs sm:text-sm opacity-80">
-                          {deviceStatuses.scaleConnected 
-                            ? (scaleWeight ? (scaleWeight.stable ? 'kg ✓' : 'kg (不稳定)') : (deviceManager.scale.currentWeight?.stable ? 'kg ✓' : 'kg (不稳定)'))
-                            : '未连接'}
-                        </p>
+                        {/* 优先显示 scaleWeight，其次显示 deviceManager.scale.currentWeight */}
+                        {(scaleWeight || deviceManager.scale.currentWeight || deviceStatuses.scaleConnected) ? (
+                          <>
+                            <p className={`text-2xl sm:text-4xl font-bold ${deviceStatuses.scaleConnected ? 'text-yellow-200' : 'text-orange-200'}`}>
+                              {(scaleWeight ? scaleWeight.weight : deviceManager.scale.currentWeight?.weight || 0).toFixed(3)}
+                            </p>
+                            <p className="text-xs sm:text-sm opacity-80">
+                              {scaleWeight 
+                                ? (scaleWeight.stable ? 'kg ✓' : 'kg (不稳定)') 
+                                : (deviceManager.scale.currentWeight?.stable ? 'kg ✓' : 'kg')}
+                              {(deviceStatuses.scaleConnected ? '' : ' (监听中)')}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-2xl sm:text-4xl font-bold text-red-200">---</p>
+                            <p className="text-xs sm:text-sm opacity-80">未连接</p>
+                          </>
+                        )}
                       </div>
                       <div className="text-right border-l border-white/30 pl-3 sm:pl-6 hidden sm:block">
                         <p className="text-sm opacity-80">商品金额</p>
