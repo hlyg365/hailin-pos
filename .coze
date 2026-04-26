@@ -7,4 +7,4 @@ run = ["npm", "run", "dev"]
 
 [deploy]
 build = ["cd", "apps/pos-app", "&&", "npm", "install", "&&", "npm", "run", "build"]
-run = ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5000"]
+run = ["npx", "vite", "preview", "--root", "apps/pos-app", "--host", "0.0.0.0", "--port", "5000"]
