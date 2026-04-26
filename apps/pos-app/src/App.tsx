@@ -30,9 +30,9 @@ function CashierAuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// 默认路由 - 强制进入收银台登录页
+// 默认路由 - 强制进入总部管理后台
 function DefaultRoute() {
-  return <Navigate to="/pos/login" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 function App() {
