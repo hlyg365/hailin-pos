@@ -7,4 +7,4 @@ run = ["npm", "run", "dev"]
 
 [deploy]
 build = ["cd", "apps/pos-app", "&&", "npm", "install", "&&", "npm", "run", "build"]
-run = ["bash", "-c", "cd apps/pos-app && npm run preview"]
+run = ["npm", "run", "preview"]
