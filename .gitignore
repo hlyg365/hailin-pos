@@ -98,3 +98,6 @@ Desktop.ini
 
 .coze-logs
 .cozeproj/reduction
+
+# Preview files
+.preview
