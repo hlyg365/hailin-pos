@@ -6,5 +6,5 @@ build = ["npm", "install"]
 run = ["npm", "run", "dev"]
 
 [deploy]
-build = ["sh", "-c", "cd apps/pos-app && for f in android/app/src/main/assets/native-plugins/*/package.json; do grep -q '\"version\"' \"$f\" || sed -i '1s/{/{\"name\":\"plugin\",\"version\":\"1.0.0\",/' \"$f\"; done && npm install && npm run build"]
+build = ["sh", "-c", "cd apps/pos-app && find . -name 'package.json' -path '*native-plugins*' -exec sh -c 'grep -q \"version\" \"$1\" || sed -i \"1s/{/\\\\\"name\\\\\":\\\\\"plugin\\\\\",\\\\\"version\\\\\":\\\\\"1.0.0\\\\\",/\" \"$1\"' _ {} \\; && npm install && npm run build"]
 run = ["sh", "-c", "cd apps/pos-app && npm run preview -- --host 0.0.0.0 --port ${DEPLOY_RUN_PORT}"]
