@@ -1,4 +1,6 @@
 {
+  "name": "hailin-hardware-plugin",
+  "version": "1.0.0",
   "ext_kotlin_version": "1.8.20",
   "ext_cc": "",
   "ext_ndk_min_version": "",
