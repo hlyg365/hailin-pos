@@ -6,5 +6,5 @@ build = ["npm", "install"]
 run = ["npm", "run", "dev"]
 
 [deploy]
-build = ["sh", "-c", "cd apps/pos-app && mkdir -p android/app/src/main/assets/native-plugins/HailinHardware && echo '{\"name\":\"HailinHardware\",\"version\":\"1.0.0\",\"plugin\":{\"id\":\"HailinHardware\"}}' > android/app/src/main/assets/native-plugins/HailinHardware/package.json && npm install && npm run build"]
+build = ["sh", "-c", "cd apps/pos-app && rm -rf android/app/src/main/assets/native-plugins && npm install && npm run build"]
 run = ["sh", "-c", "cd apps/pos-app && npm run preview -- --host 0.0.0.0 --port ${DEPLOY_RUN_PORT}"]
